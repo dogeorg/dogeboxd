@@ -18,7 +18,6 @@ func RESTAPI(config ServerConfig, state State) conductor.Service {
 	}
 
 	for p, h := range routes {
-		fmt.Println("regs rt", p)
 		a.mux.HandleFunc(p, h)
 	}
 
