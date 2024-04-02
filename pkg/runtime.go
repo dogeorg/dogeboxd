@@ -78,11 +78,11 @@ func (t State) LoadPupStatus(ID string) {
 }
 
 type ManifestSource struct {
-	ID        string
-	Label     string
-	URL       string
-	Avaialble []PupManifest
-	Installed []PupManifest
+	ID        string        `json:"id"`
+	Label     string        `json:"label"`
+	URL       string        `json:"url"`
+	Available []PupManifest `json:"available"`
+	Installed []PupManifest `json:"installed"`
 }
 
 func (t State) LoadLocalManifests(path string) {
