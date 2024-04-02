@@ -60,7 +60,7 @@ func NewState() State {
 		ID:        "local",
 		Label:     "Local Filesystem",
 		URL:       "",
-		Avaialble: []PupManifest{},
+		Available: []PupManifest{},
 		Installed: []PupManifest{},
 	}
 	s.Manifests["local"] = &local
@@ -87,5 +87,5 @@ type ManifestSource struct {
 
 func (t State) LoadLocalManifests(path string) {
 	manifests := FindLocalPups(path)
-	t.Manifests["local"].Avaialble = manifests
+	t.Manifests["local"].Available = manifests
 }
