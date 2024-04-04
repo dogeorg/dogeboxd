@@ -42,3 +42,17 @@ type ConfigFields struct {
 		Fields []map[string]interface{} `json:"fields"`
 	} `json:"sections"`
 }
+
+// A ManifestSource is a .. well, it's a source of manifests, derp.
+type ManifestSource struct {
+	ID        string        `json:"id"`
+	Label     string        `json:"label"`
+	URL       string        `json:"url"`
+	Available []PupManifest `json:"available"`
+	Installed []PupManifest `json:"installed"`
+}
+
+func (t State) LoadLocalManifests(path string) {
+	manifests := FindLocalPups(path)
+	t.Manifests["local"].Available = manifests
+}

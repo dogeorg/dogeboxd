@@ -10,7 +10,7 @@ type ServerConfig struct {
 }
 
 func Server(config ServerConfig) server {
-	s := NewState()
+	s := LoadState()
 	s.LoadLocalManifests(config.PupDir)
 	return server{&s, config}
 }

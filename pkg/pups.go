@@ -53,39 +53,3 @@ func (t PupStatus) Write(dirPath string) error {
 	encoder.Encode(t)
 	return nil
 }
-
-func NewState() State {
-	s := State{Manifests: map[string]*ManifestSource{}}
-	local := ManifestSource{
-		ID:        "local",
-		Label:     "Local Filesystem",
-		URL:       "",
-		Available: []PupManifest{},
-		Installed: []PupManifest{},
-	}
-	s.Manifests["local"] = &local
-	return s
-}
-
-type State struct {
-	Manifests map[string]*ManifestSource
-	Pups      map[string]*PupStatus
-}
-
-// create or load PupStatus for a given PUP id
-func (t State) LoadPupStatus(ID string) {
-	// p := PupStatus{}
-}
-
-type ManifestSource struct {
-	ID        string        `json:"id"`
-	Label     string        `json:"label"`
-	URL       string        `json:"url"`
-	Available []PupManifest `json:"available"`
-	Installed []PupManifest `json:"installed"`
-}
-
-func (t State) LoadLocalManifests(path string) {
-	manifests := FindLocalPups(path)
-	t.Manifests["local"].Available = manifests
-}

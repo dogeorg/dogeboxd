@@ -5,37 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"text/template"
 )
-
-const pupTpl string = `
-Package: {{.Package}} 
-Hash: {{.Hash}}
-Fields:
-
-{{ range .Command.Config.Sections }}
-	+ Section {{.Label}}
-	{{ range .Fields }}
-		- {{.name}}
-	{{ end }}
-{{ end }}
-
-`
-
-func PrintPups(pups []PupManifest) {
-	tmpl, err := template.New("puptpl").Parse(pupTpl)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	for _, pup := range pups {
-		err = tmpl.Execute(os.Stdout, pup)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-}
 
 func FlattenPups(pups []PupManifest) []byte {
 	data, err := json.Marshal(pups)
