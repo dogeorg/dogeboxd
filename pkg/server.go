@@ -9,15 +9,14 @@ type ServerConfig struct {
 	Verbose bool
 }
 
-func Server(config ServerConfig) server {
-	s := LoadState()
-	s.LoadLocalManifests(config.PupDir)
-	return server{&s, config}
+type server struct {
+	state  State
+	config ServerConfig
 }
 
-type server struct {
-	state  *State
-	config ServerConfig
+func Server(config ServerConfig) server {
+	s := LoadState(config.PupDir)
+	return server{s, config}
 }
 
 func (t server) Start() {
@@ -34,6 +33,7 @@ func (t server) Start() {
 		)
 	}
 
-	c.Service("REST API", RESTAPI(t.config, *t.state))
+	c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))
+	c.Service("REST API", RESTAPI(t.config, t.state))
 	<-c.Start()
 }

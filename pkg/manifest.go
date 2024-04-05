@@ -45,14 +45,25 @@ type ConfigFields struct {
 
 // A ManifestSource is a .. well, it's a source of manifests, derp.
 type ManifestSource struct {
-	ID        string        `json:"id"`
-	Label     string        `json:"label"`
-	URL       string        `json:"url"`
-	Available []PupManifest `json:"available"`
-	Installed []PupManifest `json:"installed"`
+	ID        string         `json:"id"`
+	Label     string         `json:"label"`
+	URL       string         `json:"url"`
+	Available *[]PupManifest `json:"available"`
+	Installed *[]PupManifest `json:"installed"`
 }
 
-func (t State) LoadLocalManifests(path string) {
-	manifests := FindLocalPups(path)
-	t.Manifests["local"].Available = manifests
+// Append or replace available pups
+func (t ManifestSource) UpdateAvailable(l []PupManifest) {
+	exists := map[string]int
+	for i, p := range *t.Available {
+		exists[p.ID] = i
+	}
+
+	for _, p := range l {
+		i, ok := exists[p.ID]
+		if ok {
+			*t.Available = append(*t.Avalable[:i], *t.Avalable[i+1]...)
+		}
+		*t.Available = append(*t.Available, p)
+	}
 }
