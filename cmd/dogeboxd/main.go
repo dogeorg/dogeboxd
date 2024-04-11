@@ -35,9 +35,4 @@ func main() {
 
 	srv := dogeboxd.Server(config)
 	srv.Start()
-	// dogeboxd.EnsureSkel("/tmp/pup")
-	// dogeboxd.RunInNamespace()
-	// state.Pups = dogeboxd.FindLocalPups("./pups")
-	// dogeboxd.PrintPups(pups)
-	// fmt.Printf("%s", dogeboxd.FlattenPups(pups))
 }

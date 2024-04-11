@@ -1,10 +1,13 @@
 package dogeboxd
 
+import "time"
+
 /* PupManifest represents a Nix installed process
  * running inside the Dogebox Runtime Environment.
  * These are defined in pup.json files.
  */
 type PupManifest struct {
+	ID      string
 	Package string          `json:"package"` // ie:  dogebox.dogecoin-core
 	Hash    string          `json:"hash"`    // package checksum
 	Command CommandManifest `json:"command"`
@@ -45,16 +48,16 @@ type ConfigFields struct {
 
 // A ManifestSource is a .. well, it's a source of manifests, derp.
 type ManifestSource struct {
-	ID        string         `json:"id"`
-	Label     string         `json:"label"`
-	URL       string         `json:"url"`
-	Available *[]PupManifest `json:"available"`
-	Installed *[]PupManifest `json:"installed"`
+	ID          string         `json:"id"`
+	Label       string         `json:"label"`
+	URL         string         `json:"url"`
+	LastUpdated time.Time      `json:"lastUpdated"`
+	Available   *[]PupManifest `json:"available"`
 }
 
 // Append or replace available pups
 func (t ManifestSource) UpdateAvailable(l []PupManifest) {
-	exists := map[string]int
+	exists := map[string]int{}
 	for i, p := range *t.Available {
 		exists[p.ID] = i
 	}
@@ -62,7 +65,7 @@ func (t ManifestSource) UpdateAvailable(l []PupManifest) {
 	for _, p := range l {
 		i, ok := exists[p.ID]
 		if ok {
-			*t.Available = append(*t.Avalable[:i], *t.Avalable[i+1]...)
+			*t.Available = append((*t.Available)[:i], (*t.Available)[i+1:]...)
 		}
 		*t.Available = append(*t.Available, p)
 	}

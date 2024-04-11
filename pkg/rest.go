@@ -11,11 +11,11 @@ import (
 	"github.com/rs/cors"
 )
 
-func RESTAPI(config ServerConfig, state State) conductor.Service {
-	a := api{mux: http.NewServeMux(), config: config, state: state}
+func RESTAPI(config ServerConfig, dbx Dogeboxd) conductor.Service {
+	a := api{mux: http.NewServeMux(), config: config, dbx: dbx}
 
 	routes := map[string]http.HandlerFunc{
-		"GET /manifest/": a.getManifest,
+		"GET /bootstrap/": a.getBootstrap,
 	}
 
 	for p, h := range routes {
@@ -26,13 +26,17 @@ func RESTAPI(config ServerConfig, state State) conductor.Service {
 }
 
 type api struct {
-	state  State
+	dbx    Dogeboxd
 	mux    *http.ServeMux
 	config ServerConfig
 }
 
-func (t api) getManifest(w http.ResponseWriter, r *http.Request) {
-	sendResponse(w, t.state.Manifests)
+func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
+	bootstrap := map[string]any{
+		"manifests": t.dbx.GetManifests(),
+		"stats":     t.dbx.GetPupStats(),
+	}
+	sendResponse(w, bootstrap)
 }
 
 func (t api) Run(started, stopped chan bool, stop chan context.Context) error {

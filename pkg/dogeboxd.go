@@ -3,113 +3,99 @@ package dogeboxd
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
-
-	"github.com/fsnotify/fsnotify"
+	"time"
 )
 
-// State for the running dogeboxd comes from a number
-// of places, Manifests fetched from the internet, local on-disk
-// 'dev' pups, pup status is loaded from pup.gob files and overall
-// state from dogeboxd's own internal.gob file.
-type State struct {
+type Dogeboxd struct {
 	Manifests map[string]ManifestSource
 	Pups      map[string]PupStatus
-	Internal  *InternalState
+	// Internal  *InternalState
+	jobs chan job
+	// Changes   chan<- Change
 }
 
-func LoadState(pupDir string) State {
-	s := State{Manifests: map[string]ManifestSource{}}
+func NewDogeboxd(pupDir string) Dogeboxd {
+	s := Dogeboxd{
+		Manifests: map[string]ManifestSource{},
+		Pups:      map[string]PupStatus{},
+		jobs:      make(chan job),
+	}
 	av := []PupManifest{}
-	ins := []PupManifest{}
 	s.Manifests["local"] = ManifestSource{
-		ID:        "local",
-		Label:     "Local Filesystem",
-		URL:       "",
-		Available: &av,
-		Installed: &ins,
+		ID:          "local",
+		Label:       "Local Filesystem",
+		URL:         "",
+		LastUpdated: time.Now(),
+		Available:   &av,
 	}
 	s.loadLocalManifests(pupDir)
 	return s
 }
 
-func (t State) loadLocalManifests(path string) {
+func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) error {
+	go func() {
+		go func() {
+		mainloop:
+			for {
+			dance:
+				select {
+				case <-stop:
+					break mainloop
+				case v, ok := <-t.jobs:
+					if !ok {
+						break dance // ヾ(。⌒∇⌒)ノ
+					}
+					switch v := v.a.(type) {
+					case LoadLocalPup:
+						fmt.Println("Load local pup from ", v.Path)
+					default:
+						fmt.Printf("Unknown action type: %v\n", v)
+					}
+				}
+			}
+		}()
+
+		started <- true
+		<-stop
+		// do shutdown things
+		stopped <- true
+	}()
+	return nil
+}
+
+// Add an Action to the Action queue, returns a unique ID
+// which can be used to match the outcome in the Event queue
+func (t Dogeboxd) AddAction(a Action) string {
+	id := "asdf"
+	t.jobs <- job{a, id}
+	return id
+}
+
+func (t Dogeboxd) GetManifests() map[string]ManifestSource {
+	return t.Manifests
+}
+
+func (t Dogeboxd) GetPupStats() map[string]PupStatus {
+	return t.Pups
+}
+
+func (t Dogeboxd) loadLocalManifests(path string) {
 	t.Manifests["local"].UpdateAvailable(FindLocalPups(path))
 }
 
 // create or load PupStatus for a given PUP id
-func (t State) loadPupStatus(id string, config ServerConfig) {
+func (t Dogeboxd) loadPupStatus(id string, config ServerConfig) {
 	p := PupStatus{ID: id}
 	p.Read(config.PupDir)
 	t.Pups[id] = p
+}
+
+type job struct {
+	a  Action
+	id string
 }
 
 // InternalState is stored in dogeboxd.gob and contains
 // various details about what's installed, what condition
 // we're in overall etc.
 type InternalState struct{}
-
-// Watcher Service monitors important files and updates State as needed
-type Watcher struct {
-	paths   []string
-	state   State
-	watcher fsnotify.Watcher
-}
-
-func NewWatcher(state State, pupDir string) Watcher {
-	fsw, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
-	w := Watcher{
-		state:   state,
-		watcher: *fsw,
-	}
-	err = fsw.Add(pupDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return w
-}
-
-func (t Watcher) Run(started, stopped chan bool, stop chan context.Context) error {
-	go func() {
-		go func() {
-			for {
-				select {
-				case event, ok := <-t.watcher.Events:
-					if !ok {
-						return
-					}
-					log.Println("watcher event:", event)
-					if event.Has(fsnotify.Write) {
-						log.Println("watcher modified file:", event.Name)
-					}
-				case err, ok := <-t.watcher.Errors:
-					if !ok {
-						return
-					}
-					log.Println("watcher error:", err)
-				}
-			}
-		}()
-		started <- true
-		<-stop
-		t.watcher.Close()
-		stopped <- true
-	}()
-	return nil
-}
-
-func isPupDir(path string) bool {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		fmt.Println("watcher failed to stat", path)
-		return false
-	}
-	if fileInfo.IsDir() {
-	} else {
-		return false
-	}
-}

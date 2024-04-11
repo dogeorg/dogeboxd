@@ -10,13 +10,11 @@ type ServerConfig struct {
 }
 
 type server struct {
-	state  State
 	config ServerConfig
 }
 
 func Server(config ServerConfig) server {
-	s := LoadState(config.PupDir)
-	return server{s, config}
+	return server{config}
 }
 
 func (t server) Start() {
@@ -33,7 +31,9 @@ func (t server) Start() {
 		)
 	}
 
-	c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))
-	c.Service("REST API", RESTAPI(t.config, t.state))
+	dbx := NewDogeboxd(t.config.PupDir)
+	c.Service("Dogeboxd", dbx)
+	c.Service("REST API", RESTAPI(t.config, dbx))
+	// c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))
 	<-c.Start()
 }
