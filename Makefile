@@ -10,7 +10,7 @@ build/dogeboxd: clean
 
 
 dev:
-	go run ./cmd/dogeboxd 
+	go run ./cmd/dogeboxd -v 
 
 
 test:
