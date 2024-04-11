@@ -7,7 +7,7 @@ import "time"
  * These are defined in pup.json files.
  */
 type PupManifest struct {
-	ID      string
+	ID      string          `json:"id"`
 	Package string          `json:"package"` // ie:  dogebox.dogecoin-core
 	Hash    string          `json:"hash"`    // package checksum
 	Command CommandManifest `json:"command"`
