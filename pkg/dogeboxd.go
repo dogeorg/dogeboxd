@@ -2,9 +2,15 @@ package dogeboxd
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 )
+
+//go:embed pup.json
+var dbxManifestFile []byte
 
 type Dogeboxd struct {
 	Manifests map[string]ManifestSource
@@ -28,7 +34,26 @@ func NewDogeboxd(pupDir string) Dogeboxd {
 		LastUpdated: time.Now(),
 		Available:   &av,
 	}
+
+	// Create a synthetic ManifestSource for
+	// dogebox itself
+	var dbMan PupManifest
+
+	err := json.Unmarshal(dbxManifestFile, &dbMan)
+	if err != nil {
+		log.Fatalln("Couldn't load Dogeboxd's own manifest")
+	}
+
+	intAv := []PupManifest{dbMan}
+
 	s.loadLocalManifests(pupDir)
+	s.Manifests["internal"] = ManifestSource{
+		ID:          "internal",
+		Label:       "DONT SHOW ME",
+		URL:         "",
+		LastUpdated: time.Now(),
+		Available:   &intAv,
+	}
 	return s
 }
 
@@ -88,6 +113,11 @@ func (t Dogeboxd) loadPupStatus(id string, config ServerConfig) {
 	p := PupStatus{ID: id}
 	p.Read(config.PupDir)
 	t.Pups[id] = p
+}
+
+func savePupConfig(pupID string, config map[string]string) error {
+	// check the pupID is for a manifest we know about
+	return nil
 }
 
 type job struct {
