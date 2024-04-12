@@ -34,7 +34,7 @@ type api struct {
 func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
 	bootstrap := map[string]any{
 		"manifests": t.dbx.GetManifests(),
-		"stats":     t.dbx.GetPupStats(),
+		"states":    t.dbx.GetPupStats(),
 	}
 	sendResponse(w, bootstrap)
 }
