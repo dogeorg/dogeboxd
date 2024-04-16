@@ -1,16 +1,28 @@
 package dogeboxd
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 /* PupManifest represents a Nix installed process
  * running inside the Dogebox Runtime Environment.
  * These are defined in pup.json files.
  */
 type PupManifest struct {
-	ID      string          `json:"id"`
-	Package string          `json:"package"` // ie:  dogebox.dogecoin-core
-	Hash    string          `json:"hash"`    // package checksum
-	Command CommandManifest `json:"command"`
+	sourceID string
+	ID       string          `json:"id"`
+	Package  string          `json:"package"` // ie:  dogebox.dogecoin-core
+	Hash     string          `json:"hash"`    // package checksum
+	Command  CommandManifest `json:"command"`
+}
+
+func (t PupManifest) GetID() string {
+	source := t.sourceID
+	if source == "" {
+		source = "unknown"
+	}
+	return fmt.Sprintf("%s:%s", source, t.Package)
 }
 
 /* Represents the command to run inside this PUP

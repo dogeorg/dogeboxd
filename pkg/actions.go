@@ -13,3 +13,8 @@ type Action any
 type LoadLocalPup struct {
 	Path string
 }
+
+type UpdatePupConfig struct {
+	PupID   string
+	Payload map[string]string
+}

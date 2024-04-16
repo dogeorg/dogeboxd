@@ -15,16 +15,21 @@ var dbxManifestFile []byte
 type Dogeboxd struct {
 	Manifests map[string]ManifestSource
 	Pups      map[string]PupStatus
-	// Internal  *InternalState
-	jobs chan job
+	Internal  *InternalState
+	jobs      chan job
 	// Changes   chan<- Change
 }
 
 func NewDogeboxd(pupDir string) Dogeboxd {
+	intern := InternalState{
+		ActionCounter: 100000,
+	}
+	// TODO: Load state from GOB
 	s := Dogeboxd{
 		Manifests: map[string]ManifestSource{},
 		Pups:      map[string]PupStatus{},
 		jobs:      make(chan job),
+		Internal:  &intern,
 	}
 	av := []PupManifest{}
 	s.Manifests["local"] = ManifestSource{
@@ -73,6 +78,9 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					switch v := v.a.(type) {
 					case LoadLocalPup:
 						fmt.Println("Load local pup from ", v.Path)
+					case UpdatePupConfig:
+						fmt.Printf("Update pup config %v\n", v)
+						t.updatePupConfig(v)
 					default:
 						fmt.Printf("Unknown action type: %v\n", v)
 					}
@@ -91,7 +99,8 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 // Add an Action to the Action queue, returns a unique ID
 // which can be used to match the outcome in the Event queue
 func (t Dogeboxd) AddAction(a Action) string {
-	id := "asdf"
+	t.Internal.ActionCounter++
+	id := fmt.Sprintf("%x", t.Internal.ActionCounter)
 	t.jobs <- job{a, id}
 	return id
 }
@@ -111,12 +120,16 @@ func (t Dogeboxd) loadLocalManifests(path string) {
 // create or load PupStatus for a given PUP id
 func (t Dogeboxd) loadPupStatus(id string, config ServerConfig) {
 	p := PupStatus{ID: id}
-	p.Read(config.PupDir)
+	p.Read()
 	t.Pups[id] = p
 }
 
-func savePupConfig(pupID string, config map[string]string) error {
-	// check the pupID is for a manifest we know about
+func (t Dogeboxd) updatePupConfig(u UpdatePupConfig) error {
+	p, ok := t.Pups[u.PupID]
+	if !ok {
+		fmt.Printf("Couldnt find pup to update: %s", u.PupID)
+	}
+	fmt.Println(p)
 	return nil
 }
 
@@ -128,4 +141,6 @@ type job struct {
 // InternalState is stored in dogeboxd.gob and contains
 // various details about what's installed, what condition
 // we're in overall etc.
-type InternalState struct{}
+type InternalState struct {
+	ActionCounter int
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -15,7 +16,8 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd) conductor.Service {
 	a := api{mux: http.NewServeMux(), config: config, dbx: dbx}
 
 	routes := map[string]http.HandlerFunc{
-		"GET /bootstrap/": a.getBootstrap,
+		"GET /bootstrap/":      a.getBootstrap,
+		"POST /config/{PupID}": a.updateConfig,
 	}
 
 	for p, h := range routes {
@@ -37,6 +39,25 @@ func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
 		"states":    t.dbx.GetPupStats(),
 	}
 	sendResponse(w, bootstrap)
+}
+
+func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
+	pupid := r.PathValue("PupID")
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	data := make(map[string]string)
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error unmarshalling JSON")
+		return
+	}
+	id := t.dbx.AddAction(UpdatePupConfig{PupID: pupid, Payload: data})
+	sendResponse(w, map[string]string{"id": id})
 }
 
 func (t api) Run(started, stopped chan bool, stop chan context.Context) error {
