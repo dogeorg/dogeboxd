@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -23,6 +24,7 @@ type Dogeboxd struct {
 func NewDogeboxd(pupDir string) Dogeboxd {
 	intern := InternalState{
 		ActionCounter: 100000,
+		InstalledPups: []string{"internal.dogeboxd"},
 	}
 	// TODO: Load state from GOB
 	s := Dogeboxd{
@@ -37,7 +39,7 @@ func NewDogeboxd(pupDir string) Dogeboxd {
 		Label:       "Local Filesystem",
 		URL:         "",
 		LastUpdated: time.Now(),
-		Available:   &av,
+		Available:   av,
 	}
 
 	// Create a synthetic ManifestSource for
@@ -48,6 +50,7 @@ func NewDogeboxd(pupDir string) Dogeboxd {
 	if err != nil {
 		log.Fatalln("Couldn't load Dogeboxd's own manifest")
 	}
+	dbMan.Hydrate("internal")
 
 	intAv := []PupManifest{dbMan}
 
@@ -57,7 +60,35 @@ func NewDogeboxd(pupDir string) Dogeboxd {
 		Label:       "DONT SHOW ME",
 		URL:         "",
 		LastUpdated: time.Now(),
-		Available:   &intAv,
+		Available:   intAv,
+	}
+
+	// load pup state from disk
+	for _, ip := range s.Internal.InstalledPups {
+		fmt.Printf("Loading pup status: %s\n", ip)
+		bits := strings.Split(ip, ".")
+		fmt.Println("BITS", ip, bits, bits[0], bits[1])
+		ms, ok := s.Manifests[bits[0]]
+		if !ok {
+			fmt.Printf("Failed to load %s, no matching manifest source\n", ip)
+			continue
+		} else {
+			var m PupManifest
+			found := false
+			for _, man := range ms.Available {
+				fmt.Println("a", man.ID, "b", ip)
+				if man.ID == ip {
+					m = man
+					found = true
+					break
+				}
+			}
+			if found {
+				s.loadPupStatus(pupDir, m)
+			} else {
+				fmt.Printf("Failed to load %s, no matching manifest\n", ip)
+			}
+		}
 	}
 	return s
 }
@@ -75,14 +106,17 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance // ヾ(。⌒∇⌒)ノ
 					}
-					switch v := v.a.(type) {
+					switch a := v.a.(type) {
 					case LoadLocalPup:
-						fmt.Println("Load local pup from ", v.Path)
+						fmt.Println("Load local pup from ", a.Path)
 					case UpdatePupConfig:
-						fmt.Printf("Update pup config %v\n", v)
-						t.updatePupConfig(v)
+						fmt.Printf("Update pup config %v\n", a)
+						err := t.updatePupConfig(&v, a)
+						if err != nil {
+							fmt.Println(err)
+						}
 					default:
-						fmt.Printf("Unknown action type: %v\n", v)
+						fmt.Printf("Unknown action type: %v\n", a)
 					}
 				}
 			}
@@ -101,7 +135,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 func (t Dogeboxd) AddAction(a Action) string {
 	t.Internal.ActionCounter++
 	id := fmt.Sprintf("%x", t.Internal.ActionCounter)
-	t.jobs <- job{a, id}
+	t.jobs <- job{a: a, id: id}
 	return id
 }
 
@@ -113,29 +147,43 @@ func (t Dogeboxd) GetPupStats() map[string]PupStatus {
 	return t.Pups
 }
 
-func (t Dogeboxd) loadLocalManifests(path string) {
-	t.Manifests["local"].UpdateAvailable(FindLocalPups(path))
+func (t *Dogeboxd) loadLocalManifests(path string) {
+	t.Manifests["local"].UpdateAvailable("local", FindLocalPups(path))
 }
 
 // create or load PupStatus for a given PUP id
-func (t Dogeboxd) loadPupStatus(id string, config ServerConfig) {
-	p := PupStatus{ID: id}
+func (t *Dogeboxd) loadPupStatus(pupDir string, m PupManifest) {
+	fmt.Println("LOADING PUP STATUS")
+	p := NewPUPStatus(pupDir, m)
 	p.Read()
-	t.Pups[id] = p
+	t.Pups[p.ID] = p
 }
 
-func (t Dogeboxd) updatePupConfig(u UpdatePupConfig) error {
+func (t *Dogeboxd) updatePupConfig(j *job, u UpdatePupConfig) error {
 	p, ok := t.Pups[u.PupID]
 	if !ok {
-		fmt.Printf("Couldnt find pup to update: %s", u.PupID)
+		j.err = fmt.Sprintf("Couldnt find pup to update: %s", u.PupID)
+		return fmt.Errorf(j.err)
 	}
-	fmt.Println(p)
+	old := p.Config
+	p.Config = u.Payload
+	err := p.Write()
+	if err != nil {
+		j.err = fmt.Sprintf("Failed to write Pup state to disk %v", err)
+		p.Config = old
+		return fmt.Errorf(j.err)
+	}
+	j.success = p
+	t.Pups[u.PupID] = p
+	fmt.Printf("job complete: %v", j)
 	return nil
 }
 
 type job struct {
-	a  Action
-	id string
+	a       Action
+	id      string
+	err     string // sent to the client on error via WS
+	success any    // will be sent to the client via WS
 }
 
 // InternalState is stored in dogeboxd.gob and contains
@@ -143,4 +191,5 @@ type job struct {
 // we're in overall etc.
 type InternalState struct {
 	ActionCounter int
+	InstalledPups []string
 }

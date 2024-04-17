@@ -12,17 +12,16 @@ import (
 type PupManifest struct {
 	sourceID string
 	ID       string          `json:"id"`
-	Package  string          `json:"package"` // ie:  dogebox.dogecoin-core
+	Package  string          `json:"package"` // ie:  dogecoin-core
 	Hash     string          `json:"hash"`    // package checksum
 	Command  CommandManifest `json:"command"`
 }
 
-func (t PupManifest) GetID() string {
-	source := t.sourceID
-	if source == "" {
-		source = "unknown"
-	}
-	return fmt.Sprintf("%s:%s", source, t.Package)
+// This is called when a Pup is loaded from storage, JSON/GOB etc.
+func (t *PupManifest) Hydrate(sourceID string) {
+	t.sourceID = sourceID
+	t.ID = fmt.Sprintf("%s.%s", sourceID, t.Package)
+	fmt.Println("HYDRATED: ", t.ID)
 }
 
 /* Represents the command to run inside this PUP
@@ -60,25 +59,27 @@ type ConfigFields struct {
 
 // A ManifestSource is a .. well, it's a source of manifests, derp.
 type ManifestSource struct {
-	ID          string         `json:"id"`
-	Label       string         `json:"label"`
-	URL         string         `json:"url"`
-	LastUpdated time.Time      `json:"lastUpdated"`
-	Available   *[]PupManifest `json:"available"`
+	ID          string        `json:"id"`
+	Label       string        `json:"label"`
+	URL         string        `json:"url"`
+	LastUpdated time.Time     `json:"lastUpdated"`
+	Available   []PupManifest `json:"available"`
 }
 
 // Append or replace available pups
-func (t ManifestSource) UpdateAvailable(l []PupManifest) {
+func (t ManifestSource) UpdateAvailable(sourceID string, l []PupManifest) {
 	exists := map[string]int{}
-	for i, p := range *t.Available {
+	for i, p := range t.Available {
 		exists[p.ID] = i
 	}
 
 	for _, p := range l {
+		p.Hydrate(sourceID)
+		fmt.Printf("==== hydrated %s\n", p.ID)
 		i, ok := exists[p.ID]
 		if ok {
-			*t.Available = append((*t.Available)[:i], (*t.Available)[i+1:]...)
+			t.Available = append((t.Available)[:i], (t.Available)[i+1:]...)
 		}
-		*t.Available = append(*t.Available, p)
+		t.Available = append(t.Available, p)
 	}
 }

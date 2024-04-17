@@ -9,10 +9,11 @@ import (
 	"path/filepath"
 )
 
-func NewPUPStatus(config ServerConfig, m PupManifest) PupStatus {
-	f := filepath.Join(config.PupDir, fmt.Sprintf("pup_%s_%s.gob", m.Package, m.Hash))
+func NewPUPStatus(pupDir string, m PupManifest) PupStatus {
+	f := filepath.Join(pupDir, fmt.Sprintf("pup_%s.gob", m.Package))
+	fmt.Printf("NEW PUP STATUS FILEPATH: %s", f)
 	p := PupStatus{
-		ID:      m.GetID(),
+		ID:      m.ID,
 		gobPath: f,
 	}
 	return p
@@ -28,7 +29,7 @@ type PupStatus struct {
 }
 
 // Read state from a gob file
-func (t PupStatus) Read() error {
+func (t *PupStatus) Read() error {
 	file, err := os.Open(t.gobPath)
 	if err != nil {
 		return fmt.Errorf("cannot open file %q: %w", t.gobPath, err)
@@ -36,7 +37,7 @@ func (t PupStatus) Read() error {
 	defer file.Close()
 
 	decoder := gob.NewDecoder(file)
-	if err := decoder.Decode(&t); err != nil {
+	if err := decoder.Decode(t); err != nil {
 		if err == io.EOF {
 			return fmt.Errorf("file %q is empty", t.gobPath)
 		}
@@ -46,7 +47,7 @@ func (t PupStatus) Read() error {
 }
 
 // write state to a gob file
-func (t PupStatus) Write(dirPath string) error {
+func (t PupStatus) Write() error {
 	tempFile, err := os.CreateTemp("", "temp_gob_file")
 	if err != nil {
 		return fmt.Errorf("cannot create temporary file: %w", err)
