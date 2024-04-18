@@ -11,9 +11,10 @@ import (
 
 func NewPUPStatus(pupDir string, m PupManifest) PupStatus {
 	f := filepath.Join(pupDir, fmt.Sprintf("pup_%s.gob", m.Package))
-	fmt.Printf("NEW PUP STATUS FILEPATH: %s", f)
 	p := PupStatus{
 		ID:      m.ID,
+		Status:  "stopped",
+		Stats:   map[string][]float32{"cpu": {1.342, 1.245, 4.123, 2.354}},
 		gobPath: f,
 	}
 	return p
@@ -21,10 +22,10 @@ func NewPUPStatus(pupDir string, m PupManifest) PupStatus {
 
 // PupStatus is persisted to disk
 type PupStatus struct {
-	ID      string
-	Stats   map[string][]float32
-	Config  map[string]string
-	Status  string // starting, stopping, running, stopped
+	ID      string               `json:"id"`
+	Stats   map[string][]float32 `json:"stats"`
+	Config  map[string]string    `json:"config"`
+	Status  string               `json:"status"` // starting, stopping, running, stopped
 	gobPath string
 }
 

@@ -18,7 +18,7 @@ type Dogeboxd struct {
 	Pups      map[string]PupStatus
 	Internal  *InternalState
 	jobs      chan job
-	// Changes   chan<- Change
+	Changes   chan Change
 }
 
 func NewDogeboxd(pupDir string) Dogeboxd {
@@ -115,6 +115,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						if err != nil {
 							fmt.Println(err)
 						}
+						t.sendChange("PupStatus", v)
 					default:
 						fmt.Printf("Unknown action type: %v\n", a)
 					}
@@ -137,6 +138,10 @@ func (t Dogeboxd) AddAction(a Action) string {
 	id := fmt.Sprintf("%x", t.Internal.ActionCounter)
 	t.jobs <- job{a: a, id: id}
 	return id
+}
+
+func (t Dogeboxd) sendChange(changeType string, j job) {
+	t.Changes <- Change{ID: j.id, Error: j.err, Type: changeType, Update: j.success}
 }
 
 func (t Dogeboxd) GetManifests() map[string]ManifestSource {
@@ -184,6 +189,13 @@ type job struct {
 	id      string
 	err     string // sent to the client on error via WS
 	success any    // will be sent to the client via WS
+}
+
+type Change struct {
+	ID     string `json:"id"`
+	Error  string `json:"error"`
+	Type   string `json:"type"`
+	Update any    `json:"update"`
 }
 
 // InternalState is stored in dogeboxd.gob and contains
