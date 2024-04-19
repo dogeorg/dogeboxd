@@ -12,17 +12,20 @@ import (
 	"github.com/rs/cors"
 )
 
-func RESTAPI(config ServerConfig, dbx Dogeboxd) conductor.Service {
+func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 	a := api{mux: http.NewServeMux(), config: config, dbx: dbx}
 
 	routes := map[string]http.HandlerFunc{
 		"GET /bootstrap/":      a.getBootstrap,
 		"POST /config/{PupID}": a.updateConfig,
+		"/ws/state/":           ws.GetWSHandler().ServeHTTP,
 	}
 
 	for p, h := range routes {
 		a.mux.HandleFunc(p, h)
 	}
+
+	//	a.mux.Handle("/ws/", ws.GetWSHandler().ServeHTTP)
 
 	return a
 }

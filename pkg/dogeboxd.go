@@ -31,6 +31,7 @@ func NewDogeboxd(pupDir string) Dogeboxd {
 		Manifests: map[string]ManifestSource{},
 		Pups:      map[string]PupStatus{},
 		jobs:      make(chan job),
+		Changes:   make(chan Change),
 		Internal:  &intern,
 	}
 	av := []PupManifest{}
@@ -141,6 +142,7 @@ func (t Dogeboxd) AddAction(a Action) string {
 }
 
 func (t Dogeboxd) sendChange(changeType string, j job) {
+	fmt.Println("SENDING CHANGE")
 	t.Changes <- Change{ID: j.id, Error: j.err, Type: changeType, Update: j.success}
 }
 
@@ -180,7 +182,6 @@ func (t *Dogeboxd) updatePupConfig(j *job, u UpdatePupConfig) error {
 	}
 	j.success = p
 	t.Pups[u.PupID] = p
-	fmt.Printf("job complete: %v", j)
 	return nil
 }
 

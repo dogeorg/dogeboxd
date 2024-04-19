@@ -32,8 +32,10 @@ func (t server) Start() {
 	}
 
 	dbx := NewDogeboxd(t.config.PupDir)
+	wsh := NewWSRelay(dbx.Changes)
 	c.Service("Dogeboxd", dbx)
-	c.Service("REST API", RESTAPI(t.config, dbx))
+	c.Service("WSock Relay", wsh)
+	c.Service("REST API", RESTAPI(t.config, dbx, wsh))
 	// c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))
 	<-c.Start()
 }
