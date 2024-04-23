@@ -172,8 +172,20 @@ func (t *Dogeboxd) updatePupConfig(j *job, u UpdatePupConfig) error {
 		j.err = fmt.Sprintf("Couldnt find pup to update: %s", u.PupID)
 		return fmt.Errorf(j.err)
 	}
+
 	old := p.Config
-	p.Config = u.Payload
+	newConfig := map[string]string{}
+
+	for k, v := range old {
+		newConfig[k] = v
+	}
+
+	// TODO validate against manifest fields
+	for k, v := range u.Payload {
+		newConfig[k] = v
+	}
+	p.Config = newConfig
+
 	err := p.Write()
 	if err != nil {
 		j.err = fmt.Sprintf("Failed to write Pup state to disk %v", err)
