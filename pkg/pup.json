@@ -1,4 +1,49 @@
 {
   "package": "dogeboxd",
-  "hash": ""
+  "hash": "blurpyblurpderp",
+  "command" : {
+    "config" : {
+      "sections": [
+        {
+          "name": "general",
+          "label": "General",
+          "fields": [
+            {
+              "type": "text",
+              "name": "nodeName",
+              "label": "Node Name",
+              "placeholder": "Enter your node's name",
+              "help": "A memorable name for your Dogecoin Node",
+              "required": true,
+              "value": "MyDogecoinNode"
+            },
+            {
+              "type": "textarea",
+              "name": "nodeDescription",
+              "label": "Node Description",
+              "placeholder": "Describe your node's purpose",
+              "rows": 12,
+              "value": "This node is dedicated to maintaining a stable, secure, and efficient Dogecoin network."
+            }
+          ]
+        },
+        {
+          "name": "connection",
+          "label": "Connectivity",
+          "fields": [
+            {
+              "type": "number",
+              "name": "maxConnections",
+              "label": "Max Connections",
+              "help": "Maximum number of peer connections",
+              "min": 1,
+              "max": 150,
+              "required": true,
+              "value": 75
+            }
+          ]
+        }
+      ]
+    }
+  }
 }
