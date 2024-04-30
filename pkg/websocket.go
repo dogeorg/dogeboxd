@@ -3,6 +3,7 @@ package dogeboxd
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"golang.org/x/net/websocket"
 )
@@ -40,7 +41,7 @@ func (t WSRelay) Run(started, stopped chan bool, stop chan context.Context) erro
 		started <- true
 		<-stop
 		for _, sock := range t.socks {
-			close(sock.Stop)
+			sock.Close()
 		}
 		stopped <- true
 	}()
@@ -60,7 +61,7 @@ func (t *WSRelay) Broadcast(v any) {
 	}
 	if len(deleteMe) > 0 {
 		for pos := range deleteMe {
-			close(t.socks[pos].Stop)
+			t.socks[pos].Close()
 			fmt.Println("removing sock", pos)
 			t.socks[pos] = t.socks[len(t.socks)-1]
 		}
@@ -82,7 +83,7 @@ func (t WSRelay) GetWSHandler(initialPayloader func() any) *websocket.Server {
 		Handler: func(ws *websocket.Conn) {
 			fmt.Println("HANDL")
 			stop := make(chan bool)
-			t.newWs <- WSCONN{ws, stop}
+			t.newWs <- WSCONN{ws, stop, sync.Once{}}
 
 			err := websocket.JSON.Send(ws, initialPayloader())
 			if err != nil {
@@ -98,4 +99,11 @@ func (t WSRelay) GetWSHandler(initialPayloader func() any) *websocket.Server {
 type WSCONN struct {
 	WS   *websocket.Conn
 	Stop chan bool
+	once sync.Once
+}
+
+func (t *WSCONN) Close() {
+	t.once.Do(func() {
+		close(t.Stop)
+	})
 }
