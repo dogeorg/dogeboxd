@@ -42,6 +42,20 @@
               "value": 75
             }
           ]
+        },
+        {
+          "name": "security",
+          "label": "Security",
+          "fields": [
+            {
+              "type": "password",
+              "name": "password",
+              "label": "Admin Password",
+              "help": "Password required to login to your Dogebox",
+              "required": true,
+              "requireConfirmation": true
+            }
+          ]
         }
       ]
     }
