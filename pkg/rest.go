@@ -76,7 +76,6 @@ func (t api) attemptLogin(w http.ResponseWriter, r *http.Request) {
     sendErrorResponse(w, http.StatusBadRequest, "Bad Request")
     return
   }
-  // Not done with the body yet.
   defer r.Body.Close()
 
   // Parse the request body
