@@ -1,0 +1,33 @@
+{
+  "package" : "Identity",
+  "hash" : "cadsfkjhads",
+  "command" : {
+    "config" : {
+      "sections": [
+        {
+          "name": "identity",
+          "label": "Identity",
+          "fields": [
+            {
+              "type": "text",
+              "name": "nodeName",
+              "label": "Node Name",
+              "placeholder": "Enter your node's name",
+              "help": "A memorable name for your Dogecoin Node",
+              "required": true,
+              "value": "MyDogecoinNode"
+            },
+            {
+              "type": "textarea",
+              "name": "nodeDescription",
+              "label": "Node Description",
+              "placeholder": "Describe your node's purpose",
+              "rows": 12,
+              "value": "This node is dedicated to maintaining a stable, secure, and efficient Dogecoin network."
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
