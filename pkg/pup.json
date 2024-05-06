@@ -53,7 +53,8 @@
               "label": "Admin Password",
               "help": "Password required to login to your Dogebox",
               "required": true,
-              "requireConfirmation": true
+              "requireConfirmation": true,
+              "passwordToggle": true
             }
           ]
         }

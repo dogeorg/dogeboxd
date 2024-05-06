@@ -26,8 +26,14 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 		}).ServeHTTP,
 	}
 
-	for p, h := range routes {
-		a.mux.HandleFunc(p, h)
+	for path, handler := range routes {
+    if path == "POST /auth/login" {
+      // Login route is unprotected
+      a.mux.HandleFunc(path, handler)
+    } else {
+      // Protect other routes
+      a.mux.Handle(path, authMiddleware(http.HandlerFunc(handler)))
+    }
 	}
 
 	return a
@@ -37,6 +43,17 @@ type api struct {
 	dbx    Dogeboxd
 	mux    *http.ServeMux
 	config ServerConfig
+}
+
+func authMiddleware(next http.Handler) http.Handler {
+  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    authHeader := r.Header.Get("Authorization")
+    if authHeader != "such-security-must-change" {
+      sendErrorResponse(w, http.StatusUnauthorized, "Unauthorized")
+      return
+    }
+    next.ServeHTTP(w, r)
+  })
 }
 
 func (t api) getRawBS() any {
@@ -122,7 +139,12 @@ func validatePassword(providedPassword, storedPassword string) bool {
 
 func (t api) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
-		handler := cors.Default().Handler(t.mux)
+		c := cors.New(cors.Options{
+			AllowedOrigins:   []string{"*"},
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		})
+		handler := c.Handler(t.mux)
 		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", t.config.Bind, t.config.Port), Handler: handler}
 		go func() {
 			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
