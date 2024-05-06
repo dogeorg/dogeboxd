@@ -115,8 +115,9 @@ func (t api) attemptLogin(w http.ResponseWriter, r *http.Request) {
 
 	storedPassword, ok := dogePupStatus.Config["password"]
 	if !ok {
-    // TODO.  no password, awkward.
-    return
+		// User has not set unique password. tssk, tssk.
+		// Test provided credential against default password.
+    storedPassword = "suchpass"
 	}
 
   // Check for password match
