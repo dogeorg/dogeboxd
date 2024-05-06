@@ -16,25 +16,28 @@ import (
 func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 	a := api{mux: http.NewServeMux(), config: config, dbx: dbx}
 
-	routes := map[string]http.HandlerFunc{
-		"GET /bootstrap/": a.getBootstrap,
-		//"GET /pup/status":      a.getPupStatus,
-		"POST /config/{PupID}": a.updateConfig,
-		"POST /auth/login": a.attemptLogin,
-		"/ws/state/": ws.GetWSHandler(func() any {
+	unprotectedRoutes := map[string]http.HandlerFunc{
+    "POST /auth/login": a.attemptLogin,
+    "/ws/state/": ws.GetWSHandler(func() any {
 			return Change{ID: "internal", Error: "", Type: "bootstrap", Update: a.getRawBS()}
-		}).ServeHTTP,
+    }).ServeHTTP,
 	}
 
-	for path, handler := range routes {
-    if path == "POST /auth/login" {
-      // Login route is unprotected
-      a.mux.HandleFunc(path, handler)
-    } else {
-      // Protect other routes
-      a.mux.Handle(path, authMiddleware(http.HandlerFunc(handler)))
-    }
+	protectedRoutes := map[string]http.HandlerFunc{
+    "GET /bootstrap/": a.getBootstrap,
+    "POST /config/{PupID}": a.updateConfig,
+    // "GET /pup/status": a.getPupStatus,
 	}
+
+	// Register unprotected routes
+  for path, handler := range unprotectedRoutes {
+    a.mux.HandleFunc(path, handler)
+  }
+
+  // Register protected routes wrapped in authMiddleware
+  for path, handler := range protectedRoutes {
+    a.mux.Handle(path, authMiddleware(http.HandlerFunc(handler)))
+  }
 
 	return a
 }
