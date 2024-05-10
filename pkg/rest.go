@@ -16,9 +16,9 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 	a := api{mux: http.NewServeMux(), config: config, dbx: dbx}
 
 	routes := map[string]http.HandlerFunc{
-		"GET /bootstrap/": a.getBootstrap,
-		//"GET /pup/status":      a.getPupStatus,
-		"POST /config/{PupID}": a.updateConfig,
+		"GET /bootstrap/":           a.getBootstrap,
+		"GET /pup/{PupID}/{action}": a.pupAction,
+		"POST /config/{PupID}":      a.updateConfig,
 		"/ws/state/": ws.GetWSHandler(func() any {
 			return Change{ID: "internal", Error: "", Type: "bootstrap", Update: a.getRawBS()}
 		}).ServeHTTP,
@@ -64,6 +64,30 @@ func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := t.dbx.AddAction(UpdatePupConfig{PupID: pupid, Payload: data})
+	sendResponse(w, map[string]string{"id": id})
+}
+
+func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
+	pupid := r.PathValue("PupID")
+	action := r.PathValue("action")
+	var a Action
+	switch action {
+	case "install":
+		a = InstallPup{PupID: pupid}
+	case "uninstall":
+		a = UninstallPup{PupID: pupid}
+	case "start":
+		a = StartPup{PupID: pupid}
+	case "stop":
+		a = StopPup{PupID: pupid}
+	case "restart":
+		a = RestartPup{PupID: pupid}
+	default:
+		sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf("No pup action %s", action))
+		return
+	}
+
+	id := t.dbx.AddAction(a)
 	sendResponse(w, map[string]string{"id": id})
 }
 

@@ -12,21 +12,36 @@ import (
 func NewPUPStatus(pupDir string, m PupManifest) PupStatus {
 	f := filepath.Join(pupDir, fmt.Sprintf("pup_%s.gob", m.Package))
 	p := PupStatus{
-		ID:      m.ID,
-		Status:  "stopped",
-		Stats:   map[string][]float32{"cpu": {1.342, 1.245, 4.123, 2.354}},
-		gobPath: f,
+		ID:           m.ID,
+		Installation: "installing",
+		Status:       "stopped",
+		Stats:        map[string][]float32{"cpu": {1.342, 1.245, 4.123, 2.354}},
+		gobPath:      f,
 	}
 	return p
 }
 
+/* Pup status as it relates to nix:
+ * ┌─────────────────────────────┬───────────────────────────────┐
+ * │Installation                 │  Status                       │
+ * ├─────────────────────────────┼───────────────────────────────┤
+ * │installing      .nix written │  starting        .nix written │
+ * │installed       .nix applied─┼─>started         .nix applied │
+ * │broken          .nix failed  │  stopping        .nix written │
+ * │                             │  stopped         .nix applied │
+ * └─────────────────────────────┴───────────────────────────────┘
+ *
+ * Valid actions: install, stop, start, restart, uninstall
+ */
+
 // PupStatus is persisted to disk
 type PupStatus struct {
-	ID      string               `json:"id"`
-	Stats   map[string][]float32 `json:"stats"`
-	Config  map[string]string    `json:"config"`
-	Status  string               `json:"status"` // starting, stopping, running, stopped
-	gobPath string
+	ID           string               `json:"id"`
+	Stats        map[string][]float32 `json:"stats"`
+	Config       map[string]string    `json:"config"`
+	Installation string               `json:"installation"`
+	Status       string               `json:"status"`
+	gobPath      string
 }
 
 // Read state from a gob file

@@ -17,7 +17,7 @@ type Dogeboxd struct {
 	Manifests map[string]ManifestSource
 	Pups      map[string]PupStatus
 	Internal  *InternalState
-	jobs      chan job
+	jobs      chan Job
 	Changes   chan Change
 }
 
@@ -30,7 +30,7 @@ func NewDogeboxd(pupDir string) Dogeboxd {
 	s := Dogeboxd{
 		Manifests: map[string]ManifestSource{},
 		Pups:      map[string]PupStatus{},
-		jobs:      make(chan job),
+		jobs:      make(chan Job),
 		Changes:   make(chan Change),
 		Internal:  &intern,
 	}
@@ -137,11 +137,11 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 func (t Dogeboxd) AddAction(a Action) string {
 	t.Internal.ActionCounter++
 	id := fmt.Sprintf("%x", t.Internal.ActionCounter)
-	t.jobs <- job{a: a, id: id}
+	t.jobs <- Job{a: a, id: id}
 	return id
 }
 
-func (t Dogeboxd) sendChange(changeType string, j job) {
+func (t Dogeboxd) sendChange(changeType string, j Job) {
 	fmt.Println("SENDING CHANGE")
 	t.Changes <- Change{ID: j.id, Error: j.err, Type: changeType, Update: j.success}
 }
@@ -166,7 +166,7 @@ func (t *Dogeboxd) loadPupStatus(pupDir string, m PupManifest) {
 	t.Pups[p.ID] = p
 }
 
-func (t *Dogeboxd) updatePupConfig(j *job, u UpdatePupConfig) error {
+func (t *Dogeboxd) updatePupConfig(j *Job, u UpdatePupConfig) error {
 	p, ok := t.Pups[u.PupID]
 	if !ok {
 		j.err = fmt.Sprintf("Couldnt find pup to update: %s", u.PupID)
@@ -197,7 +197,7 @@ func (t *Dogeboxd) updatePupConfig(j *job, u UpdatePupConfig) error {
 	return nil
 }
 
-type job struct {
+type Job struct {
 	a       Action
 	id      string
 	err     string // sent to the client on error via WS
@@ -217,4 +217,9 @@ type Change struct {
 type InternalState struct {
 	ActionCounter int
 	InstalledPups []string
+}
+
+type SystemJobber interface {
+	AddJob(Job)
+	GetUpdateChannel() chan Job
 }

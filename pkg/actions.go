@@ -18,3 +18,23 @@ type UpdatePupConfig struct {
 	PupID   string
 	Payload map[string]string
 }
+
+type InstallPup struct {
+	PupID string
+}
+
+type UninstallPup struct {
+	PupID string
+}
+
+type StartPup struct {
+	PupID string
+}
+
+type StopPup struct {
+	PupID string
+}
+
+type RestartPup struct {
+	PupID string
+}
