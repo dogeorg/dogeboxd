@@ -21,20 +21,25 @@ type UpdatePupConfig struct {
 
 type InstallPup struct {
 	PupID string
+	M     PupManifest
 }
 
 type UninstallPup struct {
 	PupID string
+	M     PupManifest
 }
 
 type StartPup struct {
 	PupID string
+	M     PupManifest
 }
 
 type StopPup struct {
 	PupID string
+	M     PupManifest
 }
 
 type RestartPup struct {
 	PupID string
+	M     PupManifest
 }

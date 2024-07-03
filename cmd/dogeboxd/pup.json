@@ -1,8 +1,24 @@
 {
   "package": "dogeboxd",
   "hash": "blurpyblurpderp",
-  "command" : {
-    "config" : {
+  "apis": [
+    {
+      "name": "auth",
+      "description": "Access to auth APIs",
+      "level": "high",
+      "authenticated": true,
+      "scope": [
+        "internal"
+      ],
+      "routes": [
+        "/auth/login",
+        "/auth/refresh",
+        "/auth/checktoken"
+      ]
+    }
+  ],
+  "command": {
+    "config": {
       "sections": [
         {
           "name": "general",

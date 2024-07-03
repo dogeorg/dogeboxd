@@ -16,9 +16,9 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 	a := api{mux: http.NewServeMux(), config: config, dbx: dbx}
 
 	routes := map[string]http.HandlerFunc{
-		"GET /bootstrap/":           a.getBootstrap,
-		"GET /pup/{PupID}/{action}": a.pupAction,
-		"POST /config/{PupID}":      a.updateConfig,
+		"GET /bootstrap/":            a.getBootstrap,
+		"POST /pup/{PupID}/{action}": a.pupAction,
+		"POST /config/{PupID}":       a.updateConfig,
 		"/ws/state/": ws.GetWSHandler(func() any {
 			return Change{ID: "internal", Error: "", Type: "bootstrap", Update: a.getRawBS()}
 		}).ServeHTTP,
