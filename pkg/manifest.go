@@ -93,6 +93,12 @@ type ManifestIndex struct {
 	sources map[string]ManifestSource
 }
 
+func NewManifestIndex() ManifestIndex {
+	return ManifestIndex{
+		sources: map[string]ManifestSource{},
+	}
+}
+
 func (t ManifestIndex) AddSource(name string, m ManifestSource) error {
 	_, exists := t.sources[name]
 	if exists {

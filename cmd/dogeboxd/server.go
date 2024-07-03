@@ -40,7 +40,7 @@ func (t server) Start() {
 
 	// Setup the ManifestIndex which knows about
 	// all available pups
-	man := dogeboxd.ManifestIndex{}
+	man := dogeboxd.NewManifestIndex()
 
 	// Setup the 'local' source that represents
 	// development pups on the local Filesystem
