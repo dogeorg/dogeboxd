@@ -2,6 +2,7 @@ package dogeboxd
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,13 +16,17 @@ type PupManifest struct {
 	Package  string          `json:"package"` // ie:  dogecoin-core
 	Hash     string          `json:"hash"`    // package checksum
 	Command  CommandManifest `json:"command"`
+	hydrated bool
 }
 
 // This is called when a Pup is loaded from storage, JSON/GOB etc.
 func (t *PupManifest) Hydrate(sourceID string) {
+	if t.hydrated {
+		return
+	}
 	t.sourceID = sourceID
 	t.ID = fmt.Sprintf("%s.%s", sourceID, t.Package)
-	fmt.Println("HYDRATED: ", t.ID)
+	t.hydrated = true
 }
 
 /* Represents the command to run inside this PUP
@@ -57,8 +62,18 @@ type ConfigFields struct {
 	} `json:"sections"`
 }
 
-// A ManifestSource is a .. well, it's a source of manifests, derp.
-type ManifestSource struct {
+/* A ManifestSource represents an origin of PUP manifests, usually
+ * a webserver and NIX repository. These are accessed via the
+ * ManifestIndex (below)
+ */
+type ManifestSource interface {
+	FindManifestByPupID(string) (PupManifest, bool)
+	Export() ManifestSourceExport
+}
+
+// returned by ManifestSource.Export, represents the ManifestSource
+// to the browser.
+type ManifestSourceExport struct {
 	ID          string        `json:"id"`
 	Label       string        `json:"label"`
 	URL         string        `json:"url"`
@@ -66,20 +81,51 @@ type ManifestSource struct {
 	Available   []PupManifest `json:"available"`
 }
 
-// Append or replace available pups
-func (t ManifestSource) UpdateAvailable(sourceID string, l []PupManifest) {
-	exists := map[string]int{}
-	for i, p := range t.Available {
-		exists[p.ID] = i
-	}
+func (t ManifestSourceExport) Export() ManifestSourceExport {
+	return t
+}
 
-	for _, p := range l {
-		p.Hydrate(sourceID)
-		fmt.Printf("==== hydrated %s\n", p.ID)
-		i, ok := exists[p.ID]
-		if ok {
-			t.Available = append((t.Available)[:i], (t.Available)[i+1:]...)
-		}
-		t.Available = append(t.Available, p)
+/* The ManifestIndex is collection of ManifestSources with methods for
+ * lookup across all sources etc.
+ */
+
+type ManifestIndex struct {
+	sources map[string]ManifestSource
+}
+
+func (t ManifestIndex) AddSource(name string, m ManifestSource) error {
+	_, exists := t.sources[name]
+	if exists {
+		return fmt.Errorf("Source already added %s", name)
 	}
+	t.sources[name] = m
+	return nil
+}
+
+func (t ManifestIndex) GetManifestMap() map[string]ManifestSourceExport {
+	o := map[string]ManifestSourceExport{}
+	for k, v := range t.sources {
+		o[k] = v.Export()
+	}
+	return o
+}
+
+func (t ManifestIndex) GetSource(name string) (ManifestSource, bool) {
+	s, ok := t.sources[name]
+	if !ok {
+		return nil, false
+	}
+	return s, true
+}
+
+func (t ManifestIndex) FindManifest(pupID string) (PupManifest, bool) {
+	sourceID, _, ok := strings.Cut(pupID, ".")
+	if !ok {
+		return PupManifest{}, false
+	}
+	source, ok := t.GetSource(sourceID)
+	if !ok {
+		return PupManifest{}, false
+	}
+	return source.FindManifestByPupID(pupID)
 }

@@ -2,7 +2,7 @@
 
 # dogeboxd
 
-Dogeboxd is the Dogebox OS system manager service.
+## Dogeboxd is the Dogebox OS system manager service.
 
 ### A Daemon 
 
