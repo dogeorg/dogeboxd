@@ -29,7 +29,7 @@ func (t InternalSource) FindManifestByPupID(id string) (dogeboxd.PupManifest, bo
 	return dogeboxd.PupManifest{}, false
 }
 
-func (t InternalSource) AddManifest(m dogeboxd.PupManifest) {
+func (t *InternalSource) AddManifest(m dogeboxd.PupManifest) {
 	m.Hydrate("internal")
 	t.Available = append(t.Available, m)
 }

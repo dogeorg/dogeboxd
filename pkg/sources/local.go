@@ -40,7 +40,7 @@ func (t LocalFileSource) FindManifestByPupID(id string) (dogeboxd.PupManifest, b
 }
 
 // Append or replace available pups
-func (t LocalFileSource) UpdateFromDisk() {
+func (t *LocalFileSource) UpdateFromDisk() {
 	l := findLocalPups(t.path)
 	exists := map[string]int{}
 	for i, p := range t.Available {
