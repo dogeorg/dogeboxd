@@ -1,8 +1,9 @@
 {
-  "package" : "Core",
-  "hash" : "adsfkjhadsf",
-  "command" : {
-    "config" : {
+  "package": "Core",
+  "hash": "adsfkjhadsf",
+  "command": {
+    "path": "./dogecoind",
+    "config": {
       "sections": [
         {
           "name": "identity",

@@ -21,25 +21,20 @@ type UpdatePupConfig struct {
 
 type InstallPup struct {
 	PupID string
-	M     PupManifest
+	M     *PupManifest
 }
 
 type UninstallPup struct {
 	PupID string
-	M     PupManifest
+	M     *PupManifest
 }
 
-type StartPup struct {
+type EnablePup struct {
 	PupID string
-	M     PupManifest
+	M     *PupManifest
 }
 
-type StopPup struct {
+type DisablePup struct {
 	PupID string
-	M     PupManifest
-}
-
-type RestartPup struct {
-	PupID string
-	M     PupManifest
+	M     *PupManifest
 }

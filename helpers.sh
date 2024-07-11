@@ -42,5 +42,5 @@ _getbootstrap() {
 }
 
 _installPup() {
-	http get "$SERVER/pup/$1/install"
+	http post "$SERVER/pup/$1/install"
 }

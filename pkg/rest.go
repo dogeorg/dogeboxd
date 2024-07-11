@@ -17,7 +17,7 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 
 	routes := map[string]http.HandlerFunc{
 		"GET /bootstrap/":            a.getBootstrap,
-		"POST /pup/{PupID}/{action}": a.pupAction,
+		"POST /pup/{PupID}/{action}": a.pupAction, // install, uninstall, disable, enable
 		"POST /config/{PupID}":       a.updateConfig,
 		"/ws/state/": ws.GetWSHandler(func() any {
 			return Change{ID: "internal", Error: "", Type: "bootstrap", Update: a.getRawBS()}
@@ -76,12 +76,10 @@ func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
 		a = InstallPup{PupID: pupid}
 	case "uninstall":
 		a = UninstallPup{PupID: pupid}
-	case "start":
-		a = StartPup{PupID: pupid}
-	case "stop":
-		a = StopPup{PupID: pupid}
-	case "restart":
-		a = RestartPup{PupID: pupid}
+	case "enable":
+		a = EnablePup{PupID: pupid}
+	case "disable":
+		a = DisablePup{PupID: pupid}
 	default:
 		sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf("No pup action %s", action))
 		return

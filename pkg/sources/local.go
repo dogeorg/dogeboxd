@@ -33,6 +33,7 @@ func NewLocalFileSource(id, label, path string) LocalFileSource {
 func (t LocalFileSource) FindManifestByPupID(id string) (dogeboxd.PupManifest, bool) {
 	for _, m := range t.Available {
 		if m.ID == id {
+			fmt.Println("found manifest", m)
 			return m, true
 		}
 	}

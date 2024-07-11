@@ -120,12 +120,14 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					switch a := v.A.(type) {
 					// case InstallPup, UninstallPup, StartPup, StopPup, RestartPup:
 					case InstallPup:
+						fmt.Printf("job: %+v\n\n", v)
 						// These jobs are sent to the system manager to handle
 						m, ok := t.Manifests.FindManifest(a.PupID)
 						if !ok {
 							fmt.Println("couldnt find manifest for pup action", a.PupID)
 						}
-						a.M = m // add the Manifest to the action before passing along
+						a.M = &m // add the Manifest to the action before passing along
+						v.A = a
 						t.SystemJobber.AddJob(v)
 					case LoadLocalPup:
 						fmt.Println("Load local pup from ", a.Path)
