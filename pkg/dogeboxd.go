@@ -22,7 +22,7 @@ Dogebox internal architecture:
                 │                      │     │   ▼    │
                 │              ======= │  ┌──┴─────►  │ =======   Job ID
                 │ Actions      Jobs    │  │ System │  │ Changes
- WebSocket ─────┼───────────►  Channel │  │ Jobber │  │ Channel ───► WebSocket
+ WebSocket ─────┼───────────►  Channel │  │ Updater │  │ Channel ───► WebSocket
                 │ Job ID       ======= │  ◄────────┘  │ =======
                 │ ◄────                │              │
                 │                      │   ▲      │   │
@@ -60,37 +60,33 @@ type Change struct {
 	Update any    `json:"update"`
 }
 
-// A Jobber is a thing that can handle jobs on behalf of Dogeboxd and
-// return them via it's own update channel.
-type Jobber interface {
-	AddJob(Job)
-	GetUpdateChannel() chan Job
-}
-
 type Dogeboxd struct {
-	Manifests    ManifestIndex
-	Pups         map[string]PupStatus
-	Internal     *InternalState
-	SystemJobber Jobber
-	jobs         chan Job
-	Changes      chan Change
+	Manifests     ManifestIndex
+	Pups          map[string]PupStatus
+	Internal      *InternalState
+	SystemUpdater SystemUpdater
+	SystemMonitor SystemMonitor
+	jobs          chan Job
+	Changes       chan Change
 }
 
-func NewDogeboxd(pupDir string, man ManifestIndex, j Jobber) Dogeboxd {
+func NewDogeboxd(pupDir string, man ManifestIndex, j SystemUpdater, m SystemMonitor) Dogeboxd {
 	intern := InternalState{
 		ActionCounter: 100000,
 		InstalledPups: []string{"internal.dogeboxd"},
 	}
 	// TODO: Load state from GOB
 	s := Dogeboxd{
-		Manifests:    man,
-		Pups:         map[string]PupStatus{},
-		SystemJobber: j,
-		jobs:         make(chan Job),
-		Changes:      make(chan Change),
-		Internal:     &intern,
+		Manifests:     man,
+		Pups:          map[string]PupStatus{},
+		SystemUpdater: j,
+		SystemMonitor: m,
+		jobs:          make(chan Job),
+		Changes:       make(chan Change),
+		Internal:      &intern,
 	}
 
+	m.GetMonChannel() <- []string{"dbus.service"}
 	// load pup state from disk
 	for _, ip := range s.Internal.InstalledPups {
 		fmt.Printf("Loading pup status: %s\n", ip)
@@ -128,7 +124,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						}
 						a.M = &m // add the Manifest to the action before passing along
 						v.A = a
-						t.SystemJobber.AddJob(v)
+						t.SystemUpdater.AddJob(v)
 					case LoadLocalPup:
 						fmt.Println("Load local pup from ", a.Path)
 					case UpdatePupConfig:
@@ -141,8 +137,8 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					default:
 						fmt.Printf("Unknown action type: %v\n", a)
 					}
-				case v, ok := <-t.SystemJobber.GetUpdateChannel():
-					// Handle completed jobs coming back from the SystemJobber
+				case v, ok := <-t.SystemUpdater.GetUpdateChannel():
+					// Handle completed jobs coming back from the SystemUpdater
 					// by sending them off via our Changes channel
 					if !ok {
 						break dance

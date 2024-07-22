@@ -2,6 +2,7 @@ package dogeboxd
 
 import (
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -14,7 +15,9 @@ func NewPUPStatus(pupDir string, m PupManifest) PupStatus {
 		ID:           m.ID,
 		Installation: "installing",
 		Status:       "stopped",
-		Stats:        map[string][]float32{"cpu": {1.342, 1.245, 4.123, 2.354}},
+		StatCPU:      NewFloatBuffer(30),
+		StatMEM:      NewFloatBuffer(30),
+		StatDISK:     NewFloatBuffer(30),
 		gobPath:      f,
 	}
 	return p
@@ -35,12 +38,14 @@ func NewPUPStatus(pupDir string, m PupManifest) PupStatus {
 
 // PupStatus is persisted to disk
 type PupStatus struct {
-	ID           string               `json:"id"`
-	Stats        map[string][]float32 `json:"stats"`
-	Config       map[string]string    `json:"config"`
-	Installation string               `json:"installation"`
-	Status       string               `json:"status"`
-	DevMode      bool                 `json:"dev_mode"`
+	ID           string            `json:"id"`
+	Config       map[string]string `json:"config"`
+	Installation string            `json:"installation"`
+	Status       string            `json:"status"`
+	StatCPU      FloatBuffer       `json:"status_cpu"`
+	StatMEM      FloatBuffer       `json:"status_mem"`
+	StatDISK     FloatBuffer       `json:"status_disk"`
+	DevMode      bool              `json:"dev_mode"`
 	gobPath      string
 }
 
@@ -84,4 +89,33 @@ func (t PupStatus) Write() error {
 	}
 
 	return nil
+}
+
+type FloatBuffer struct {
+	values []float32
+	head   int
+}
+
+func NewFloatBuffer(size int) FloatBuffer {
+	return FloatBuffer{
+		values: make([]float32, size),
+		head:   0,
+	}
+}
+
+func (b *FloatBuffer) Add(value float32) {
+	b.values[b.head] = value
+	b.head = (b.head + 1) % len(b.values)
+}
+
+func (b *FloatBuffer) GetValues() []float32 {
+	lastN := make([]float32, len(b.values))
+	for i := 0; i < len(b.values); i++ {
+		lastN[i] = b.values[(b.head-i-1+len(b.values))%len(b.values)]
+	}
+	return lastN
+}
+
+func (b *FloatBuffer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.GetValues())
 }

@@ -37,6 +37,7 @@ func (t server) Start() {
 	}
 
 	su := system.NewSystemUpdater(t.config)
+	sm := system.NewSystemMonitor(t.config)
 
 	// Setup the ManifestIndex which knows about
 	// all available pups
@@ -61,10 +62,11 @@ func (t server) Start() {
 
 	man.AddSource("internal", internalSource)
 
-	dbx := dogeboxd.NewDogeboxd(t.config.PupDir, man, su)
+	dbx := dogeboxd.NewDogeboxd(t.config.PupDir, man, su, sm)
 	wsh := dogeboxd.NewWSRelay(dbx.Changes)
 	c.Service("Dogeboxd", dbx)
 	c.Service("System Manager", su)
+	c.Service("System Monitor", sm)
 	c.Service("WSock Relay", wsh)
 	c.Service("REST API", dogeboxd.RESTAPI(t.config, dbx, wsh))
 	// c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))
