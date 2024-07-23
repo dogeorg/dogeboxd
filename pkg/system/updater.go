@@ -13,7 +13,7 @@ import (
 )
 
 /*
-SystemUpdater implements dogeboxd.Jobber
+SystemUpdater implements dogeboxd.SystemUpdater
 
 SystemUpdater is responsible for handling longer running jobs for
 dogeboxd.Dogeboxd, especially as they relate to the operating system.

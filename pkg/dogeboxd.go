@@ -145,6 +145,11 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 
 					t.Changes <- Change{v.ID, v.Err, "system", v.Success}
+				case v, ok := <-t.SystemMonitor.GetStatChannel():
+					if !ok {
+						break dance
+					}
+					t.Changes <- Change{0, nil, "status", v}
 				}
 			}
 		}()
