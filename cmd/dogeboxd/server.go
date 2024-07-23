@@ -38,6 +38,7 @@ func (t server) Start() {
 
 	su := system.NewSystemUpdater(t.config)
 	sm := system.NewSystemMonitor(t.config)
+	j := system.NewJournalReader(t.config, "")
 
 	// Setup the ManifestIndex which knows about
 	// all available pups
@@ -67,6 +68,7 @@ func (t server) Start() {
 	c.Service("Dogeboxd", dbx)
 	c.Service("System Manager", su)
 	c.Service("System Monitor", sm)
+	c.Service("Journal Reader", j)
 	c.Service("WSock Relay", wsh)
 	c.Service("REST API", dogeboxd.RESTAPI(t.config, dbx, wsh))
 	// c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))

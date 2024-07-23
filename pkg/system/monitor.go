@@ -46,34 +46,35 @@ type SystemMonitor struct {
 
 func (t SystemMonitor) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
-		timer := time.NewTimer(5 * time.Second)
-		defer timer.Stop()
-	mainloop:
-		for {
-			select {
-			case <-stop:
-				break mainloop
-			case s := <-t.mon:
-				t.updateServices(s)
-			case <-timer.C:
-				stats, err := getStatus(t.services)
-				if err != nil {
-					fmt.Println("rrr")
-				}
-				fmt.Printf("%#v\n", stats)
+		go func() {
+			timer := time.NewTimer(5 * time.Second)
+			defer timer.Stop()
+		mainloop:
+			for {
 				select {
-				case t.stats <- stats:
-				default:
+				case <-stop:
+					break mainloop
+				case s := <-t.mon:
+					t.updateServices(s)
+				case <-timer.C:
+					stats, err := getStatus(t.services)
+					if err != nil {
+						fmt.Println("rrr")
+					}
+					select {
+					case t.stats <- stats:
+					default:
+					}
+					timer.Reset(5 * time.Second)
 				}
-				timer.Reset(5 * time.Second)
 			}
-		}
-	}()
+		}()
 
-	started <- true
-	<-stop
-	// do shutdown things
-	stopped <- true
+		started <- true
+		<-stop
+		// do shutdown things
+		stopped <- true
+	}()
 	return nil
 }
 

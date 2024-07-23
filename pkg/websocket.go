@@ -49,7 +49,6 @@ func (t WSRelay) Run(started, stopped chan bool, stop chan context.Context) erro
 }
 
 func (t *WSRelay) Broadcast(v any) {
-	fmt.Println(len(t.socks))
 	var deleteMe []int
 	for i, ws := range t.socks {
 		fmt.Println("sending to sock", i)

@@ -149,7 +149,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
-					t.Changes <- Change{0, nil, "status", v}
+					t.Changes <- Change{"", "", "status", v}
 				}
 			}
 		}()
