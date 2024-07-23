@@ -42,7 +42,7 @@ func (t JournalReader) Run(started, stopped chan bool, stop chan context.Context
 			}
 
 			// Seek to the end of the journal
-			err = j.SeekTail()
+			err = j.SeekHead()
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -50,19 +50,24 @@ func (t JournalReader) Run(started, stopped chan bool, stop chan context.Context
 
 			for {
 				var entry *sdjournal.JournalEntry
-				_, err := j.Next()
+
+				i, err := j.Next()
 				if err != nil {
 					fmt.Println("!!", err)
 					continue
 				}
 
-				entry, err = j.GetEntry()
-				if err != nil {
+				if i == 0 {
 					time.Sleep(time.Second)
 					continue
 				}
 
-				fmt.Printf("l> %s\n", entry.Fields["MESSAGE"])
+				entry, err = j.GetEntry()
+				if err != nil {
+					continue
+				}
+
+				fmt.Printf("log> %s\n", entry.Fields["MESSAGE"])
 			}
 		}()
 		/*
