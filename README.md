@@ -1,6 +1,6 @@
 ![Dogebox Logo](/docs/dogebox-logo.png)
 
-# dogeboxd
+# DOGEBOXD
 
 ## Dogeboxd is the Dogebox OS system manager service.
 
