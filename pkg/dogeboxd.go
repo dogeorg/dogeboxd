@@ -22,7 +22,7 @@ Dogebox internal architecture:
                 │                      │     │   ▼    │
                 │              ======= │  ┌──┴─────►  │ =======   Job ID
                 │ Actions      Jobs    │  │ System │  │ Changes
- WebSocket ─────┼───────────►  Channel │  │ Updater │  │ Channel ───► WebSocket
+ WebSocket ─────┼───────────►  Channel │  │ Updater│  │ Channel ───► WebSocket
                 │ Job ID       ======= │  ◄────────┘  │ =======
                 │ ◄────                │              │
                 │                      │   ▲      │   │
@@ -66,11 +66,12 @@ type Dogeboxd struct {
 	Internal      *InternalState
 	SystemUpdater SystemUpdater
 	SystemMonitor SystemMonitor
+	JournalReader JournalReader
 	jobs          chan Job
 	Changes       chan Change
 }
 
-func NewDogeboxd(pupDir string, man ManifestIndex, j SystemUpdater, m SystemMonitor) Dogeboxd {
+func NewDogeboxd(pupDir string, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader) Dogeboxd {
 	intern := InternalState{
 		ActionCounter: 100000,
 		InstalledPups: []string{"internal.dogeboxd"},
@@ -79,14 +80,17 @@ func NewDogeboxd(pupDir string, man ManifestIndex, j SystemUpdater, m SystemMoni
 	s := Dogeboxd{
 		Manifests:     man,
 		Pups:          map[string]PupStatus{},
-		SystemUpdater: j,
-		SystemMonitor: m,
+		SystemUpdater: updater,
+		SystemMonitor: monitor,
+		JournalReader: journal,
 		jobs:          make(chan Job),
 		Changes:       make(chan Change),
 		Internal:      &intern,
 	}
 
-	m.GetMonChannel() <- []string{"dbus.service"}
+	// TODO start monitoring all installed services
+	monitor.GetMonChannel() <- []string{"dbus.service"}
+
 	// load pup state from disk
 	for _, ip := range s.Internal.InstalledPups {
 		fmt.Printf("Loading pup status: %s\n", ip)
@@ -101,6 +105,14 @@ func NewDogeboxd(pupDir string, man ManifestIndex, j SystemUpdater, m SystemMoni
 }
 
 func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) error {
+	// XXX test journal
+	jCancel, jChan, err := t.JournalReader.GetJournalChan("ssh.service")
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer jCancel()
+
 	go func() {
 		go func() {
 		mainloop:
@@ -109,6 +121,9 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 				select {
 				case <-stop:
 					break mainloop
+
+				case logMsg := <-jChan:
+					fmt.Println("LOG:", logMsg)
 				case v, ok := <-t.jobs:
 					if !ok {
 						break dance // ヾ(。⌒∇⌒)ノ

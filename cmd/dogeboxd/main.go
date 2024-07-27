@@ -8,6 +8,8 @@ import (
 )
 
 func main() {
+	// Create and load our config, then hand over to server.go
+
 	var port int
 	var bind string
 	var pupDir string
