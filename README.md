@@ -2,6 +2,8 @@
 
 # DOGEBOXD
 
+This project is hosted on [radicle.xyz](https://radicle.xyz) at [rad:z4BsesfY8rHprpDKLxhRUhNpj1dmu](https://app.radicle.xyz/nodes/ash.radicle.garden/z4BsesfY8rHprpDKLxhRUhNpj1dmu)
+
 ## Dogeboxd is the Dogebox OS system manager service.
 
 ### A Daemon 
