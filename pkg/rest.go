@@ -13,15 +13,17 @@ import (
 )
 
 func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
-	a := api{mux: http.NewServeMux(), config: config, dbx: dbx}
+	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, ws: ws}
 
 	routes := map[string]http.HandlerFunc{
 		"GET /bootstrap/":            a.getBootstrap,
 		"POST /pup/{PupID}/{action}": a.pupAction, // install, uninstall, disable, enable
 		"POST /config/{PupID}":       a.updateConfig,
-		"/ws/state/": ws.GetWSHandler(func() any {
-			return Change{ID: "internal", Error: "", Type: "bootstrap", Update: a.getRawBS()}
-		}).ServeHTTP,
+		"/ws/log/{PupID}":            a.getLogSocket,
+		"/ws/state/":                 a.getUpdateSocket,
+		//"/ws/state/": ws.GetWSHandler(func() any {
+		//	return Change{ID: "internal", Error: "", Type: "bootstrap", Update: a.getRawBS()}
+		//}).ServeHTTP,
 	}
 
 	for p, h := range routes {
@@ -35,6 +37,7 @@ type api struct {
 	dbx    Dogeboxd
 	mux    *http.ServeMux
 	config ServerConfig
+	ws     WSRelay
 }
 
 func (t api) getRawBS() any {
@@ -46,6 +49,21 @@ func (t api) getRawBS() any {
 
 func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, t.getRawBS())
+}
+
+func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
+	pupid := r.PathValue("PupID")
+	cancel, logChan, err := t.dbx.GetLogChannel(pupid)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error establishing log channel")
+	}
+	t.ws.GetWSChannelHandler(fmt.Sprintf("%s-log", pupid), logChan, cancel).ServeHTTP(w, r)
+}
+
+func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
+	t.ws.GetWSHandler(WS_DEFAULT_CHANNEL, func() any {
+		return Change{ID: "internal", Error: "", Type: "bootstrap", Update: t.getRawBS()}
+	}).ServeHTTP(w, r)
 }
 
 func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {

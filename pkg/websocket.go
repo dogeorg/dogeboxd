@@ -8,6 +8,8 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+const WS_DEFAULT_CHANNEL string = "updates"
+
 type WSRelay struct {
 	socks []WSCONN
 	relay chan Change
@@ -33,7 +35,7 @@ func (t WSRelay) Run(started, stopped chan bool, stop chan context.Context) erro
 				case ws := <-t.newWs:
 					t.AddSock(ws)
 				case v := <-t.relay:
-					t.Broadcast(v)
+					t.Broadcast(WS_DEFAULT_CHANNEL, v)
 				}
 			}
 		}()
@@ -48,9 +50,12 @@ func (t WSRelay) Run(started, stopped chan bool, stop chan context.Context) erro
 	return nil
 }
 
-func (t *WSRelay) Broadcast(v any) {
+func (t *WSRelay) Broadcast(channel string, v any) {
 	var deleteMe []int
 	for i, ws := range t.socks {
+		if ws.channel != channel {
+			continue
+		}
 		fmt.Println("sending to sock", i)
 		err := websocket.JSON.Send(ws.WS, v)
 		if err != nil {
@@ -74,7 +79,7 @@ func (t *WSRelay) AddSock(ws WSCONN) {
 	fmt.Println(len(t.socks))
 }
 
-func (t WSRelay) GetWSHandler(initialPayloader func() any) *websocket.Server {
+func (t WSRelay) GetWSHandler(channel string, initialPayloader func() any) *websocket.Server {
 	config := &websocket.Config{
 		Origin: nil,
 	}
@@ -82,7 +87,7 @@ func (t WSRelay) GetWSHandler(initialPayloader func() any) *websocket.Server {
 		Handler: func(ws *websocket.Conn) {
 			fmt.Println("HANDL")
 			stop := make(chan bool)
-			t.newWs <- WSCONN{ws, stop, sync.Once{}}
+			t.newWs <- WSCONN{ws, stop, sync.Once{}, channel}
 
 			err := websocket.JSON.Send(ws, initialPayloader())
 			if err != nil {
@@ -95,10 +100,49 @@ func (t WSRelay) GetWSHandler(initialPayloader func() any) *websocket.Server {
 	return &h
 }
 
+func (t WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel context.CancelFunc) *websocket.Server {
+	config := &websocket.Config{
+		Origin: nil,
+	}
+
+	stop := make(chan bool)
+
+	h := websocket.Server{
+		Handler: func(ws *websocket.Conn) {
+			fmt.Println("HANDL")
+			t.newWs <- WSCONN{ws, stop, sync.Once{}, channel}
+
+			<-stop // hold the connection until stopper closes
+			// cancel the producer
+			cancel()
+		},
+		Config: *config,
+	}
+
+	// create a pump that broadcasts logs
+	go func() {
+	out:
+		for {
+			select {
+			case <-stop:
+				break out
+			case s, ok := <-ch:
+				if !ok {
+					close(stop)
+					break
+				}
+				t.Broadcast(channel, s)
+			}
+		}
+	}()
+	return &h
+}
+
 type WSCONN struct {
-	WS   *websocket.Conn
-	Stop chan bool
-	once sync.Once
+	WS      *websocket.Conn
+	Stop    chan bool
+	once    sync.Once
+	channel string // 'channel' discriminator for messages
 }
 
 func (t *WSCONN) Close() {

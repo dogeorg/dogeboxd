@@ -40,6 +40,7 @@ package dogeboxd
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 )
 
@@ -184,6 +185,21 @@ func (t Dogeboxd) AddAction(a Action) string {
 	id := fmt.Sprintf("%x", t.Internal.ActionCounter)
 	t.jobs <- Job{A: a, ID: id}
 	return id
+}
+
+func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, error) {
+	// find the manifest, get the systemd service-name,
+	// subscribe to the JournalReader for that service:
+	man, ok := t.Manifests.FindManifest(pupID)
+	if !ok {
+		return nil, nil, errors.New("PUP not found")
+	}
+
+	// TODO this should possibly be the responsibility off
+	// journal reader so systemd concepts dont bleed into
+	// dogecoind..
+	service := fmt.Sprintf("%s.service", man.ID)
+	return t.JournalReader.GetJournalChan(service)
 }
 
 func (t Dogeboxd) sendChange(changeType string, j Job) {
