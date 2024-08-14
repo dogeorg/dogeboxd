@@ -10,8 +10,10 @@ build/dogeboxd: clean
 
 
 dev:
-	go run ./cmd/dogeboxd -v 
+	go run ./cmd/dogeboxd -v
 
+multipassdev:
+	go run ./cmd/dogeboxd -v -addr 0.0.0.0 -pups ~/
 
 test:
 	go test -v ./test

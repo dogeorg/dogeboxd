@@ -74,7 +74,7 @@ func (t JournalReader) GetJournalChan(service string) (context.CancelFunc, chan 
 					continue
 				}
 
-				fmt.Printf("log> %s\n", entry.Fields["MESSAGE"])
+				out <- entry.Fields["MESSAGE"]
 			}
 		}
 	}()

@@ -55,6 +55,7 @@ func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
 	pupid := r.PathValue("PupID")
 	cancel, logChan, err := t.dbx.GetLogChannel(pupid)
 	if err != nil {
+		fmt.Println("ERR", err)
 		sendErrorResponse(w, http.StatusBadRequest, "Error establishing log channel")
 	}
 	t.ws.GetWSChannelHandler(fmt.Sprintf("%s-log", pupid), logChan, cancel).ServeHTTP(w, r)

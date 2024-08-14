@@ -51,6 +51,8 @@ func (t WSRelay) Run(started, stopped chan bool, stop chan context.Context) erro
 }
 
 func (t *WSRelay) Broadcast(channel string, v any) {
+	fmt.Println(len(t.socks), "BCAST", channel, ":::", v)
+
 	var deleteMe []int
 	for i, ws := range t.socks {
 		if ws.channel != channel {
@@ -100,18 +102,18 @@ func (t WSRelay) GetWSHandler(channel string, initialPayloader func() any) *webs
 	return &h
 }
 
-func (t WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel context.CancelFunc) *websocket.Server {
+func (t *WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel context.CancelFunc) *websocket.Server {
 	config := &websocket.Config{
 		Origin: nil,
 	}
 
 	stop := make(chan bool)
-
+	start := make(chan bool)
 	h := websocket.Server{
 		Handler: func(ws *websocket.Conn) {
 			fmt.Println("HANDL")
 			t.newWs <- WSCONN{ws, stop, sync.Once{}, channel}
-
+			start <- true
 			<-stop // hold the connection until stopper closes
 			// cancel the producer
 			cancel()
@@ -121,6 +123,7 @@ func (t WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel cont
 
 	// create a pump that broadcasts logs
 	go func() {
+		<-start
 	out:
 		for {
 			select {
@@ -131,6 +134,7 @@ func (t WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel cont
 					close(stop)
 					break
 				}
+				fmt.Println(">>", channel, s)
 				t.Broadcast(channel, s)
 			}
 		}

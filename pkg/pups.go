@@ -92,26 +92,26 @@ func (t PupStatus) Write() error {
 }
 
 type FloatBuffer struct {
-	values []float32
-	head   int
+	Values []float32
+	Head   int
 }
 
 func NewFloatBuffer(size int) FloatBuffer {
 	return FloatBuffer{
-		values: make([]float32, size),
-		head:   0,
+		Values: make([]float32, size),
+		Head:   0,
 	}
 }
 
 func (b *FloatBuffer) Add(value float32) {
-	b.values[b.head] = value
-	b.head = (b.head + 1) % len(b.values)
+	b.Values[b.Head] = value
+	b.Head = (b.Head + 1) % len(b.Values)
 }
 
 func (b *FloatBuffer) GetValues() []float32 {
-	lastN := make([]float32, len(b.values))
-	for i := 0; i < len(b.values); i++ {
-		lastN[i] = b.values[(b.head-i-1+len(b.values))%len(b.values)]
+	lastN := make([]float32, len(b.Values))
+	for i := 0; i < len(b.Values); i++ {
+		lastN[i] = b.Values[(b.Head-i-1+len(b.Values))%len(b.Values)]
 	}
 	return lastN
 }
