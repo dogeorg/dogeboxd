@@ -46,10 +46,12 @@ import (
 
 // A job is an in-flight handling of an Action (see actions.go)
 type Job struct {
-	A       Action
-	ID      string
-	Err     string
-	Success any
+	A        Action
+	ID       string
+	Err      string
+	Success  any
+	Manifest *PupManifest // nilable, check before use!
+	Status   *PupStatus   // nilable, check before use!
 }
 
 // A Change is the result of a Job that will be sent back
@@ -59,6 +61,11 @@ type Change struct {
 	Error  string `json:"error"`
 	Type   string `json:"type"`
 	Update any    `json:"update"`
+}
+
+type InternalState struct {
+	ActionCounter int
+	InstalledPups []string
 }
 
 type Dogeboxd struct {
@@ -160,15 +167,19 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
  * for handling.
  */
 func (t Dogeboxd) jobDispatcher(j Job) {
+	fmt.Printf("dispatch job %+v\n", j)
 	switch a := j.A.(type) {
-
 	// System actions
 	case InstallPup:
+		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case UninstallPup:
+		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case EnablePup:
+		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case DisablePup:
-		t.dispatchToSystem(j)
+		t.sendSystemJobWithPupDetails(j, a.PupID)
 
+	// Dogebox actions
 	case UpdatePupConfig:
 		t.updatePupConfig(j, a)
 
@@ -204,7 +215,6 @@ func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, 
 	if !ok {
 		return nil, nil, errors.New("PUP not found")
 	}
-
 	// TODO this should possibly be the responsibility off
 	// journal reader so systemd concepts dont bleed into
 	// dogecoind..
@@ -226,20 +236,22 @@ func (t *Dogeboxd) loadPupStatus(pupDir string, m PupManifest) {
 	t.Pups[p.ID] = p
 }
 
-// Sends a job to the SystemUpdater to handle, ensures
-// that it has loaded the manifest onto the Action
-func (t Dogeboxd) dispatchToSystem(j Job) {
-	// add matching manifest to action
-	if a, ok := j.A.(PupAction); ok {
-		err := a.LoadManifest(t.Manifests)
-		if err != nil {
-			j.Err = fmt.Sprintf("couldnt find manifest %s", a.PupID)
-			t.sendFinishedJob("system", j)
-			return
-		}
-		j.A = a
+func (t Dogeboxd) setJobPupDetails(j *Job, PupID string) error {
+	m, ok := t.Manifests.FindManifest(PupID)
+	if !ok {
+		return errors.New(fmt.Sprintf("couldnt find manifest %s", PupID))
 	}
+	j.Manifest = &m
+	return nil
+}
 
+func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
+	err := t.setJobPupDetails(&j, PupID)
+	if err != nil {
+		j.Err = err.Error()
+		t.sendFinishedJob("system", j)
+		return
+	}
 	// Send job to the system updater for handling
 	t.SystemUpdater.AddJob(j)
 }
@@ -276,12 +288,4 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 	j.Success = p
 	t.Pups[u.PupID] = p
 	t.sendFinishedJob("PupStatus", j)
-}
-
-// InternalState is stored in dogeboxd.gob and contains
-// various details about what's installed, what condition
-// we're in overall etc.
-type InternalState struct {
-	ActionCounter int
-	InstalledPups []string
 }

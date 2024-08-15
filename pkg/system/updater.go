@@ -43,39 +43,40 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 				select {
 				case <-stop:
 					break mainloop
-				case v, ok := <-t.jobs:
+				case j, ok := <-t.jobs:
 					if !ok {
 						break dance
 					}
-					switch a := v.A.(type) {
+					switch a := j.A.(type) {
 					case dogeboxd.InstallPup:
-						err := installPup(t.config.NixDir, *a.M)
+						fmt.Printf("JON %+v", a)
+						err := installPup(t.config.NixDir, *j.Manifest)
 						if err != nil {
 							fmt.Println("Failed to install pup", err)
-							v.Err = "Failed to install pup"
+							j.Err = "Failed to install pup"
 						}
-						t.done <- v
+						t.done <- j
 					case dogeboxd.UninstallPup:
-						err := uninstallPup(t.config.NixDir, *a.M)
+						err := uninstallPup(t.config.NixDir, *j.Manifest)
 						if err != nil {
 							fmt.Println("Failed to uninstall pup", err)
-							v.Err = "Failed to uninstall pup"
+							j.Err = "Failed to uninstall pup"
 						}
-						t.done <- v
+						t.done <- j
 					case dogeboxd.EnablePup:
-						err := enablePup(t.config.NixDir, *a.M)
+						err := enablePup(t.config.NixDir, *j.Manifest)
 						if err != nil {
 							fmt.Println("Failed to enable pup", err)
-							v.Err = "Failed to enable pup"
+							j.Err = "Failed to enable pup"
 						}
-						t.done <- v
+						t.done <- j
 					case dogeboxd.DisablePup:
-						err := disablePup(t.config.NixDir, *a.M)
+						err := disablePup(t.config.NixDir, *j.Manifest)
 						if err != nil {
 							fmt.Println("Failed to disable pup", err)
-							v.Err = "Failed to disable pup"
+							j.Err = "Failed to disable pup"
 						}
-						t.done <- v
+						t.done <- j
 					default:
 						fmt.Printf("Unknown action type: %v\n", a)
 					}
@@ -91,7 +92,7 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 }
 
 func (t SystemUpdater) AddJob(j dogeboxd.Job) {
-	fmt.Println("add job", j)
+	fmt.Printf("add job %+v\n", j)
 	t.jobs <- j
 }
 
