@@ -16,14 +16,16 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, ws: ws}
 
 	routes := map[string]http.HandlerFunc{
-		"GET /bootstrap/":            a.getBootstrap,
-		"POST /pup/{PupID}/{action}": a.pupAction, // install, uninstall, disable, enable
-		"POST /config/{PupID}":       a.updateConfig,
-		"/ws/log/{PupID}":            a.getLogSocket,
-		"/ws/state/":                 a.getUpdateSocket,
-		//"/ws/state/": ws.GetWSHandler(func() any {
-		//	return Change{ID: "internal", Error: "", Type: "bootstrap", Update: a.getRawBS()}
-		//}).ServeHTTP,
+		"GET /bootstrap/":                 a.getBootstrap,
+		"POST /pup/{PupID}/{action}":      a.pupAction,
+		"POST /config/{PupID}":            a.updateConfig,
+		"GET /system/network/list":        a.getNetwork,
+		"PUT /system/network/set-pending": a.setPendingNetwork,
+		"POST /system/network/connect":    a.connectNetwork,
+		"POST /system/host/shutdown":      a.hostShutdown,
+		"POST /system/host/reboot":        a.hostReboot,
+		"/ws/log/{PupID}":                 a.getLogSocket,
+		"/ws/state/":                      a.getUpdateSocket,
 	}
 
 	for p, h := range routes {
@@ -49,6 +51,77 @@ func (t api) getRawBS() any {
 
 func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, t.getRawBS())
+}
+
+func (t api) hostReboot(w http.ResponseWriter, r *http.Request) {
+	t.dbx.lifecycle.Reboot()
+}
+
+func (t api) hostShutdown(w http.ResponseWriter, r *http.Request) {
+	t.dbx.lifecycle.Shutdown()
+}
+
+func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {
+	sendResponse(w, map[string]any{
+		"success":  true,
+		"networks": t.dbx.NetworkManager.GetAvailableNetworks(),
+	})
+}
+
+func (t api) connectNetwork(w http.ResponseWriter, r *http.Request) {
+	err := t.dbx.NetworkManager.TryConnect()
+
+	// Chances are we'll never actually get here, because you'll probably be disconnected
+	// from the box once (if) it changes networks, and your connection will break.
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Failed to connect to network")
+		return
+	}
+
+	sendResponse(w, map[string]bool{"success": true})
+}
+
+func (t api) setPendingNetwork(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	// Unmarshal the JSON into a map first to determine the network type
+	var rawNetwork map[string]interface{}
+	if err := json.Unmarshal(body, &rawNetwork); err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error parsing JSON")
+		return
+	}
+
+	var selectedNetwork SelectedNetwork
+
+	// We need proper input validation here.
+	if _, ok := rawNetwork["interface"]; ok {
+		if _, ok := rawNetwork["ssid"]; ok {
+			var wifiNetwork SelectedNetworkWifi
+			if err := json.Unmarshal(body, &wifiNetwork); err != nil {
+				http.Error(w, "Error parsing WiFi network JSON", http.StatusBadRequest)
+				return
+			}
+			selectedNetwork = wifiNetwork
+		} else {
+			var ethernetNetwork SelectedNetworkEthernet
+			if err := json.Unmarshal(body, &ethernetNetwork); err != nil {
+				http.Error(w, "Error parsing Ethernet network JSON", http.StatusBadRequest)
+				return
+			}
+			selectedNetwork = ethernetNetwork
+		}
+	} else {
+		http.Error(w, "Invalid network type", http.StatusBadRequest)
+		return
+	}
+
+	id := t.dbx.AddAction(UpdatePendingSystemNetwork{Network: selectedNetwork})
+	sendResponse(w, map[string]string{"id": id})
 }
 
 func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +183,7 @@ func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
 
 func (t api) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
-		handler := cors.Default().Handler(t.mux)
+		handler := cors.AllowAll().Handler(t.mux)
 		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", t.config.Bind, t.config.Port), Handler: handler}
 		go func() {
 			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
