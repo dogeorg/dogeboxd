@@ -3,6 +3,7 @@ package dogeboxd
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 
 	"golang.org/x/net/websocket"
@@ -11,16 +12,23 @@ import (
 const WS_DEFAULT_CHANNEL string = "updates"
 
 type WSRelay struct {
-	socks []WSCONN
-	relay chan Change
-	newWs chan WSCONN
+	config ServerConfig
+	socks  []WSCONN
+	relay  chan Change
+	newWs  chan WSCONN
 }
 
-func NewWSRelay(relay chan Change) WSRelay {
+func NewWSRelay(config ServerConfig, relay chan Change) WSRelay {
+	if config.Recovery {
+		log.Printf("In recovery mode: not initialising WSRelay")
+		return WSRelay{}
+	}
+
 	return WSRelay{
-		socks: []WSCONN{},
-		relay: relay,
-		newWs: make(chan WSCONN),
+		config: config,
+		socks:  []WSCONN{},
+		relay:  relay,
+		newWs:  make(chan WSCONN),
 	}
 }
 

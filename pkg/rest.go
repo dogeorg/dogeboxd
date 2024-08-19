@@ -15,17 +15,40 @@ import (
 func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, ws: ws}
 
-	routes := map[string]http.HandlerFunc{
+	routes := map[string]http.HandlerFunc{}
+
+	// Recovery routes are the _only_ routes loaded in recovery mode.
+	recoveryRoutes := map[string]http.HandlerFunc{
 		"GET /bootstrap/":                 a.getBootstrap,
-		"POST /pup/{PupID}/{action}":      a.pupAction,
-		"POST /config/{PupID}":            a.updateConfig,
 		"GET /system/network/list":        a.getNetwork,
 		"PUT /system/network/set-pending": a.setPendingNetwork,
 		"POST /system/network/connect":    a.connectNetwork,
 		"POST /system/host/shutdown":      a.hostShutdown,
 		"POST /system/host/reboot":        a.hostReboot,
-		"/ws/log/{PupID}":                 a.getLogSocket,
-		"/ws/state/":                      a.getUpdateSocket,
+	}
+
+	// Normal routes are used when we are not in recovery mode.
+	// nb. These are used in _addition_ to recovery routes.
+	normalRoutes := map[string]http.HandlerFunc{
+		"POST /pup/{PupID}/{action}": a.pupAction,
+		"POST /config/{PupID}":       a.updateConfig,
+		"/ws/log/{PupID}":            a.getLogSocket,
+		"/ws/state/":                 a.getUpdateSocket,
+	}
+
+	// We always want to load recovery routes.
+	for k, v := range recoveryRoutes {
+		routes[k] = v
+	}
+
+	// If we're not in recovery mode, also load our normal routes.
+	if !config.Recovery {
+		for k, v := range normalRoutes {
+			routes[k] = v
+		}
+		log.Printf("Loaded %d API routes", len(routes))
+	} else {
+		log.Printf("In recovery mode: Loading limited routes")
 	}
 
 	for p, h := range routes {
