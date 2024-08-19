@@ -12,14 +12,22 @@ import (
 
 var _ dogeboxd.StateManager = &StateManager{}
 
-func NewStateManager() dogeboxd.StateManager {
+func NewStateManager(config dogeboxd.ServerConfig) dogeboxd.StateManager {
 	gob.Register(dogeboxd.SelectedNetworkEthernet{})
 	gob.Register(dogeboxd.SelectedNetworkWifi{})
-	return &StateManager{}
+	return &StateManager{config: config}
 }
 
 type StateManager struct {
+	config  dogeboxd.ServerConfig
 	network dogeboxd.NetworkState
+}
+
+func (m *StateManager) reset() {
+	m.network = dogeboxd.NetworkState{
+		CurrentNetwork: nil,
+		PendingNetwork: nil,
+	}
 }
 
 func (m StateManager) GobEncode() ([]byte, error) {
@@ -77,6 +85,12 @@ func (s *StateManager) Save() error {
 }
 
 func (s *StateManager) Load() error {
+	if s.config.Recovery {
+		log.Printf("In recovery mode: not loading state.")
+		s.reset()
+		return nil
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -87,10 +101,7 @@ func (s *StateManager) Load() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Println("No existing state file found. Starting with empty state.")
-			s.network = dogeboxd.NetworkState{
-				CurrentNetwork: nil,
-				PendingNetwork: nil,
-			}
+			s.reset()
 			return nil
 		}
 		return err

@@ -81,12 +81,7 @@ type Dogeboxd struct {
 	Changes        chan Change
 }
 
-func NewDogeboxd(pupDir string, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
-	intern := InternalState{
-		ActionCounter: 100000,
-		InstalledPups: []string{"internal.dogeboxd"},
-	}
-	// TODO: Load state from GOB
+func NewDogeboxd(internalState InternalState, pupDir string, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
 	s := Dogeboxd{
 		Manifests:      man,
 		Pups:           map[string]PupStatus{},
@@ -97,7 +92,7 @@ func NewDogeboxd(pupDir string, man ManifestIndex, updater SystemUpdater, monito
 		lifecycle:      lifecycle,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
-		Internal:       &intern,
+		Internal:       &internalState,
 	}
 
 	// TODO start monitoring all installed services

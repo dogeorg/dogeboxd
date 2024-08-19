@@ -24,10 +24,15 @@ func Server(config dogeboxd.ServerConfig) server {
 	return server{config}
 }
 
-func (t server) Start() {
-	/* ----------------------------------------------------------------------- */
+func (t server) loadManifest() dogeboxd.ManifestIndex {
 	// Establish the PUP manifest index so we have software to manage:
 	manifest := dogeboxd.NewManifestIndex()
+
+	if t.config.Recovery {
+		// Do nothing if we're in recovery mode.
+		log.Printf("In recovery mode: not loading manifests.")
+		return manifest
+	}
 
 	// Setup the 'local' source that represents
 	// development pups on the local Filesystem
@@ -48,9 +53,27 @@ func (t server) Start() {
 
 	manifest.AddSource("internal", internalSource)
 
+	return manifest
+}
+
+func (t server) getInternalState() dogeboxd.InternalState {
+	if t.config.Recovery {
+		return dogeboxd.InternalState{}
+	}
+
+	return dogeboxd.InternalState{
+		ActionCounter: 100000,
+		InstalledPups: []string{"internal.dogeboxd"},
+	}
+}
+
+func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
-	stateManager := system.NewStateManager()
-	err = stateManager.Load()
+	manifest := t.loadManifest()
+
+	/* ----------------------------------------------------------------------- */
+	stateManager := system.NewStateManager(t.config)
+	err := stateManager.Load()
 	if err != nil {
 		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)
 	}
@@ -63,14 +86,16 @@ func (t server) Start() {
 	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 
+	internalState := t.getInternalState()
+
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
-	dbx := dogeboxd.NewDogeboxd(t.config.PupDir, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
+	dbx := dogeboxd.NewDogeboxd(internalState, t.config.PupDir, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets
 
-	wsh := dogeboxd.NewWSRelay(dbx.Changes)
+	wsh := dogeboxd.NewWSRelay(t.config, dbx.Changes)
 	rest := dogeboxd.RESTAPI(t.config, dbx, wsh)
 
 	/* ----------------------------------------------------------------------- */
@@ -78,7 +103,7 @@ func (t server) Start() {
 
 	var c *conductor.Conductor
 
-	if t.config.Verbose {
+	if t.config.Verbose || t.config.Recovery {
 		c = conductor.NewConductor(
 			conductor.HookSignals(),
 			conductor.Noisy(),
@@ -89,10 +114,14 @@ func (t server) Start() {
 		)
 	}
 	c.Service("Dogeboxd", dbx)
-	c.Service("System Updater", systemUpdater)
-	c.Service("System Monitor", systemMonitor)
-	c.Service("WSock Relay", wsh)
 	c.Service("REST API", rest)
+
+	if !t.config.Recovery {
+		c.Service("System Updater", systemUpdater)
+		c.Service("System Monitor", systemMonitor)
+		c.Service("WSock Relay", wsh)
+	}
+
 	// c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))
 	<-c.Start()
 }
