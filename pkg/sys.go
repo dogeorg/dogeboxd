@@ -107,9 +107,9 @@ func (sn SelectedNetworkEthernet) selectedNetworkMarker() {}
 func (sn SelectedNetworkWifi) selectedNetworkMarker()     {}
 
 type NetworkConnector interface {
-	Connect(network SelectedNetwork)
+	Connect(network SelectedNetwork) error
 }
 
 type NetworkPersistor interface {
-	Persist(network SelectedNetwork)
+	Persist(network SelectedNetwork) error
 }

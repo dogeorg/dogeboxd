@@ -7,7 +7,6 @@ import (
 )
 
 func NewNetworkPersistor(network dogeboxd.SelectedNetwork) (dogeboxd.NetworkPersistor, error) {
-	// TODO: Do some system discovery and figure out how to init this properly.
 	if isNix() {
 		return NetworkPersistorNix{}, nil
 	}

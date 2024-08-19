@@ -1,8 +1,19 @@
 package network_connector
 
-import dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+import (
+	"log"
+
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+)
 
 func NewNetworkConnector(network dogeboxd.SelectedNetwork) dogeboxd.NetworkConnector {
-	// TODO: Do some system discovery and figure out how to init this properly.
-	return NetworkConnectorWPASupplicant{}
+	switch network.(type) {
+	case dogeboxd.SelectedNetworkEthernet:
+		return NetworkConnectorEthernet{}
+	case dogeboxd.SelectedNetworkWifi:
+		return NetworkConnectorWPASupplicant{}
+	default:
+		log.Fatalf("No network connector specified for network: %+v", network)
+		return nil
+	}
 }

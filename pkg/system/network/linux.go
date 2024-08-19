@@ -8,6 +8,7 @@ import (
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	network_connector "github.com/dogeorg/dogeboxd/pkg/system/network/connector"
+	network_persistor "github.com/dogeorg/dogeboxd/pkg/system/network/persistor"
 	network_wifi "github.com/dogeorg/dogeboxd/pkg/system/network/wifi"
 	"github.com/mdlayher/wifi"
 )
@@ -17,8 +18,8 @@ var _ dogeboxd.NetworkManager = &NetworkManagerLinux{}
 type NetworkManagerLinux struct {
 	dogeboxd.NetworkManager
 
-	sm          dogeboxd.StateManager
-	WifiScanner network_wifi.WifiScanner
+	sm      dogeboxd.StateManager
+	scanner network_wifi.WifiScanner
 }
 
 type WiFiNetwork struct {
@@ -47,7 +48,7 @@ func (t NetworkManagerLinux) GetAvailableNetworks() []dogeboxd.NetworkConnection
 	wifiInterfaceNames := []string{}
 
 	for _, wifiInterface := range wifiInterfaces {
-		ssids, err := t.WifiScanner.Scan(wifiInterface.Name)
+		ssids, err := t.scanner.Scan(wifiInterface.Name)
 		if err != nil {
 			log.Printf("Failed to scan for Wifi networks on %s: %s", wifiInterface.Name, err)
 			continue
@@ -161,34 +162,35 @@ func (t NetworkManagerLinux) TryConnect() error {
 
 	connector := network_connector.NewNetworkConnector(state.PendingNetwork)
 
-	connector.Connect(state.PendingNetwork)
-
-	// TODO: actually do connect
-	if isNix() {
-		ensureNixWifiEnabled()
+	err := connector.Connect(state.PendingNetwork)
+	if err != nil {
+		return err
 	}
 
-	updateConfiguration(state.PendingNetwork)
+	// Create an instance of our network persistor, we do this here
+	// because depending on the type of network we want (ethernet/wifi)
+	// may result in a different persistor-type being used.
+	persistor, err := network_persistor.NewNetworkPersistor(state.PendingNetwork)
+	if err != nil {
+		return err
+	}
+
+	err = persistor.Persist(state.PendingNetwork)
+	if err != nil {
+		return err
+	}
 
 	// Swap out pending for current.
 	state.CurrentNetwork = state.PendingNetwork
 	state.PendingNetwork = nil
 
 	t.sm.SetNetwork(state)
-	return t.sm.Save()
-}
 
-func isNix() bool {
-	// TODO
-	return true
-}
+	err = t.sm.Save()
+	if err != nil {
+		return err
+	}
 
-func ensureNixWifiEnabled() {
-	// TODO: do.
-	// Update configuration and make sure we set networking.wireless.enabled = true
-}
-
-func updateConfiguration(network dogeboxd.SelectedNetwork) {
-	// write wpa_supplicant.conf
-	// trigger nix-rebuild
+	log.Printf("Successfully saved network configuration to disk")
+	return nil
 }

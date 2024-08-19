@@ -74,6 +74,7 @@ func (t api) connectNetwork(w http.ResponseWriter, r *http.Request) {
 	// Chances are we'll never actually get here, because you'll probably be disconnected
 	// from the box once (if) it changes networks, and your connection will break.
 	if err != nil {
+		log.Printf("Failed to connect to network: %+v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Failed to connect to network")
 		return
 	}
