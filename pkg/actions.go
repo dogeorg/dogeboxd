@@ -32,3 +32,7 @@ type UpdatePupConfig struct {
 	PupID   string
 	Payload map[string]string
 }
+
+type UpdatePendingSystemNetwork struct {
+	Network SelectedNetwork
+}

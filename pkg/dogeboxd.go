@@ -69,31 +69,35 @@ type InternalState struct {
 }
 
 type Dogeboxd struct {
-	Manifests     ManifestIndex
-	Pups          map[string]PupStatus
-	Internal      *InternalState
-	SystemUpdater SystemUpdater
-	SystemMonitor SystemMonitor
-	JournalReader JournalReader
-	jobs          chan Job
-	Changes       chan Change
+	Manifests      ManifestIndex
+	Pups           map[string]PupStatus
+	Internal       *InternalState
+	SystemUpdater  SystemUpdater
+	SystemMonitor  SystemMonitor
+	JournalReader  JournalReader
+	NetworkManager NetworkManager
+	lifecycle      LifecycleManager
+	jobs           chan Job
+	Changes        chan Change
 }
 
-func NewDogeboxd(pupDir string, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader) Dogeboxd {
+func NewDogeboxd(pupDir string, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
 	intern := InternalState{
 		ActionCounter: 100000,
 		InstalledPups: []string{"internal.dogeboxd"},
 	}
 	// TODO: Load state from GOB
 	s := Dogeboxd{
-		Manifests:     man,
-		Pups:          map[string]PupStatus{},
-		SystemUpdater: updater,
-		SystemMonitor: monitor,
-		JournalReader: journal,
-		jobs:          make(chan Job),
-		Changes:       make(chan Change),
-		Internal:      &intern,
+		Manifests:      man,
+		Pups:           map[string]PupStatus{},
+		SystemUpdater:  updater,
+		SystemMonitor:  monitor,
+		JournalReader:  journal,
+		NetworkManager: networkManager,
+		lifecycle:      lifecycle,
+		jobs:           make(chan Job),
+		Changes:        make(chan Change),
+		Internal:       &intern,
 	}
 
 	// TODO start monitoring all installed services
@@ -182,6 +186,10 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	// Dogebox actions
 	case UpdatePupConfig:
 		t.updatePupConfig(j, a)
+
+	// Host Actions
+	case UpdatePendingSystemNetwork:
+		t.SystemUpdater.AddJob(j)
 
 	default:
 		fmt.Printf("Unknown action type: %v\n", a)

@@ -9,6 +9,8 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
 	"github.com/dogeorg/dogeboxd/pkg/sources"
 	"github.com/dogeorg/dogeboxd/pkg/system"
+	"github.com/dogeorg/dogeboxd/pkg/system/lifecycle"
+	"github.com/dogeorg/dogeboxd/pkg/system/network"
 )
 
 //go:embed pup.json
@@ -25,7 +27,6 @@ func Server(config dogeboxd.ServerConfig) server {
 func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Establish the PUP manifest index so we have software to manage:
-
 	manifest := dogeboxd.NewManifestIndex()
 
 	// Setup the 'local' source that represents
@@ -48,15 +49,23 @@ func (t server) Start() {
 	manifest.AddSource("internal", internalSource)
 
 	/* ----------------------------------------------------------------------- */
+	stateManager := system.NewStateManager()
+	err = stateManager.Load()
+	if err != nil {
+		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)
+	}
+
 	// Set up our system interfaces so we can talk to the host OS
-	systemUpdater := system.NewSystemUpdater(t.config)
+	networkManager := network.NewNetworkManager(stateManager)
+	lifecycleManager := lifecycle.NewLifecycleManager()
+
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager)
 	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
-
-	dbx := dogeboxd.NewDogeboxd(t.config.PupDir, manifest, systemUpdater, systemMonitor, journalReader)
+	dbx := dogeboxd.NewDogeboxd(t.config.PupDir, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets

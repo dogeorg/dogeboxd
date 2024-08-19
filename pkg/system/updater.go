@@ -20,18 +20,20 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager) SystemUpdater {
 	return SystemUpdater{
-		config: config,
-		jobs:   make(chan dogeboxd.Job),
-		done:   make(chan dogeboxd.Job),
+		config:  config,
+		jobs:    make(chan dogeboxd.Job),
+		done:    make(chan dogeboxd.Job),
+		network: networkManager,
 	}
 }
 
 type SystemUpdater struct {
-	config dogeboxd.ServerConfig
-	jobs   chan dogeboxd.Job
-	done   chan dogeboxd.Job
+	config  dogeboxd.ServerConfig
+	jobs    chan dogeboxd.Job
+	done    chan dogeboxd.Job
+	network dogeboxd.NetworkManager
 }
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -75,6 +77,13 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						if err != nil {
 							fmt.Println("Failed to disable pup", err)
 							j.Err = "Failed to disable pup"
+						}
+						t.done <- j
+					case dogeboxd.UpdatePendingSystemNetwork:
+						err := t.network.SetPendingNetwork(*&a.Network)
+						if err != nil {
+							fmt.Println("Failed to set system network:", err)
+							j.Err = "Failed to set system network"
 						}
 						t.done <- j
 					default:
