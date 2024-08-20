@@ -1,19 +1,12 @@
 {
   "package": "dogeboxd",
-  "hash": "blurpyblurpderp",
-  "apis": [
+  "permissionGroups": [
     {
-      "name": "auth",
-      "description": "Access to auth APIs",
-      "level": "high",
-      "authenticated": true,
-      "scope": [
-        "internal"
-      ],
+      "name": "admin",
+      "description": "Grants API access to all Dogebox management APIs",
+      "severity": 1,
       "routes": [
-        "/auth/login",
-        "/auth/refresh",
-        "/auth/checktoken"
+        "/*"
       ]
     }
   ],

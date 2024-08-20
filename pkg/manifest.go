@@ -2,7 +2,6 @@ package dogeboxd
 
 import (
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -11,12 +10,14 @@ import (
  * These are defined in pup.json files.
  */
 type PupManifest struct {
-	sourceID string
-	ID       string          `json:"id"`
-	Package  string          `json:"package"` // ie:  dogecoin-core
-	Hash     string          `json:"hash"`    // package checksum
-	Command  CommandManifest `json:"command"`
-	hydrated bool
+	sourceID         string
+	ID               string            `json:"id"`
+	Package          string            `json:"package"` // ie:  dogecoin-core
+	Hash             string            `json:"hash"`    // package checksum
+	Command          CommandManifest   `json:"command"`
+	PermissionGroups []PermissionGroup `json:"permissionGroups"`
+	Dependencies     []Dependency      `json:"dependencies"`
+	hydrated         bool
 }
 
 // This is called when a Pup is loaded from storage, JSON/GOB etc.
@@ -39,6 +40,27 @@ type CommandManifest struct {
 	ENV         map[string]string `json:"env"`
 	Config      ConfigFields      `json:"config"`
 	ConfigFiles []ConfigFile      `json:"configFiles"`
+}
+
+/* PermissionGroups define how other
+ * pups can request access to this pup's
+ * APIs and resources, via their Dependencies
+ */
+type PermissionGroup struct {
+	Name        string   `json:"name"`        // ie:  admin, wallet-read-only, etc.
+	Description string   `json:"description"` // What does this permission group do (shown to user)
+	Severity    int      `json:"severity"`    // 1-3, 1: critical/danger, 2: makes changes, 3: read only stuff
+	Routes      []string `json:"routes"`      // http routes accessible for this group
+}
+
+/* Dependency specifies that this pup requires
+ * another pup to be running, and what permission
+ * groups from that pup need to be available.
+ */
+type Dependency struct {
+	PupID            string   `json:"pupID"`            // pup that we depend on
+	PermissionGroups []string `json:"permissionGroups"` // list of permission groups from that pup we want access to
+	// Version          string   `json:"version"`          // min version of the pup required
 }
 
 /* Represents a Config file that needs to be written
@@ -64,7 +86,7 @@ type ConfigFields struct {
 
 /* A ManifestSource represents an origin of PUP manifests, usually
  * a webserver and NIX repository. These are accessed via the
- * ManifestIndex (below)
+ * ManifestIndex (below), see also pkg/sources
  */
 type ManifestSource interface {
 	FindManifestByPupID(string) (PupManifest, bool)
@@ -83,55 +105,4 @@ type ManifestSourceExport struct {
 
 func (t ManifestSourceExport) Export() ManifestSourceExport {
 	return t
-}
-
-/* The ManifestIndex is collection of ManifestSources with methods for
- * lookup across all sources etc.
- */
-
-type ManifestIndex struct {
-	sources map[string]ManifestSource
-}
-
-func NewManifestIndex() ManifestIndex {
-	return ManifestIndex{
-		sources: map[string]ManifestSource{},
-	}
-}
-
-func (t ManifestIndex) AddSource(name string, m ManifestSource) error {
-	_, exists := t.sources[name]
-	if exists {
-		return fmt.Errorf("Source already added %s", name)
-	}
-	t.sources[name] = m
-	return nil
-}
-
-func (t ManifestIndex) GetManifestMap() map[string]ManifestSourceExport {
-	o := map[string]ManifestSourceExport{}
-	for k, v := range t.sources {
-		o[k] = v.Export()
-	}
-	return o
-}
-
-func (t ManifestIndex) GetSource(name string) (ManifestSource, bool) {
-	s, ok := t.sources[name]
-	if !ok {
-		return nil, false
-	}
-	return s, true
-}
-
-func (t ManifestIndex) FindManifest(pupID string) (PupManifest, bool) {
-	sourceID, _, ok := strings.Cut(pupID, ".")
-	if !ok {
-		return PupManifest{}, false
-	}
-	source, ok := t.GetSource(sourceID)
-	if !ok {
-		return PupManifest{}, false
-	}
-	return source.FindManifestByPupID(pupID)
 }
