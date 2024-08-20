@@ -1,11 +1,20 @@
 package dogeboxd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
+
+	"github.com/dogeorg/dogeboxd/pkg/conductor"
+	"github.com/rs/cors"
 )
+
+type UIServer struct {
+	mux    *http.ServeMux
+	config ServerConfig
+}
 
 func serveSPA(directory string, mainIndex string) http.HandlerFunc {
 	mainIndexPath := filepath.Join(directory, mainIndex)
@@ -41,7 +50,7 @@ func serveSPA(directory string, mainIndex string) http.HandlerFunc {
 	}
 }
 
-func ServeUI(config ServerConfig) {
+func ServeUI(config ServerConfig) conductor.Service {
 	entryPoint := "index.html"
 
 	if config.Recovery {
@@ -51,9 +60,30 @@ func ServeUI(config ServerConfig) {
 		log.Println("Serving normal UI")
 	}
 
-	http.HandleFunc("/", serveSPA(config.UiDir, entryPoint))
-
-	if err := http.ListenAndServe(fmt.Sprintf("%s:%d", config.Bind, config.UiPort), nil); err != nil {
-		log.Fatal(err)
+	service := UIServer{
+		mux:    http.NewServeMux(),
+		config: config,
 	}
+
+	service.mux.HandleFunc("/", serveSPA(config.UiDir, entryPoint))
+
+	return service
+}
+
+func (t UIServer) Run(started, stopped chan bool, stop chan context.Context) error {
+	go func() {
+		handler := cors.AllowAll().Handler(t.mux)
+		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", t.config.Bind, t.config.UiPort), Handler: handler}
+		go func() {
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+				log.Fatalf("HTTP server public ListenAndServe: %v", err)
+			}
+		}()
+
+		started <- true
+		ctx := <-stop
+		srv.Shutdown(ctx)
+		stopped <- true
+	}()
+	return nil
 }
