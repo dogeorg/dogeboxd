@@ -98,6 +98,8 @@ func (t server) Start() {
 	wsh := dogeboxd.NewWSRelay(t.config, dbx.Changes)
 	rest := dogeboxd.RESTAPI(t.config, dbx, wsh)
 
+	dogeboxd.ServeUI(t.config)
+
 	/* ----------------------------------------------------------------------- */
 	// Create a conductor to manage all the above services startup/shutdown
 
