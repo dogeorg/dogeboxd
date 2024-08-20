@@ -16,6 +16,8 @@ func main() {
 	var bind string
 	var pupDir string
 	var nixDir string
+	var uiDir string
+	var uiPort int
 	var verbose bool
 	var help bool
 	var forcedRecovery bool
@@ -24,6 +26,8 @@ func main() {
 	flag.StringVar(&bind, "addr", "127.0.0.1", "Address to bind to")
 	flag.StringVar(&pupDir, "pups", "./pups", "Directory to find local pups")
 	flag.StringVar(&nixDir, "nix", "./nix", "Directory to find nix ??")
+	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
+	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
 	flag.BoolVar(&verbose, "v", false, "Be verbose")
 	flag.BoolVar(&help, "h", false, "Get help")
@@ -52,6 +56,8 @@ func main() {
 		NixDir:   nixDir,
 		Verbose:  verbose,
 		Recovery: recoveryMode,
+		UiDir:    uiDir,
+		UiPort:   uiPort,
 	}
 
 	srv := Server(config)

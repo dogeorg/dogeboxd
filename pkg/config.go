@@ -7,4 +7,6 @@ type ServerConfig struct {
 	Port     int
 	Verbose  bool
 	Recovery bool
+	UiDir    string
+	UiPort   int
 }
