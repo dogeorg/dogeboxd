@@ -72,10 +72,12 @@ func (t dkmManager) Authenticate(password string) (string, error) {
 		return "", errors.New("Failed to generate token")
 	}
 
-	fakeDKMToken := make([]byte, hex.EncodedLen(len(fakeDKMTokenBytes)))
-	hex.Encode(fakeDKMToken, fakeDKMTokenBytes)
+	fakeDKMTokenHex := make([]byte, hex.EncodedLen(len(fakeDKMTokenBytes)))
+	hex.Encode(fakeDKMTokenHex, fakeDKMTokenBytes)
 
-	return string(fakeDKMToken), nil
+	fakeDKmToken := string(fakeDKMTokenHex)
+
+	return fmt.Sprintf("dkm:%s", fakeDKmToken), nil
 	// var result DKMResponseLogin
 	// _, err := t.client.R().SetBody(map[string]string{"password": password}).SetResult(&result).Post("/login")
 
