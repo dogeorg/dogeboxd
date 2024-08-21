@@ -2,23 +2,82 @@ package dogeboxd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
+	"github.com/gorilla/securecookie"
+	"github.com/gorilla/sessions"
 	"github.com/rs/cors"
 )
 
+// Always generate a new session key. This is intentional as we
+// want to enforce the user logging in again if dogeboxd restarts.
+var store = sessions.NewCookieStore([]byte(securecookie.GenerateRandomKey(32)))
+
+func getBearerToken(r *http.Request) (bool, string) {
+	authHeader := r.Header.Get(http.CanonicalHeaderKey("authorization"))
+
+	if authHeader == "" {
+		return false, ""
+	}
+
+	authPart := strings.Split(authHeader, " ")
+
+	if len(authPart) != 2 {
+		return false, ""
+	}
+
+	return true, authPart[1]
+}
+
+func getSession(r *http.Request) *sessions.Session {
+	tokenOK, token := getBearerToken(r)
+	if tokenOK == false || token == "" {
+		return nil
+	}
+
+	session, _ := store.Get(r, token)
+	return session
+}
+
+func authReq(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session := getSession(r)
+
+		if session == nil || session.IsNew || session.Values["DKM_TOKEN"] == nil || session.Values["invalidated"] == true {
+			w.WriteHeader(401)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManager, ws WSRelay) conductor.Service {
-	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, man: man, pups: pups, ws: ws}
+	dkm := NewDKMManager(dbx)
+
+	a := api{
+		mux:    http.NewServeMux(),
+		config: config,
+		dbx:    dbx,
+		man:    man,
+		pups:   pups,
+		ws:     ws,
+		dkm:    dkm,
+	}
 
 	routes := map[string]http.HandlerFunc{}
 
 	// Recovery routes are the _only_ routes loaded in recovery mode.
 	recoveryRoutes := map[string]http.HandlerFunc{
+		"POST /authenticate":              a.authenticate,
+		"POST /logout":                    a.logout,
 		"GET /bootstrap/":                 a.getBootstrap,
 		"GET /system/network/list":        a.getNetwork,
 		"PUT /system/network/set-pending": a.setPendingNetwork,
@@ -52,7 +111,12 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 	}
 
 	for p, h := range routes {
-		a.mux.HandleFunc(p, h)
+		// TODO: bit hacky, fix this up eventually.
+		if p == "POST /authenticate" {
+			a.mux.HandleFunc(p, h)
+		} else {
+			a.mux.HandleFunc(p, authReq(h))
+		}
 	}
 
 	return a
@@ -60,11 +124,95 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 
 type api struct {
 	dbx    Dogeboxd
+	dkm    DKMManager
 	mux    *http.ServeMux
 	man    ManifestIndex
 	pups   PupManager
 	config ServerConfig
 	ws     WSRelay
+}
+
+type AuthenticateRequestBody struct {
+	Password string `json:"password"`
+}
+
+func (t api) authenticate(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody AuthenticateRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	dkmToken, err := t.dkm.Authenticate(requestBody.Password)
+	if err != nil {
+		sendErrorResponse(w, 500, err.Error())
+		return
+	}
+
+	authTokenBytes := securecookie.GenerateRandomKey(32)
+	if authTokenBytes == nil {
+		sendErrorResponse(w, 500, "Failed to generate session token")
+		return
+	}
+
+	authToken := make([]byte, hex.EncodedLen(len(authTokenBytes)))
+	hex.Encode(authToken, authTokenBytes)
+
+	// We've authed. Save our dkm authentication token to our session.
+	session, _ := store.Get(r, string(authToken))
+
+	session.Values["DKM_TOKEN"] = fmt.Sprintf("dkm:%s", dkmToken)
+
+	err = session.Save(r, w)
+	if err != nil {
+		sendErrorResponse(w, 500, "Failed to save session")
+		return
+	}
+
+	sendResponse(w, map[string]any{
+		"success": true,
+		"token":   authToken,
+	})
+}
+
+func (t api) logout(w http.ResponseWriter, r *http.Request) {
+	session := getSession(r)
+
+	// Clear our DKM token first. This ensures we can still convey an error
+	// to the user if this fails for whatever reason. UI should tell them to
+	// reboot their box or something to clear all authed sessions.
+	ok, err := t.dkm.InvalidateToken(session.Values["DKM_TOKEN"].(string))
+	if err != nil {
+		log.Printf("Failed to invalidate token with DKM:", err)
+		sendErrorResponse(w, 500, err.Error())
+		return
+	}
+
+	if !ok {
+		log.Printf("DKM returned ok=false when invalidating token")
+		sendErrorResponse(w, 500, "Failed to invalidate token")
+		return
+	}
+
+	session.Values["invalidated"] = true
+	session.Values["DKM_TOKEN"] = nil
+
+	err = session.Save(r, w)
+	if err != nil {
+		sendErrorResponse(w, 500, "Failed to save session")
+		return
+	}
+
+	sendResponse(w, map[string]any{
+		"success": true,
+	})
 }
 
 func (t api) getRawBS() any {
