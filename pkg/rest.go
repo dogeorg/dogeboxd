@@ -200,6 +200,12 @@ func (t api) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if dkmToken == "" {
+		// Wrong password.
+		sendErrorResponse(w, 403, "Invalid password")
+		return
+	}
+
 	// We've authed. Save our dkm authentication token to a new session.
 	token, session := newSession()
 	session.DKM_TOKEN = dkmToken

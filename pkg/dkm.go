@@ -11,6 +11,7 @@ import (
 )
 
 type DKMManager interface {
+	// Returns "" as a token if the password supplied is invalid.
 	Authenticate(password string) (string, error)
 	RefreshToken(old string) (string, bool, error)
 	InvalidateToken(token string) (bool, error)
@@ -64,12 +65,12 @@ func (t dkmManager) Authenticate(password string) (string, error) {
 	// TODO: actually do this call once we have DKM setup properly.
 
 	if password != "password1" {
-		return "", errors.New("invalid password")
+		return "", nil
 	}
 
 	fakeDKMTokenBytes := securecookie.GenerateRandomKey(32)
 	if fakeDKMTokenBytes == nil {
-		return "", errors.New("Failed to generate token")
+		return "", errors.New("failed to generate token")
 	}
 
 	fakeDKMTokenHex := make([]byte, hex.EncodedLen(len(fakeDKMTokenBytes)))
