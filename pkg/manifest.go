@@ -2,6 +2,7 @@ package dogeboxd
 
 import (
 	"fmt"
+	"time"
 )
 
 /* PupManifest represents a Nix installed process
@@ -17,6 +18,11 @@ type PupManifest struct {
 	PermissionGroups []PermissionGroup `json:"permissionGroups"`
 	Dependencies     []Dependency      `json:"dependencies"`
 	hydrated         bool
+	Meta             PupMeta
+}
+
+type PupMeta struct {
+	Version string
 }
 
 // This is called when a Pup is loaded from storage, JSON/GOB etc.
@@ -81,4 +87,28 @@ type ConfigFields struct {
 		Label  string                   `json:"label"`
 		Fields []map[string]interface{} `json:"fields"`
 	} `json:"sections"`
+}
+
+type ManifestRepositoryPup struct {
+	Name     string
+	Location string
+	Version  string
+	Manifest PupManifest
+}
+
+type ManifestRepositoryList struct {
+	LastUpdated time.Time
+	Pups        []ManifestRepositoryPup
+}
+
+type ManifestRepository interface {
+	Validate() (bool, error)
+	List(ignoreCache bool) (ManifestRepositoryList, error)
+	Download(diskPath string, remoteLocation string) error
+}
+
+type ManifestRepositoryConfiguration struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Location string `json:"location"`
 }
