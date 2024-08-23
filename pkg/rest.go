@@ -12,8 +12,8 @@ import (
 	"github.com/rs/cors"
 )
 
-func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
-	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, ws: ws}
+func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManager, ws WSRelay) conductor.Service {
+	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, man: man, pups: pups, ws: ws}
 
 	routes := map[string]http.HandlerFunc{}
 
@@ -61,14 +61,17 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 type api struct {
 	dbx    Dogeboxd
 	mux    *http.ServeMux
+	man    ManifestIndex
+	pups   PupManager
 	config ServerConfig
 	ws     WSRelay
 }
 
 func (t api) getRawBS() any {
 	return map[string]any{
-		"manifests": t.dbx.GetManifests(),
-		"states":    t.dbx.GetPupStats(),
+		"manifests": t.man.GetManifestMap(),
+		"states":    t.pups.GetStateMap(),
+		"stats":     t.pups.GetStatsMap(),
 	}
 }
 
@@ -93,7 +96,6 @@ func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {
 
 func (t api) connectNetwork(w http.ResponseWriter, r *http.Request) {
 	err := t.dbx.NetworkManager.TryConnect()
-
 	// Chances are we'll never actually get here, because you'll probably be disconnected
 	// from the box once (if) it changes networks, and your connection will break.
 	if err != nil {

@@ -70,7 +70,7 @@ type InternalState struct {
 
 type Dogeboxd struct {
 	Manifests      ManifestIndex
-	Pups           map[string]PupStatus
+	Pups           PupManager
 	Internal       *InternalState
 	SystemUpdater  SystemUpdater
 	SystemMonitor  SystemMonitor
@@ -81,10 +81,10 @@ type Dogeboxd struct {
 	Changes        chan Change
 }
 
-func NewDogeboxd(internalState InternalState, pupDir string, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
+func NewDogeboxd(internalState InternalState, pups PupManager, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
 	s := Dogeboxd{
 		Manifests:      man,
-		Pups:           map[string]PupStatus{},
+		Pups:           pups,
 		SystemUpdater:  updater,
 		SystemMonitor:  monitor,
 		JournalReader:  journal,
@@ -95,20 +95,9 @@ func NewDogeboxd(internalState InternalState, pupDir string, man ManifestIndex, 
 		Internal:       &internalState,
 	}
 
-	// TODO start monitoring all installed services
-	monitor.GetMonChannel() <- []string{"dbus.service"}
-
-	// load pup state from disk
-	for _, ip := range s.Internal.InstalledPups {
-		fmt.Printf("Loading pup status: %s\n", ip)
-		m, ok := s.Manifests.FindManifest(ip)
-		if !ok {
-			fmt.Printf("Failed to load %s, no matching manifest source\n", ip)
-			continue
-		}
-		s.loadPupStatus(pupDir, m)
-	}
 	return s
+	// TODO start monitoring all installed services
+	// SUB TO PUP MANAGER monitor.GetMonChannel() <- []string{"dbus.service"}
 }
 
 // Main Dogeboxd goroutine, handles routing messages in
@@ -200,16 +189,6 @@ func (t Dogeboxd) AddAction(a Action) string {
 	return id
 }
 
-// Flatten the manifest sources for the frontend API
-func (t Dogeboxd) GetManifests() map[string]ManifestSourceExport {
-	return t.Manifests.GetManifestMap()
-}
-
-// Get all pup stats for the frontend API
-func (t Dogeboxd) GetPupStats() map[string]PupStatus {
-	return t.Pups
-}
-
 // Get a log channel for a specific pup for the websocket API
 func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, error) {
 	// find the manifest, get the systemd service-name,
@@ -230,13 +209,6 @@ func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, 
 // helper to report a completed job back to the client
 func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
 	t.Changes <- Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success}
-}
-
-// create or load PupStatus for a given PUP id
-func (t *Dogeboxd) loadPupStatus(pupDir string, m PupManifest) {
-	p := NewPUPStatus(pupDir, m)
-	p.Read()
-	t.Pups[p.ID] = p
 }
 
 func (t Dogeboxd) setJobPupDetails(j *Job, PupID string) error {

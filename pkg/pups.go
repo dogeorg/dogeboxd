@@ -1,94 +1,58 @@
 package dogeboxd
 
 import (
-	"encoding/gob"
 	"encoding/json"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 )
 
-func NewPUPStatus(pupDir string, m PupManifest) PupStatus {
-	f := filepath.Join(pupDir, fmt.Sprintf("pup_%s.gob", m.Package))
-	p := PupStatus{
-		ID:           m.ID,
-		Installation: "installing",
-		Status:       "stopped",
-		StatCPU:      NewFloatBuffer(30),
-		StatMEM:      NewFloatBuffer(30),
-		StatDISK:     NewFloatBuffer(30),
-		gobPath:      f,
-	}
-	return p
-}
+const (
+	STATE_INSTALLING    string = "installing"
+	STASTE_READY               = "ready"
+	STASTE_UNREADY             = "unready"
+	STASTE_UNINSTALLING        = "uninstalling"
+	STASTE_UNINSTALLED         = "uninstalled"
+	STASTE_BROKEN              = "broken"
+	STASTE_STOPPED             = "stopped"
+	STASTE_STARTING            = "starting"
+	STASTE_RUNNING             = "running"
+	STASTE_STOPPING            = "stopping"
+)
 
-/* Pup status as it relates to nix:
+/* Pup state vs pup stats
  * ┌─────────────────────────────┬───────────────────────────────┐
- * │Installation                 │  Status                       │
+ * │PupState.Installation        │ PupStats.Status               │
  * ├─────────────────────────────┼───────────────────────────────┤
- * │installing      .nix written │  starting        .nix written │
- * │installed       .nix applied─┼─>started         .nix applied │
- * │broken          .nix failed  │  stopping        .nix written │
- * │                             │  stopped         .nix applied │
+ * │                             │                               │
+ * │installing                   │    stopped                    │
+ * │ready                       ─┼─>  starting                   │
+ * │unready                      │    running                    │
+ * │uninstalling                 │    stopping                   │
+ * │uninstalled                  │                               │
+ * │broken                       │                               │
  * └─────────────────────────────┴───────────────────────────────┘
  *
  * Valid actions: install, stop, start, restart, uninstall
  */
 
-// PupStatus is persisted to disk
-type PupStatus struct {
+// PupState is persisted to disk
+type PupState struct {
 	ID           string            `json:"id"`
+	Manifest     PupManifest       `json:"manifest"`
 	Config       map[string]string `json:"config"`
 	Installation string            `json:"installation"`
-	Status       string            `json:"status"`
-	StatCPU      FloatBuffer       `json:"status_cpu"`
-	StatMEM      FloatBuffer       `json:"status_mem"`
-	StatDISK     FloatBuffer       `json:"status_disk"`
-	DevMode      bool              `json:"dev_mode"`
-	gobPath      string
+	Enabled      bool              `json:"enabled"`
+	NeedsConf    bool              `json:"needsConf"`
+	NeedsDeps    bool              `json:"needsDeps"`
+	Version      string            `json:"enabled"`
 }
 
-// Read state from a gob file
-func (t *PupStatus) Read() error {
-	file, err := os.Open(t.gobPath)
-	if err != nil {
-		return fmt.Errorf("cannot open file %q: %w", t.gobPath, err)
-	}
-	defer file.Close()
-
-	decoder := gob.NewDecoder(file)
-	if err := decoder.Decode(t); err != nil {
-		if err == io.EOF {
-			return fmt.Errorf("file %q is empty", t.gobPath)
-		}
-		return fmt.Errorf("cannot decode object from file %q: %w", t.gobPath, err)
-	}
-	return nil
-}
-
-// write state to a gob file
-func (t PupStatus) Write() error {
-	tempFile, err := os.CreateTemp("", "temp_gob_file")
-	if err != nil {
-		return fmt.Errorf("cannot create temporary file: %w", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	encoder := gob.NewEncoder(tempFile)
-	if err := encoder.Encode(t); err != nil {
-		return fmt.Errorf("cannot encode object: %w", err)
-	}
-
-	if err := tempFile.Close(); err != nil {
-		return fmt.Errorf("cannot close temporary file: %w", err)
-	}
-
-	if err := os.Rename(tempFile.Name(), t.gobPath); err != nil {
-		return fmt.Errorf("cannot rename temporary file to %q: %w", t.gobPath, err)
-	}
-
-	return nil
+// PupStats is not persisted to disk, and holds the running
+// stats for the pup process, ie: disk, CPU, etc.
+type PupStats struct {
+	ID       string      `json:"id"`
+	Status   string      `json:"status"`
+	StatCPU  FloatBuffer `json:"status_cpu"`
+	StatMEM  FloatBuffer `json:"status_mem"`
+	StatDISK FloatBuffer `json:"status_disk"`
 }
 
 type FloatBuffer struct {

@@ -89,14 +89,24 @@ func (t server) Start() {
 	internalState := t.getInternalState()
 
 	/* ----------------------------------------------------------------------- */
+	// Set up PupManager and load the state for all installed pups
+	//
+
+	pups, err := dogeboxd.NewPupManager(t.config.PupDir)
+	if err != nil {
+		log.Fatalf("Failed to load Pup state: %+v", err)
+	}
+
+	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
-	dbx := dogeboxd.NewDogeboxd(internalState, t.config.PupDir, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
+
+	dbx := dogeboxd.NewDogeboxd(internalState, pups, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets
 
 	wsh := dogeboxd.NewWSRelay(t.config, dbx.Changes)
-	rest := dogeboxd.RESTAPI(t.config, dbx, wsh)
+	rest := dogeboxd.RESTAPI(t.config, dbx, manifest, pups, wsh)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */
