@@ -12,21 +12,29 @@ import (
 
 var _ dogeboxd.StateManager = &StateManager{}
 
-func NewStateManager(config dogeboxd.ServerConfig) dogeboxd.StateManager {
+func NewStateManager() dogeboxd.StateManager {
 	gob.Register(dogeboxd.SelectedNetworkEthernet{})
 	gob.Register(dogeboxd.SelectedNetworkWifi{})
-	return &StateManager{config: config}
+	gob.Register(dogeboxd.DogeboxStateInitialSetup{})
+	return &StateManager{}
 }
 
 type StateManager struct {
-	config  dogeboxd.ServerConfig
 	network dogeboxd.NetworkState
+	dogebox dogeboxd.DogeboxState
 }
 
 func (m *StateManager) reset() {
 	m.network = dogeboxd.NetworkState{
 		CurrentNetwork: nil,
 		PendingNetwork: nil,
+	}
+	m.dogebox = dogeboxd.DogeboxState{
+		InitialState: dogeboxd.DogeboxStateInitialSetup{
+			HasGeneratedKey:    false,
+			HasSetNetwork:      false,
+			HasFullyConfigured: false,
+		},
 	}
 }
 
@@ -35,6 +43,10 @@ func (m StateManager) GobEncode() ([]byte, error) {
 	encoder := gob.NewEncoder(&buf)
 
 	if err := encoder.Encode(m.network); err != nil {
+		return nil, err
+	}
+
+	if err := encoder.Encode(m.dogebox); err != nil {
 		return nil, err
 	}
 
@@ -49,17 +61,26 @@ func (m *StateManager) GobDecode(data []byte) error {
 		return err
 	}
 
+	if err := decoder.Decode(&m.dogebox); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (s *StateManager) Get() dogeboxd.State {
 	return dogeboxd.State{
 		Network: s.network,
+		Dogebox: s.dogebox,
 	}
 }
 
 func (s *StateManager) SetNetwork(ns dogeboxd.NetworkState) {
 	s.network = ns
+}
+
+func (s *StateManager) SetDogebox(dbs dogeboxd.DogeboxState) {
+	s.dogebox = dbs
 }
 
 func (s *StateManager) Save() error {
@@ -85,12 +106,6 @@ func (s *StateManager) Save() error {
 }
 
 func (s *StateManager) Load() error {
-	if s.config.Recovery {
-		log.Printf("In recovery mode: not loading state.")
-		s.reset()
-		return nil
-	}
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err

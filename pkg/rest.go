@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -27,7 +27,7 @@ type Session struct {
 var sessions map[string]Session
 
 func getBearerToken(r *http.Request) (bool, string) {
-	authHeader := r.Header.Get(http.CanonicalHeaderKey("authorization"))
+	authHeader := r.Header.Get("authorization")
 
 	if authHeader == "" {
 		return false, ""
@@ -44,7 +44,7 @@ func getBearerToken(r *http.Request) (bool, string) {
 
 func getSession(r *http.Request) (Session, bool) {
 	tokenOK, token := getBearerToken(r)
-	if tokenOK == false || token == "" {
+	if !tokenOK || token == "" {
 		return Session{}, false
 	}
 
@@ -82,14 +82,20 @@ func newSession() (string, Session) {
 
 func delSession(r *http.Request) error {
 	tokenOK, token := getBearerToken(r)
-	if tokenOK == false || token == "" {
-		return errors.New("Failed to fetch bearer token")
+	if !tokenOK || token == "" {
+		return errors.New("failed to fetch bearer token")
 	}
 	delete(sessions, token)
 	return nil
 }
 
-func authReq(next http.HandlerFunc) http.HandlerFunc {
+func authReq(route string, next http.HandlerFunc) http.HandlerFunc {
+	if route == "POST /authenticate" {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+		})
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, ok := getSession(r)
 
@@ -122,12 +128,15 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 	recoveryRoutes := map[string]http.HandlerFunc{
 		"POST /authenticate":              a.authenticate,
 		"POST /logout":                    a.logout,
-		"GET /bootstrap/":                 a.getBootstrap,
+		"GET /system/bootstrap":           a.getBootstrap,
 		"GET /system/network/list":        a.getNetwork,
 		"PUT /system/network/set-pending": a.setPendingNetwork,
 		"POST /system/network/connect":    a.connectNetwork,
 		"POST /system/host/shutdown":      a.hostShutdown,
 		"POST /system/host/reboot":        a.hostReboot,
+		"POST /keys/create-master":        a.createMasterKey,
+		"GET /keys":                       a.listKeys,
+		"POST /system/bootstrap":          a.initialBootstrap,
 	}
 
 	// Normal routes are used when we are not in recovery mode.
@@ -155,12 +164,7 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 	}
 
 	for p, h := range routes {
-		// TODO: bit hacky, fix this up eventually.
-		if p == "POST /authenticate" {
-			a.mux.HandleFunc(p, h)
-		} else {
-			a.mux.HandleFunc(p, authReq(h))
-		}
+		a.mux.HandleFunc(p, authReq(p, h))
 	}
 
 	return a
@@ -176,12 +180,20 @@ type api struct {
 	ws     WSRelay
 }
 
+type CreateMasterKeyRequestBody struct {
+	Password string `json:"password"`
+}
+
 type AuthenticateRequestBody struct {
 	Password string `json:"password"`
 }
 
+type InitialSystemBootstrapRequestBody struct {
+	ReflectorToken string `json:"reflectorToken"`
+}
+
 func (t api) authenticate(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
 		return
@@ -248,10 +260,17 @@ func (t api) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) getRawBS() any {
+	dbxState := t.dbx.sm.Get().Dogebox
+
 	return map[string]any{
 		"manifests": t.man.GetManifestMap(),
 		"states":    t.pups.GetStateMap(),
 		"stats":     t.pups.GetStatsMap(),
+		"setupFacts": map[string]bool{
+			"hasGeneratedKey":                  dbxState.InitialState.HasGeneratedKey,
+			"hasConfiguredNetwork":             dbxState.InitialState.HasSetNetwork,
+			"hasCompletedInitialConfiguration": dbxState.InitialState.HasFullyConfigured,
+		},
 	}
 }
 
@@ -265,6 +284,149 @@ func (t api) hostReboot(w http.ResponseWriter, r *http.Request) {
 
 func (t api) hostShutdown(w http.ResponseWriter, r *http.Request) {
 	t.dbx.lifecycle.Shutdown()
+}
+
+func (t api) createMasterKey(w http.ResponseWriter, r *http.Request) {
+	// If we've already created a master key, return an error.
+	// Probably probably _also_ want to check with DKM that we don't have
+	// a key created, but there's currently no API to do so.
+	if t.dbx.sm.Get().Dogebox.InitialState.HasGeneratedKey {
+		sendErrorResponse(w, http.StatusForbidden, "A master key already exists")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody CreateMasterKeyRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	// Assuming the password send is anything but an empty string, we allow it.
+	// We don't want to add any restrictions, rather the frontend UI will have suggestions.
+	if requestBody.Password == "" {
+		sendErrorResponse(w, http.StatusBadRequest, "Password cannot be empty")
+		return
+	}
+
+	seedPhrase, err := t.dkm.CreateKey(requestBody.Password)
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Failed to create key in DKM")
+		return
+	}
+
+	dbxs := t.dbx.sm.Get().Dogebox
+
+	// TODO: this shouldn't live in here.
+	if !dbxs.InitialState.HasGeneratedKey {
+		dbxs.InitialState.HasGeneratedKey = true
+		t.dbx.sm.SetDogebox(dbxs)
+		if err := t.dbx.sm.Save(); err != nil {
+			sendErrorResponse(w, http.StatusInternalServerError, "Failed to persist key generation flag")
+			return
+		}
+	}
+
+	dkmToken, err := t.dkm.Authenticate(requestBody.Password)
+	if err != nil {
+		sendErrorResponse(w, 500, err.Error())
+		return
+	}
+
+	if dkmToken == "" {
+		// We should never get here, seeing as we are using
+		// the same password as we just encrypted our key with..
+		sendErrorResponse(w, 403, "Invalid password")
+		return
+	}
+
+	// We've authed. Save our dkm authentication token to a new session.
+	token, session := newSession()
+	session.DKM_TOKEN = dkmToken
+	storeSession(r, session)
+
+	sendResponse(w, map[string]any{
+		"success":    true,
+		"seedPhrase": seedPhrase,
+		"token":      token,
+	})
+}
+
+// The frontend requires this endpoint, but we should remove.
+func (t api) listKeys(w http.ResponseWriter, r *http.Request) {
+	dbxis := t.dbx.sm.Get().Dogebox.InitialState
+
+	keyResponse := []map[string]any{}
+
+	if dbxis.HasGeneratedKey {
+		keyResponse = append(keyResponse, map[string]any{"type": "master"})
+	}
+
+	sendResponse(w, map[string]any{
+		"keys": keyResponse,
+	})
+}
+
+func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
+	// Check a few things first.
+	if !t.config.Recovery {
+		sendErrorResponse(w, http.StatusForbidden, "Cannot initiate bootstrap in non-recovery mode.")
+		return
+	}
+
+	dbxis := t.dbx.sm.Get().Dogebox.InitialState
+
+	if dbxis.HasFullyConfigured {
+		sendErrorResponse(w, http.StatusForbidden, "System has already been initialised")
+		return
+	}
+
+	if !dbxis.HasGeneratedKey || !dbxis.HasSetNetwork {
+		sendErrorResponse(w, http.StatusForbidden, "System not ready to initialise")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody InitialSystemBootstrapRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	// OK.
+
+	// TODO: turn off AP
+	// TODO: connect to network.
+	// TODO: ensure network actually connects.
+
+	if requestBody.ReflectorToken != "" {
+		// TODO: ping reflector with relevant internal IP
+	}
+
+	dbxs := t.dbx.sm.Get().Dogebox
+	dbxs.InitialState.HasFullyConfigured = true
+	t.dbx.sm.SetDogebox(dbxs)
+
+	if err := t.dbx.sm.Save(); err != nil {
+		// What should we do here? We've already turned off AP mode so any errors
+		// won't get send back to the client. I guess we just reboot?
+		// That'll force recovery mode again. We can't even persist this error though.
+		sendErrorResponse(w, http.StatusInternalServerError, "Error persisting flags")
+	}
+
+	sendResponse(w, map[string]any{"status": "OK"})
 }
 
 func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {
@@ -288,7 +450,7 @@ func (t api) connectNetwork(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) setPendingNetwork(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
 		return
@@ -326,6 +488,18 @@ func (t api) setPendingNetwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dbxs := t.dbx.sm.Get().Dogebox
+
+	// TODO: this shouldn't live in here.
+	if !dbxs.InitialState.HasSetNetwork {
+		dbxs.InitialState.HasSetNetwork = true
+		t.dbx.sm.SetDogebox(dbxs)
+		if err := t.dbx.sm.Save(); err != nil {
+			sendErrorResponse(w, http.StatusInternalServerError, "Failed to persist network set flag")
+			return
+		}
+	}
+
 	id := t.dbx.AddAction(UpdatePendingSystemNetwork{Network: selectedNetwork})
 	sendResponse(w, map[string]string{"id": id})
 }
@@ -348,7 +522,7 @@ func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
 
 func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 	pupid := r.PathValue("PupID")
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
 		return

@@ -71,11 +71,12 @@ type Dogeboxd struct {
 	JournalReader  JournalReader
 	NetworkManager NetworkManager
 	lifecycle      LifecycleManager
+	sm             StateManager
 	jobs           chan Job
 	Changes        chan Change
 }
 
-func NewDogeboxd(pups PupManager, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
+func NewDogeboxd(stateManager StateManager, pups PupManager, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
 	s := Dogeboxd{
 		Manifests:      man,
 		Pups:           pups,
@@ -84,6 +85,7 @@ func NewDogeboxd(pups PupManager, man ManifestIndex, updater SystemUpdater, moni
 		JournalReader:  journal,
 		NetworkManager: networkManager,
 		lifecycle:      lifecycle,
+		sm:             stateManager,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
 	}

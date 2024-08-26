@@ -11,10 +11,15 @@ import (
 )
 
 type DKMManager interface {
+	CreateKey(password string) ([]string, error)
 	// Returns "" as a token if the password supplied is invalid.
 	Authenticate(password string) (string, error)
 	RefreshToken(old string) (string, bool, error)
 	InvalidateToken(token string) (bool, error)
+}
+
+type DKMResponseCreateKey struct {
+	SeedPhrase []string `json:"seedphrase"`
 }
 
 type DKMResponseLogin struct {
@@ -39,11 +44,13 @@ type dkmManager struct {
 
 func NewDKMManager(dbx Dogeboxd) DKMManager {
 	// TODO: get the dkm pup from our internal state
-	dkmPup, found, err := PupManifest{}, true, error(nil)
+	dkmPup, found, _ := PupManifest{
+		containerIP: "127.0.0.1",
+	}, true, error(nil)
 
-	if err != nil {
-		log.Fatalln("Failed to find an instance of DKM:", err)
-	}
+	// if err != nil {
+	// 	log.Fatalln("Failed to find an instance of DKM:", err)
+	// }
 
 	if !found {
 		// You can't use dogebox without an instance of DKM
@@ -51,7 +58,8 @@ func NewDKMManager(dbx Dogeboxd) DKMManager {
 	}
 
 	client := resty.New()
-	client.SetBaseURL(fmt.Sprintf("http://%s:80", dkmPup.containerIP))
+	// client.SetBaseURL(fmt.Sprintf("http://%s:80", dkmPup.containerIP))
+	client.SetBaseURL(fmt.Sprintf("http://%s:8089", dkmPup.containerIP))
 	client.SetHeader("Accept", "application/json")
 	client.SetContentLength(true)
 
@@ -59,6 +67,23 @@ func NewDKMManager(dbx Dogeboxd) DKMManager {
 		dkmPup: dkmPup,
 		client: client,
 	}
+}
+
+func (t dkmManager) CreateKey(password string) ([]string, error) {
+	// TODO: we probably want to add some restrictions on passwords that can be used here?
+
+	var result DKMResponseCreateKey
+
+	_, err := t.client.R().SetBody(map[string]string{
+		"password": password,
+	}).SetResult(&result).Post("/create")
+
+	if err != nil {
+		log.Printf("could not create key %+v", err)
+		return []string{}, nil
+	}
+
+	return result.SeedPhrase, nil
 }
 
 func (t dkmManager) Authenticate(password string) (string, error) {

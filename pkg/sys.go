@@ -34,6 +34,16 @@ type ProcStatus struct {
 	Running    bool
 }
 
+type DogeboxStateInitialSetup struct {
+	HasGeneratedKey    bool `json:"hasGeneratedKey"`
+	HasSetNetwork      bool `json:"hasSetNetwork"`
+	HasFullyConfigured bool `json:"hasFullyConfigured"`
+}
+
+type DogeboxState struct {
+	InitialState DogeboxStateInitialSetup
+}
+
 type NetworkState struct {
 	CurrentNetwork SelectedNetwork
 	PendingNetwork SelectedNetwork
@@ -41,11 +51,13 @@ type NetworkState struct {
 
 type State struct {
 	Network NetworkState
+	Dogebox DogeboxState
 }
 
 type StateManager interface {
 	Get() State
 	SetNetwork(s NetworkState)
+	SetDogebox(s DogeboxState)
 	Save() error
 	Load() error
 }

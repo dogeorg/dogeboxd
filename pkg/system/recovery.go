@@ -3,17 +3,30 @@ package system
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
 var VALID_RECOVERY_FILES = []string{"RECOVERY", "RECOVERY.TXT"}
 
 // This function should do detection on whether or not we should enter our "Recovery Mode".
 // This can always be overriden by a CLI flag if necessary.
-func ShouldEnterRecovery() bool {
-	return hasRecoveryTXT()
+func ShouldEnterRecovery(sm dogeboxd.StateManager) bool {
+	return hasRecoveryTXT() || isInitialConfiguration(sm)
+}
+
+func isInitialConfiguration(sm dogeboxd.StateManager) bool {
+	completedInitialConfiguration := sm.Get().Dogebox.InitialState.HasFullyConfigured
+
+	if !completedInitialConfiguration {
+		log.Println("Dogebox has not completed initial configuration, forcing recovery mode..")
+	}
+
+	return !completedInitialConfiguration
 }
 
 func hasRecoveryTXT() bool {

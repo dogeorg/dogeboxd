@@ -18,11 +18,15 @@ import (
 var dogeboxManifestFile []byte
 
 type server struct {
+	sm     dogeboxd.StateManager
 	config dogeboxd.ServerConfig
 }
 
-func Server(config dogeboxd.ServerConfig) server {
-	return server{config}
+func Server(sm dogeboxd.StateManager, config dogeboxd.ServerConfig) server {
+	return server{
+		sm:     sm,
+		config: config,
+	}
 }
 
 func (t server) loadManifest() dogeboxd.ManifestIndex {
@@ -62,14 +66,8 @@ func (t server) Start() {
 	manifest := t.loadManifest()
 
 	/* ----------------------------------------------------------------------- */
-	stateManager := system.NewStateManager(t.config)
-	err := stateManager.Load()
-	if err != nil {
-		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)
-	}
-
 	// Set up our system interfaces so we can talk to the host OS
-	networkManager := network.NewNetworkManager(stateManager)
+	networkManager := network.NewNetworkManager(t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager()
 
 	systemUpdater := system.NewSystemUpdater(t.config, networkManager)
@@ -93,7 +91,7 @@ func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
 
-	dbx := dogeboxd.NewDogeboxd(pups, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
+	dbx := dogeboxd.NewDogeboxd(t.sm, pups, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets
