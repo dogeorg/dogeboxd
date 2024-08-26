@@ -56,17 +56,6 @@ func (t server) loadManifest() dogeboxd.ManifestIndex {
 	return manifest
 }
 
-func (t server) getInternalState() dogeboxd.InternalState {
-	if t.config.Recovery {
-		return dogeboxd.InternalState{}
-	}
-
-	return dogeboxd.InternalState{
-		ActionCounter: 100000,
-		InstalledPups: []string{"internal.dogeboxd"},
-	}
-}
-
 func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	manifest := t.loadManifest()
@@ -86,8 +75,6 @@ func (t server) Start() {
 	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 
-	internalState := t.getInternalState()
-
 	/* ----------------------------------------------------------------------- */
 	// Set up PupManager and load the state for all installed pups
 	//
@@ -100,7 +87,7 @@ func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
 
-	dbx := dogeboxd.NewDogeboxd(internalState, pups, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
+	dbx := dogeboxd.NewDogeboxd(pups, manifest, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets

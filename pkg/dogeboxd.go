@@ -39,6 +39,7 @@ package dogeboxd
 
 import (
 	"context"
+	"crypto/rand"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -51,7 +52,7 @@ type Job struct {
 	Err      string
 	Success  any
 	Manifest *PupManifest // nilable, check before use!
-	Status   *PupStatus   // nilable, check before use!
+	Status   *PupState    // nilable, check before use!
 }
 
 // A Change is the result of a Job that will be sent back
@@ -63,15 +64,9 @@ type Change struct {
 	Update any    `json:"update"`
 }
 
-type InternalState struct {
-	ActionCounter int
-	InstalledPups []string
-}
-
 type Dogeboxd struct {
 	Manifests      ManifestIndex
 	Pups           PupManager
-	Internal       *InternalState
 	SystemUpdater  SystemUpdater
 	SystemMonitor  SystemMonitor
 	JournalReader  JournalReader
@@ -81,7 +76,7 @@ type Dogeboxd struct {
 	Changes        chan Change
 }
 
-func NewDogeboxd(internalState InternalState, pups PupManager, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
+func NewDogeboxd(pups PupManager, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
 	s := Dogeboxd{
 		Manifests:      man,
 		Pups:           pups,
@@ -92,7 +87,6 @@ func NewDogeboxd(internalState InternalState, pups PupManager, man ManifestIndex
 		lifecycle:      lifecycle,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
-		Internal:       &internalState,
 	}
 
 	return s
@@ -183,8 +177,12 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 // Add an Action to the Action queue, returns a unique ID
 // which can be used to match the outcome in the Event queue
 func (t Dogeboxd) AddAction(a Action) string {
-	t.Internal.ActionCounter++
-	id := fmt.Sprintf("%x", t.Internal.ActionCounter)
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		fmt.Println("Entropic Failure, add more Overminds.")
+	}
+	id := fmt.Sprintf("%x", b)
 	t.jobs <- Job{A: a, ID: id}
 	return id
 }
@@ -233,34 +231,20 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 
 // Handle an UpdatePupConfig action
 func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
-	p, ok := t.Pups[u.PupID]
-	if !ok {
-		j.Err = fmt.Sprintf("Couldnt find pup to update: %s", u.PupID)
-		t.sendFinishedJob("PupStatus", j)
-		return
-	}
-
-	old := p.Config
-	newConfig := map[string]string{}
-
-	for k, v := range old {
-		newConfig[k] = v
-	}
-
-	// TODO validate against manifest fields
-	for k, v := range u.Payload {
-		newConfig[k] = v
-	}
-	p.Config = newConfig
-
-	err := p.Write()
+	err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
 	if err != nil {
-		j.Err = fmt.Sprintf("Failed to write Pup state to disk %v", err)
-		p.Config = old
+		fmt.Println("couldn't update pup", err)
+		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
 		t.sendFinishedJob("PupStatus", j)
 		return
 	}
-	j.Success = p
-	t.Pups[u.PupID] = p
+
+	j.Success, _, err = t.Pups.GetPup(u.PupID)
+	if err != nil {
+		fmt.Println("Couldnt get pup", u.PupID)
+		j.Err = err.Error()
+		t.sendFinishedJob("system", j)
+		return
+	}
 	t.sendFinishedJob("PupStatus", j)
 }

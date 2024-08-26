@@ -49,7 +49,7 @@ func (t PupManager) AdoptPup(m PupManifest) error {
 	if err != nil {
 		return err
 	}
-	PupID = fmt.Sprintf("%x", b), nil
+	PupID = fmt.Sprintf("%x", b)
 
 	// Set up initial PupState and save it to disk
 	p := PupState{
@@ -59,10 +59,10 @@ func (t PupManager) AdoptPup(m PupManifest) error {
 		Installation: STATE_INSTALLING,
 		Enabled:      false,
 		NeedsConf:    false, // TODO
-		NewsDeps:     false, // TODO
+		NeedsDeps:    false, // TODO
 		Version:      "TODO",
 	}
-	err := t.savePup(&p)
+	err = t.savePup(&p)
 	if err != nil {
 		return err
 	}
@@ -72,12 +72,28 @@ func (t PupManager) AdoptPup(m PupManifest) error {
 	return nil
 }
 
+func (t PupManager) GetStateMap() map[string]PupState {
+	out := map[string]PupState{}
+	for k, v := range t.state {
+		out[k] = *v
+	}
+	return out
+}
+
+func (t PupManager) GetStatsMap() map[string]PupStats {
+	out := map[string]PupStats{}
+	for k, v := range t.stats {
+		out[k] = *v
+	}
+	return out
+}
+
 func (t PupManager) GetPup(id string) (PupState, PupStats, error) {
 	state, ok := t.state[id]
 	if ok {
-		return state, t.stats[id], nil
+		return *state, *t.stats[id], nil
 	}
-	return nil, nil, errors.New("pup not found")
+	return PupState{}, PupStats{}, errors.New("pup not found")
 }
 
 /* Updating a PupState follows the veradic update func pattern
@@ -87,8 +103,8 @@ func (t PupManager) GetPup(id string) (PupState, PupStats, error) {
 * ie: err := manager.UpdatePup(id, SetPupInstallation(STATE_READY))
 * see bottom of file for options
  */
-func (t PupManager) UpdatePup(id string, updates ...func(*PupStats)) error {
-	p, ok = t.stats[id]
+func (t PupManager) UpdatePup(id string, updates ...func(*PupState)) error {
+	p, ok := t.state[id]
 	if !ok {
 		return errors.New("pup not found")
 	}
@@ -102,24 +118,24 @@ func (t PupManager) UpdatePup(id string, updates ...func(*PupStats)) error {
 /* Gets the list of previously managed pupIDs and loads their
 * state into memory.
  */
-func (t PupManager) loadPups(name string) error {
+func (t PupManager) loadPups() error {
 	// find pup save files
-	pupSaveFiles := []string
-	files, err := os.ReadDir(path)
+	pupSaveFiles := []string{}
+	files, err := os.ReadDir(t.pupDir)
 	if err != nil {
-		return error
+		return err
 	}
 
 	for _, file := range files {
-		if strings.HasSuffix(file, ".gob") {
-			pupSaveFiles = append(pupSaveFiles, file)
+		if strings.HasSuffix(file.Name(), ".gob") {
+			pupSaveFiles = append(pupSaveFiles, filepath.Join(t.pupDir, file.Name()))
 		}
 	}
 
-	for path := range pupSaveFiles {
+	for _, path := range pupSaveFiles {
 		file, err := os.Open(path)
 		if err != nil {
-			fmt.Sprintf("Cannot find state for pup %s at %q: %w\n", pupID, err)
+			fmt.Sprintf("Cannot find state for pup %s at %q: %w\n", path, err)
 			continue
 		}
 		defer file.Close()
@@ -130,13 +146,14 @@ func (t PupManager) loadPups(name string) error {
 			if err == io.EOF {
 				fmt.Sprintf("file %q is empty, skipping %s", path)
 			}
-			fmt.Sprintf("cannot decode object from file %q: %w", t.gobPath, err)
+			fmt.Sprintf("cannot decode object from file %q: %w", path, err)
 			continue
 		}
 
 		// Success! add to index
 		t.indexPup(&state)
 	}
+	return nil
 }
 
 func (t PupManager) savePup(p *PupState) error {
@@ -157,7 +174,7 @@ func (t PupManager) savePup(p *PupState) error {
 	}
 
 	if err := os.Rename(tempFile.Name(), path); err != nil {
-		return fmt.Errorf("cannot rename temporary file to %q: %w", t.gobPath, err)
+		return fmt.Errorf("cannot rename temporary file to %q: %w", path, err)
 	}
 
 	return nil
@@ -165,49 +182,49 @@ func (t PupManager) savePup(p *PupState) error {
 
 func (t PupManager) indexPup(p *PupState) {
 	s := PupStats{
-		ID:       PupID,
+		ID:       p.ID,
 		Status:   STATE_STOPPED,
 		StatCPU:  NewFloatBuffer(32),
 		StatMEM:  NewFloatBuffer(32),
-		StatDisk: NewFloatBuffer(32),
+		StatDISK: NewFloatBuffer(32),
 	}
 
-	t.state[PupID] = p
-	t.stats[PupID] = &s
+	t.state[p.ID] = p
+	t.stats[p.ID] = &s
 }
 
 /*****************************************************************************/
 /*                Varadic Update Funcs for PupManager.UpdatePup:             */
 /*****************************************************************************/
 
-func SetPupInstallation(state string) func(*PupStats) {
-	return func(p *PupStats) {
+func SetPupInstallation(state string) func(*PupState) {
+	return func(p *PupState) {
 		p.Installation = state
 	}
 }
 
-func SetPupConfig(newFields map[string]string) func(*PupStats) {
-	return func(p *PupStats) {
+func SetPupConfig(newFields map[string]string) func(*PupState) {
+	return func(p *PupState) {
 		for k, v := range newFields {
 			p.Config[k] = v
 		}
 	}
 }
 
-func PupEnabled(b bool) func(*PupStats) {
-	return func(p *PupStats) {
+func PupEnabled(b bool) func(*PupState) {
+	return func(p *PupState) {
 		p.Enabled = b
 	}
 }
 
-func PupNeedsConf(b bool) func(*PupStats) {
-	return func(p *PupStats) {
+func PupNeedsConf(b bool) func(*PupState) {
+	return func(p *PupState) {
 		p.NeedsConf = b
 	}
 }
 
-func PupNeedsDeps(b bool) func(*PupStats) {
-	return func(p *PupStats) {
+func PupNeedsDeps(b bool) func(*PupState) {
+	return func(p *PupState) {
 		p.NeedsDeps = b
 	}
 }

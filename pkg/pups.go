@@ -5,16 +5,16 @@ import (
 )
 
 const (
-	STATE_INSTALLING    string = "installing"
-	STASTE_READY               = "ready"
-	STASTE_UNREADY             = "unready"
-	STASTE_UNINSTALLING        = "uninstalling"
-	STASTE_UNINSTALLED         = "uninstalled"
-	STASTE_BROKEN              = "broken"
-	STASTE_STOPPED             = "stopped"
-	STASTE_STARTING            = "starting"
-	STASTE_RUNNING             = "running"
-	STASTE_STOPPING            = "stopping"
+	STATE_INSTALLING   string = "installing"
+	STATE_READY               = "ready"
+	STATE_UNREADY             = "unready"
+	STATE_UNINSTALLING        = "uninstalling"
+	STATE_UNINSTALLED         = "uninstalled"
+	STATE_BROKEN              = "broken"
+	STATE_STOPPED             = "stopped"
+	STATE_STARTING            = "starting"
+	STATE_RUNNING             = "running"
+	STATE_STOPPING            = "stopping"
 )
 
 /* Pup state vs pup stats
