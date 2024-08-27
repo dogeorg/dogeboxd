@@ -89,14 +89,14 @@ func delSession(r *http.Request) error {
 	return nil
 }
 
-func authReq(route string, next http.HandlerFunc) http.HandlerFunc {
+func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc {
 	if route == "POST /authenticate" {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 		})
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	sessionHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, ok := getSession(r)
 
 		if !ok {
@@ -106,6 +106,31 @@ func authReq(route string, next http.HandlerFunc) http.HandlerFunc {
 
 		next.ServeHTTP(w, r)
 	})
+
+	// We don't want a few routes to be locked down until the user has actually configured their system.
+	// Whitelist those here.
+	// TODO: Don't hardcode these.
+	if route == "GET /system/bootstrap" ||
+		route == "GET /system/network/list" ||
+		route == "PUT /system/network/set-pending" ||
+		route == "GET /keys" ||
+		route == "POST /keys/create-master" {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			dbxis := dbx.sm.Get().Dogebox.InitialState
+
+			if !dbxis.HasFullyConfigured {
+				// We good.
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Still check.
+			sessionHandler.ServeHTTP(w, r)
+		})
+	}
+
+	// Any other function should require an authed session
+	return sessionHandler
 }
 
 func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManager, ws WSRelay) conductor.Service {
@@ -164,7 +189,7 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 	}
 
 	for p, h := range routes {
-		a.mux.HandleFunc(p, authReq(p, h))
+		a.mux.HandleFunc(p, authReq(dbx, p, h))
 	}
 
 	return a
