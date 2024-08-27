@@ -9,7 +9,7 @@ import (
  * ManifestIndex, see also pkg/sources
  */
 type ManifestSource interface {
-	FindManifestByPupID(string) (PupManifest, bool)
+	FindManifest(string) (PupManifest, bool)
 	Export() ManifestSourceExport
 }
 

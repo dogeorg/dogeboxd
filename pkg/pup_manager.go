@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 type PupManager struct {
 	pupDir string // Where pup state is stored
+	lastIP net.IP // last issued IP address
 	state  map[string]*PupState
 	stats  map[string]*PupStats
 }
@@ -31,7 +33,27 @@ func NewPupManager(pupDir string) (PupManager, error) {
 		stats:  map[string]*PupStats{},
 	}
 	// load pups from disk
-	return p, p.loadPups()
+	err := p.loadPups()
+	if err != nil {
+		return p, err
+	}
+
+	// set lastIP for IP Generation
+	ip := net.IP{10, 0, 0, 1} // skip 0.1 (dogeboxd)
+	for _, v := range p.state {
+		ip2 := net.ParseIP(v.IP).To4()
+		for i := 0; i < 4; i++ {
+			if ip[i] < ip2[i] {
+				ip = ip2
+				break
+			} else if ip[i] > ip2[i] {
+				continue
+			}
+		}
+	}
+	p.lastIP = ip
+
+	return p, nil
 }
 
 /* This method is used to add a new pup from a manifest
@@ -40,16 +62,40 @@ func NewPupManager(pupDir string) (PupManager, error) {
 *
 * Once a pup has been initialised it is considered 'managed'
 * by the PupManager until purged.
+*
+* Returns PupID, error
  */
-func (t PupManager) AdoptPup(m PupManifest) error {
+func (t PupManager) AdoptPup(m PupManifest) (string, error) {
+	// Firstly (for now), check if we already have this manifest installed
+	for _, p := range t.state {
+		if m.ID == p.Manifest.ID {
+			return p.ID, errors.New("Pup already installed.")
+		}
+	}
+
 	// Create a PupID for this new Pup
 	var PupID string
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
 	if err != nil {
-		return err
+		return PupID, err
 	}
 	PupID = fmt.Sprintf("%x", b)
+
+	// Claim the next available IP
+	for i := 3; i >= 0; i-- {
+		t.lastIP[i]++
+		if t.lastIP[i] > 0 {
+			break
+		}
+		// If this octet wrapped, reset it to 0
+		t.lastIP[i] = 0
+	}
+
+	// Check if we have gone off the edge of the world
+	if t.lastIP[0] > 10 || (t.lastIP[0] == 10 && t.lastIP[1] > 0) {
+		return PupID, errors.New("Exhausted 65,536 IP addresses, what are you doing??")
+	}
 
 	// Set up initial PupState and save it to disk
 	p := PupState{
@@ -60,16 +106,17 @@ func (t PupManager) AdoptPup(m PupManifest) error {
 		Enabled:      false,
 		NeedsConf:    false, // TODO
 		NeedsDeps:    false, // TODO
+		IP:           t.lastIP.String(),
 		Version:      "TODO",
 	}
 	err = t.savePup(&p)
 	if err != nil {
-		return err
+		return PupID, err
 	}
 
 	// If we've successfully saved to disk, set up in-memory.
 	t.indexPup(&p)
-	return nil
+	return PupID, nil
 }
 
 func (t PupManager) GetStateMap() map[string]PupState {

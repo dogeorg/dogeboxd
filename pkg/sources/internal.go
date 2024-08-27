@@ -20,7 +20,7 @@ func NewInternalSource() InternalSource {
 	return s
 }
 
-func (t InternalSource) FindManifestByPupID(id string) (dogeboxd.PupManifest, bool) {
+func (t InternalSource) FindManifest(id string) (dogeboxd.PupManifest, bool) {
 	for _, m := range t.Available {
 		if m.ID == id {
 			return m, true

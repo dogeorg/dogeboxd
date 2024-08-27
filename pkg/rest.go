@@ -30,10 +30,10 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 	// Normal routes are used when we are not in recovery mode.
 	// nb. These are used in _addition_ to recovery routes.
 	normalRoutes := map[string]http.HandlerFunc{
-		"POST /pup/{PupID}/{action}": a.pupAction,
-		"POST /config/{PupID}":       a.updateConfig,
-		"/ws/log/{PupID}":            a.getLogSocket,
-		"/ws/state/":                 a.getUpdateSocket,
+		"POST /pup/{ID}/{action}": a.pupAction,
+		"POST /config/{PupID}":    a.updateConfig,
+		"/ws/log/{PupID}":         a.getLogSocket,
+		"/ws/state/":              a.getUpdateSocket,
 	}
 
 	// We always want to load recovery routes.
@@ -186,25 +186,24 @@ func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
-	pupid := r.PathValue("PupID")
+	id := r.PathValue("ID")
 	action := r.PathValue("action")
 	var a Action
 	switch action {
 	case "install":
-		a = InstallPup{PupID: pupid}
+		a = InstallPup{ManifestID: id}
 	case "uninstall":
-		a = UninstallPup{PupID: pupid}
+		a = UninstallPup{PupID: id}
 	case "enable":
-		a = EnablePup{PupID: pupid}
+		a = EnablePup{PupID: id}
 	case "disable":
-		a = DisablePup{PupID: pupid}
+		a = DisablePup{PupID: id}
 	default:
 		sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf("No pup action %s", action))
 		return
 	}
 
-	id := t.dbx.AddAction(a)
-	sendResponse(w, map[string]string{"id": id})
+	sendResponse(w, map[string]string{"id": t.dbx.AddAction(a)})
 }
 
 func (t api) Run(started, stopped chan bool, stop chan context.Context) error {

@@ -42,6 +42,7 @@ type PupState struct {
 	Enabled      bool              `json:"enabled"`
 	NeedsConf    bool              `json:"needsConf"`
 	NeedsDeps    bool              `json:"needsDeps"`
+	IP           string            `json:"ip"`
 	Version      string            `json:"enabled"`
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"log"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -82,6 +83,11 @@ func (t server) Start() {
 	pups, err := dogeboxd.NewPupManager(t.config.PupDir)
 	if err != nil {
 		log.Fatalf("Failed to load Pup state: %+v", err)
+	}
+	fmt.Printf("Loading pups from %s\n", t.config.PupDir)
+
+	for k, p := range pups.GetStateMap() {
+		fmt.Printf("pups %s:\n %+v\n", k, p)
 	}
 
 	/* ----------------------------------------------------------------------- */
