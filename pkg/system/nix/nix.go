@@ -52,6 +52,16 @@ type SystemTemplateValues struct {
 	SSH_KEYS    []string
 }
 
+//go:embed templates/overlays.nix
+var rawOverlaysTemplate []byte
+
+type OverlayTemplateValues struct {
+	PUPS []struct {
+		PUP_NAME string
+		PUP_PATH string
+	}
+}
+
 var _ NixManager = &nixManager{}
 
 type nixManager struct {
@@ -130,6 +140,10 @@ func (nm nixManager) UpdateFirewall(values FirewallTemplateValues) error {
 
 func (nm nixManager) UpdateSystem(values SystemTemplateValues) error {
 	return nm.writeTemplate("system.nix", rawSystemTemplate, values)
+}
+
+func (nm nixManager) UpdateOverlays(values OverlayTemplateValues) error {
+	return nm.writeTemplate("overlays.nix", rawOverlaysTemplate, values)
 }
 
 func (nm nixManager) Rebuild() error {
