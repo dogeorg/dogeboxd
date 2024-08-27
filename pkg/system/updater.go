@@ -52,28 +52,28 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 					switch a := j.A.(type) {
 					case dogeboxd.InstallPup:
 						fmt.Printf("JON %+v", a)
-						err := installPup(t.config.NixDir, *j.Manifest)
+						err := installPup(t.config.NixDir, *j.State)
 						if err != nil {
 							fmt.Println("Failed to install pup", err)
 							j.Err = "Failed to install pup"
 						}
 						t.done <- j
 					case dogeboxd.UninstallPup:
-						err := uninstallPup(t.config.NixDir, *j.Manifest)
+						err := uninstallPup(t.config.NixDir, *j.State)
 						if err != nil {
 							fmt.Println("Failed to uninstall pup", err)
 							j.Err = "Failed to uninstall pup"
 						}
 						t.done <- j
 					case dogeboxd.EnablePup:
-						err := enablePup(t.config.NixDir, *j.Manifest)
+						err := enablePup(t.config.NixDir, *j.State)
 						if err != nil {
 							fmt.Println("Failed to enable pup", err)
 							j.Err = "Failed to enable pup"
 						}
 						t.done <- j
 					case dogeboxd.DisablePup:
-						err := disablePup(t.config.NixDir, *j.Manifest)
+						err := disablePup(t.config.NixDir, *j.State)
 						if err != nil {
 							fmt.Println("Failed to disable pup", err)
 							j.Err = "Failed to disable pup"
@@ -115,6 +115,7 @@ var nixTemplate []byte
 type nixTemplateValues struct {
 	SERVICE_NAME string
 	EXEC_COMMAND string
+	IP           string
 	ENABLED      bool
 }
 
@@ -124,28 +125,30 @@ type nixTemplateValues struct {
  *
  *
  */
-func installPup(nixConfPath string, m dogeboxd.PupManifest) error {
+func installPup(nixConfPath string, s dogeboxd.PupState) error {
 	// TODO: Install deps!
-	return writeNix(true, nixConfPath, m)
+	return writeNix(true, nixConfPath, s)
 }
 
-func uninstallPup(nixConfPath string, m dogeboxd.PupManifest) error {
+func uninstallPup(nixConfPath string, s dogeboxd.PupState) error {
 	// TODO: uninstall deps!
-	return deleteNix(nixConfPath, m)
+	return deleteNix(nixConfPath, s)
 }
 
-func enablePup(nixConfPath string, m dogeboxd.PupManifest) error {
-	return writeNix(true, nixConfPath, m)
+func enablePup(nixConfPath string, s dogeboxd.PupState) error {
+	return writeNix(true, nixConfPath, s)
 }
 
-func disablePup(nixConfPath string, m dogeboxd.PupManifest) error {
-	return writeNix(false, nixConfPath, m)
+func disablePup(nixConfPath string, s dogeboxd.PupState) error {
+	return writeNix(false, nixConfPath, s)
 }
 
-func writeNix(enabled bool, nixConfPath string, m dogeboxd.PupManifest) error {
+func writeNix(enabled bool, nixConfPath string, s dogeboxd.PupState) error {
+	m := s.Manifest
 	v := nixTemplateValues{
 		SERVICE_NAME: m.ID,
 		EXEC_COMMAND: m.Command.Path,
+		IP:           s.IP,
 		ENABLED:      enabled,
 	}
 	t, err := template.New("nixService").Parse(string(nixTemplate))
@@ -176,7 +179,8 @@ func writeNix(enabled bool, nixConfPath string, m dogeboxd.PupManifest) error {
 	return nil
 }
 
-func deleteNix(nixConfPath string, m dogeboxd.PupManifest) error {
+func deleteNix(nixConfPath string, s dogeboxd.PupState) error {
+	m := s.Manifest
 	p := filepath.Join(nixConfPath, fmt.Sprintf("pup_%s.nix", m.ID))
 	err := os.Remove(p)
 	if err != nil {

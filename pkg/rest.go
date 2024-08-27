@@ -12,8 +12,8 @@ import (
 	"github.com/rs/cors"
 )
 
-func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
-	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, ws: ws}
+func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManager, ws WSRelay) conductor.Service {
+	a := api{mux: http.NewServeMux(), config: config, dbx: dbx, man: man, pups: pups, ws: ws}
 
 	routes := map[string]http.HandlerFunc{}
 
@@ -30,10 +30,10 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 	// Normal routes are used when we are not in recovery mode.
 	// nb. These are used in _addition_ to recovery routes.
 	normalRoutes := map[string]http.HandlerFunc{
-		"POST /pup/{PupID}/{action}": a.pupAction,
-		"POST /config/{PupID}":       a.updateConfig,
-		"/ws/log/{PupID}":            a.getLogSocket,
-		"/ws/state/":                 a.getUpdateSocket,
+		"POST /pup/{ID}/{action}": a.pupAction,
+		"POST /config/{PupID}":    a.updateConfig,
+		"/ws/log/{PupID}":         a.getLogSocket,
+		"/ws/state/":              a.getUpdateSocket,
 	}
 
 	// We always want to load recovery routes.
@@ -61,14 +61,17 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, ws WSRelay) conductor.Service {
 type api struct {
 	dbx    Dogeboxd
 	mux    *http.ServeMux
+	man    ManifestIndex
+	pups   PupManager
 	config ServerConfig
 	ws     WSRelay
 }
 
 func (t api) getRawBS() any {
 	return map[string]any{
-		"manifests": t.dbx.GetManifests(),
-		"states":    t.dbx.GetPupStats(),
+		"manifests": t.man.GetManifestMap(),
+		"states":    t.pups.GetStateMap(),
+		"stats":     t.pups.GetStatsMap(),
 	}
 }
 
@@ -93,7 +96,6 @@ func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {
 
 func (t api) connectNetwork(w http.ResponseWriter, r *http.Request) {
 	err := t.dbx.NetworkManager.TryConnect()
-
 	// Chances are we'll never actually get here, because you'll probably be disconnected
 	// from the box once (if) it changes networks, and your connection will break.
 	if err != nil {
@@ -184,25 +186,24 @@ func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
-	pupid := r.PathValue("PupID")
+	id := r.PathValue("ID")
 	action := r.PathValue("action")
 	var a Action
 	switch action {
 	case "install":
-		a = InstallPup{PupID: pupid}
+		a = InstallPup{ManifestID: id}
 	case "uninstall":
-		a = UninstallPup{PupID: pupid}
+		a = UninstallPup{PupID: id}
 	case "enable":
-		a = EnablePup{PupID: pupid}
+		a = EnablePup{PupID: id}
 	case "disable":
-		a = DisablePup{PupID: pupid}
+		a = DisablePup{PupID: id}
 	default:
 		sendErrorResponse(w, http.StatusNotFound, fmt.Sprintf("No pup action %s", action))
 		return
 	}
 
-	id := t.dbx.AddAction(a)
-	sendResponse(w, map[string]string{"id": id})
+	sendResponse(w, map[string]string{"id": t.dbx.AddAction(a)})
 }
 
 func (t api) Run(started, stopped chan bool, stop chan context.Context) error {

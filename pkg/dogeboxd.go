@@ -39,6 +39,7 @@ package dogeboxd
 
 import (
 	"context"
+	"crypto/rand"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -46,12 +47,11 @@ import (
 
 // A job is an in-flight handling of an Action (see actions.go)
 type Job struct {
-	A        Action
-	ID       string
-	Err      string
-	Success  any
-	Manifest *PupManifest // nilable, check before use!
-	Status   *PupStatus   // nilable, check before use!
+	A       Action
+	ID      string
+	Err     string
+	Success any
+	State   *PupState // nilable, check before use!
 }
 
 // A Change is the result of a Job that will be sent back
@@ -63,15 +63,9 @@ type Change struct {
 	Update any    `json:"update"`
 }
 
-type InternalState struct {
-	ActionCounter int
-	InstalledPups []string
-}
-
 type Dogeboxd struct {
 	Manifests      ManifestIndex
-	Pups           map[string]PupStatus
-	Internal       *InternalState
+	Pups           PupManager
 	SystemUpdater  SystemUpdater
 	SystemMonitor  SystemMonitor
 	JournalReader  JournalReader
@@ -81,10 +75,10 @@ type Dogeboxd struct {
 	Changes        chan Change
 }
 
-func NewDogeboxd(internalState InternalState, pupDir string, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
+func NewDogeboxd(pups PupManager, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
 	s := Dogeboxd{
 		Manifests:      man,
-		Pups:           map[string]PupStatus{},
+		Pups:           pups,
 		SystemUpdater:  updater,
 		SystemMonitor:  monitor,
 		JournalReader:  journal,
@@ -92,23 +86,11 @@ func NewDogeboxd(internalState InternalState, pupDir string, man ManifestIndex, 
 		lifecycle:      lifecycle,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
-		Internal:       &internalState,
 	}
 
-	// TODO start monitoring all installed services
-	monitor.GetMonChannel() <- []string{"dbus.service"}
-
-	// load pup state from disk
-	for _, ip := range s.Internal.InstalledPups {
-		fmt.Printf("Loading pup status: %s\n", ip)
-		m, ok := s.Manifests.FindManifest(ip)
-		if !ok {
-			fmt.Printf("Failed to load %s, no matching manifest source\n", ip)
-			continue
-		}
-		s.loadPupStatus(pupDir, m)
-	}
 	return s
+	// TODO start monitoring all installed services
+	// SUB TO PUP MANAGER monitor.GetMonChannel() <- []string{"dbus.service"}
 }
 
 // Main Dogeboxd goroutine, handles routing messages in
@@ -160,6 +142,19 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 	return nil
 }
 
+// Add an Action to the Action queue, returns a unique ID
+// which can be used to match the outcome in the Event queue
+func (t Dogeboxd) AddAction(a Action) string {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		fmt.Println("Entropic Failure, add more Overminds.")
+	}
+	id := fmt.Sprintf("%x", b)
+	t.jobs <- Job{A: a, ID: id}
+	return id
+}
+
 /* jobDispatcher handles any incomming Jobs
  * based on their Action type, some to internal
  * helpers and others sent to the system updater
@@ -168,9 +163,10 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 func (t Dogeboxd) jobDispatcher(j Job) {
 	fmt.Printf("dispatch job %+v\n", j)
 	switch a := j.A.(type) {
+
 	// System actions
 	case InstallPup:
-		t.sendSystemJobWithPupDetails(j, a.PupID)
+		t.createPupFromManifest(j, a.ManifestID)
 	case UninstallPup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case EnablePup:
@@ -191,24 +187,74 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	}
 }
 
-// Add an Action to the Action queue, returns a unique ID
-// which can be used to match the outcome in the Event queue
-func (t Dogeboxd) AddAction(a Action) string {
-	t.Internal.ActionCounter++
-	id := fmt.Sprintf("%x", t.Internal.ActionCounter)
-	t.jobs <- Job{A: a, ID: id}
-	return id
+/* This is where we create a 'PupState' from a ManifestID
+* and set it to be installed by the SystemUpdater. After
+* this point the Pup has entered a managed state and will
+* only be installable again after this one has been purged.
+*
+* Future: support multiple pup instances per manifest
+ */
+func (t *Dogeboxd) createPupFromManifest(j Job, manID string) {
+	// Find the matching manifest
+	m, ok := t.Manifests.FindManifest(manID)
+	if !ok {
+		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", manID)
+		t.sendFinishedJob("error", j)
+		return
+	}
+
+	// create a new pup for the manifest
+	pupID, err := t.Pups.AdoptPup(m)
+	if err != nil {
+		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
+		t.sendFinishedJob("error", j)
+		return
+	}
+
+	// send the job off to the SystemUpdater to install
+	t.sendSystemJobWithPupDetails(j, pupID)
 }
 
-// Flatten the manifest sources for the frontend API
-func (t Dogeboxd) GetManifests() map[string]ManifestSourceExport {
-	return t.Manifests.GetManifestMap()
+// Handle an UpdatePupConfig action
+func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
+	err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
+	if err != nil {
+		fmt.Println("couldn't update pup", err)
+		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
+		t.sendFinishedJob("error", j)
+		return
+	}
+
+	j.Success, _, err = t.Pups.GetPup(u.PupID)
+	if err != nil {
+		fmt.Println("Couldnt get pup", u.PupID)
+		j.Err = err.Error()
+		t.sendFinishedJob("error", j)
+		return
+	}
+	t.sendFinishedJob("PupStatus", j)
 }
 
-// Get all pup stats for the frontend API
-func (t Dogeboxd) GetPupStats() map[string]PupStatus {
-	return t.Pups
+// helper to report a completed job back to the client
+func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
+	t.Changes <- Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success}
 }
+
+// helper to attach PupState to a job and send it to the SystemUpdater
+func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
+	p, _, err := t.Pups.GetPup(PupID)
+	if err != nil {
+		j.Err = err.Error()
+		t.sendFinishedJob("error", j)
+		return
+	}
+	j.State = &p
+
+	// Send job to the system updater for handling
+	t.SystemUpdater.AddJob(j)
+}
+
+// TODO: Shound not be on Dogeboxd, needs moving
 
 // Get a log channel for a specific pup for the websocket API
 func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, error) {
@@ -225,70 +271,4 @@ func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, 
 	fmt.Println("conencting to systemd journal: ", service)
 	service = "dbus.service" // TODO HAX REMOVE
 	return t.JournalReader.GetJournalChan(service)
-}
-
-// helper to report a completed job back to the client
-func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
-	t.Changes <- Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success}
-}
-
-// create or load PupStatus for a given PUP id
-func (t *Dogeboxd) loadPupStatus(pupDir string, m PupManifest) {
-	p := NewPUPStatus(pupDir, m)
-	p.Read()
-	t.Pups[p.ID] = p
-}
-
-func (t Dogeboxd) setJobPupDetails(j *Job, PupID string) error {
-	m, ok := t.Manifests.FindManifest(PupID)
-	if !ok {
-		return errors.New(fmt.Sprintf("couldnt find manifest %s", PupID))
-	}
-	j.Manifest = &m
-	return nil
-}
-
-func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
-	err := t.setJobPupDetails(&j, PupID)
-	if err != nil {
-		j.Err = err.Error()
-		t.sendFinishedJob("system", j)
-		return
-	}
-	// Send job to the system updater for handling
-	t.SystemUpdater.AddJob(j)
-}
-
-// Handle an UpdatePupConfig action
-func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
-	p, ok := t.Pups[u.PupID]
-	if !ok {
-		j.Err = fmt.Sprintf("Couldnt find pup to update: %s", u.PupID)
-		t.sendFinishedJob("PupStatus", j)
-		return
-	}
-
-	old := p.Config
-	newConfig := map[string]string{}
-
-	for k, v := range old {
-		newConfig[k] = v
-	}
-
-	// TODO validate against manifest fields
-	for k, v := range u.Payload {
-		newConfig[k] = v
-	}
-	p.Config = newConfig
-
-	err := p.Write()
-	if err != nil {
-		j.Err = fmt.Sprintf("Failed to write Pup state to disk %v", err)
-		p.Config = old
-		t.sendFinishedJob("PupStatus", j)
-		return
-	}
-	j.Success = p
-	t.Pups[u.PupID] = p
-	t.sendFinishedJob("PupStatus", j)
 }

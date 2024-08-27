@@ -44,8 +44,8 @@ func (t ManifestIndex) GetSource(name string) (ManifestSource, bool) {
 	return s, true
 }
 
-func (t ManifestIndex) FindManifest(pupID string) (PupManifest, bool) {
-	sourceID, _, ok := strings.Cut(pupID, ".")
+func (t ManifestIndex) FindManifest(manID string) (PupManifest, bool) {
+	sourceID, _, ok := strings.Cut(manID, ".")
 	if !ok {
 		return PupManifest{}, false
 	}
@@ -53,5 +53,5 @@ func (t ManifestIndex) FindManifest(pupID string) (PupManifest, bool) {
 	if !ok {
 		return PupManifest{}, false
 	}
-	return source.FindManifestByPupID(pupID)
+	return source.FindManifest(manID)
 }
