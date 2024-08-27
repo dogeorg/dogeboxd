@@ -7,9 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"text/template"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/system/nix"
 )
 
 /*
@@ -20,12 +20,13 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager) SystemUpdater {
 	return SystemUpdater{
 		config:  config,
 		jobs:    make(chan dogeboxd.Job),
 		done:    make(chan dogeboxd.Job),
 		network: networkManager,
+		nix:     nixManager,
 	}
 }
 
@@ -34,6 +35,7 @@ type SystemUpdater struct {
 	jobs    chan dogeboxd.Job
 	done    chan dogeboxd.Job
 	network dogeboxd.NetworkManager
+	nix     nix.NixManager
 }
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -109,16 +111,6 @@ func (t SystemUpdater) GetUpdateChannel() chan dogeboxd.Job {
 	return t.done
 }
 
-//go:embed template.nix
-var nixTemplate []byte
-
-type nixTemplateValues struct {
-	SERVICE_NAME string
-	EXEC_COMMAND string
-	IP           string
-	ENABLED      bool
-}
-
 /* InstallPup takes a PupManifest and ensures a nix config
  * is written and any packages installed so that the Pup can
  * be started.
@@ -144,38 +136,6 @@ func disablePup(nixConfPath string, s dogeboxd.PupState) error {
 }
 
 func writeNix(enabled bool, nixConfPath string, s dogeboxd.PupState) error {
-	m := s.Manifest
-	v := nixTemplateValues{
-		SERVICE_NAME: m.ID,
-		EXEC_COMMAND: m.Command.Path,
-		IP:           s.IP,
-		ENABLED:      enabled,
-	}
-	t, err := template.New("nixService").Parse(string(nixTemplate))
-	if err != nil {
-		fmt.Println("Failed to parse template.nix")
-		return err
-	}
-	// write the template to the nixConfPath
-	p := filepath.Join(nixConfPath, fmt.Sprintf("pup_%s.nix", v.SERVICE_NAME))
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		fmt.Println("Failed to open nixConfigPath for writing", v.SERVICE_NAME)
-		return err
-	}
-	defer f.Close()
-
-	err = t.Execute(f, v)
-	if err != nil {
-		fmt.Println("Failed to write template to nixPath", v.SERVICE_NAME)
-		return err
-	}
-
-	// rebuild the nix system
-	err = nixRebuild()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

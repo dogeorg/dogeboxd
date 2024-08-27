@@ -12,6 +12,7 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/dogeorg/dogeboxd/pkg/system/lifecycle"
 	"github.com/dogeorg/dogeboxd/pkg/system/network"
+	"github.com/dogeorg/dogeboxd/pkg/system/nix"
 )
 
 //go:embed pup.json
@@ -66,11 +67,13 @@ func (t server) Start() {
 	manifest := t.loadManifest()
 
 	/* ----------------------------------------------------------------------- */
+	nixManager := nix.NewNixManager(t.config)
+
 	// Set up our system interfaces so we can talk to the host OS
 	networkManager := network.NewNetworkManager(t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager()
 
-	systemUpdater := system.NewSystemUpdater(t.config, networkManager)
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager)
 	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 

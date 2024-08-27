@@ -25,7 +25,7 @@ func main() {
 	flag.IntVar(&port, "port", 8080, "REST API Port")
 	flag.StringVar(&bind, "addr", "127.0.0.1", "Address to bind to")
 	flag.StringVar(&pupDir, "pups", "./pups", "Directory to find local pups")
-	flag.StringVar(&nixDir, "nix", "./nix", "Directory to find nix ??")
+	flag.StringVar(&nixDir, "nix", "/etc/nixos/dogebox", "Directory to write dogebox-specific nix configuration to")
 	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
 	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
