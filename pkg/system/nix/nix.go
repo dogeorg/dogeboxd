@@ -111,7 +111,7 @@ type PupConfiguration struct {
 }
 
 func (nm nixManager) WritePupFiles(
-	pupManifest pup.PupManifestV1,
+	pupManifest pup.PupManifest,
 	pupConfiguration PupConfiguration,
 ) error {
 	values := PupContainerTemplateValues{

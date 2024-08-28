@@ -4,22 +4,22 @@ package pup
  * running inside the Dogebox Runtime Environment.
  * These are defined in pup.json files.
  */
-type PupManifestV1 struct {
+type PupManifest struct {
 	// The version of the actual manifest. This differs from the "version"
 	// of the pup, and the version of the deployed software for this pup.
 	// Valid values: 1
-	ManifestVersion  string                         `json:"manifestVersion"`
-	Meta             PupManifestV1Meta              `json:"meta"`
-	Config           PupManifestV1ConfigFields      `json:"config"`
-	Container        PupManifestV1Container         `json:"container"`
-	PermissionGroups []PupManifestV1PermissionGroup `json:"permissionGroups"`
-	Dependencies     []PupManifestV1Dependency      `json:"dependencies"`
+	ManifestVersion  string                       `json:"manifestVersion"`
+	Meta             PupManifestMeta              `json:"meta"`
+	Config           PupManifestConfigFields      `json:"config"`
+	Container        PupManifestContainer         `json:"container"`
+	PermissionGroups []PupManifestPermissionGroup `json:"permissionGroups"`
+	Dependencies     []PupManifestDependency      `json:"dependencies"`
 }
 
-/* PupManifestV1Meta holds meta information about this pup
+/* PupManifestMeta holds meta information about this pup
  * such as its name, version, any imagery that needs to be shown.
  */
-type PupManifestV1Meta struct {
+type PupManifestMeta struct {
 	Name string `json:"name"`
 	// The version of the pup.
 	// nb. This can differ from the version of the software deployed
@@ -34,16 +34,16 @@ type PupManifestV1Meta struct {
  * execution environment of the pup, including both build
  * and runtime details of whatever is to be executed.
  */
-type PupManifestV1Container struct {
-	Build   PupManifestV1Build          `json:"build"`
-	Command PupManifestV1Command        `json:"command"`
-	Exposes []PupManifestV1ExposeConfig `json:"exposes"`
+type PupManifestContainer struct {
+	Build   PupManifestBuild          `json:"build"`
+	Command PupManifestCommand        `json:"command"`
+	Exposes []PupManifestExposeConfig `json:"exposes"`
 }
 
-/* PupManifestV1Build holds information about the target nix
+/* PupManifestBuild holds information about the target nix
  * package that is to be built for this pup.
  */
-type PupManifestV1Build struct {
+type PupManifestBuild struct {
 	// The location of the nix file used for building this pups environment.
 	NixFile string `json:"nixFile"`
 	// The SHA256 hash of the nix file.
@@ -51,18 +51,18 @@ type PupManifestV1Build struct {
 	// A single nix build file can provide multiple services, which all
 	// may need to be started separately. Each "service" should be provided
 	// as an artifact here with the correct execution configuration.
-	Artifacts []PupmanifestV1BuildArtifact `json:"artifacts"`
+	Artifacts []PupManifestBuildArtifact `json:"artifacts"`
 }
 
-type PupmanifestV1BuildArtifact struct {
-	Provides string               `json:"provides"`
-	Command  PupManifestV1Command `json:"command"`
+type PupManifestBuildArtifact struct {
+	Provides string             `json:"provides"`
+	Command  PupManifestCommand `json:"command"`
 }
 
 /* Represents the command to run inside this PUP
  * Container.
  */
-type PupManifestV1Command struct {
+type PupManifestCommand struct {
 	// Required. The whole executable string, including any arguments that need to be passed.
 	Exec string `json:"exec"`
 	// Optional. The working directory specified for a systemd service.
@@ -72,7 +72,7 @@ type PupManifestV1Command struct {
 }
 
 /* Allow the user to expose certain ports in their container. */
-type PupManifestV1ExposeConfig struct {
+type PupManifestExposeConfig struct {
 	// Freeform field, but we'll handle certain cases of "admin" or "public"
 	Type string `json:"type"`
 	// HTTP, Raw TCP etc. Used by the frontend in addition to
@@ -86,7 +86,7 @@ type PupManifestV1ExposeConfig struct {
  * pups can request access to this pup's
  * APIs and resources, via their Dependencies
  */
-type PupManifestV1PermissionGroup struct {
+type PupManifestPermissionGroup struct {
 	Name        string   `json:"name"`        // ie:  admin, wallet-read-only, etc.
 	Description string   `json:"description"` // What does this permission group do (shown to user)
 	Severity    int      `json:"severity"`    // 1-3, 1: critical/danger, 2: makes changes, 3: read only stuff
@@ -97,11 +97,11 @@ type PupManifestV1PermissionGroup struct {
  * another pup to be running, and what permission
  * groups from that pup need to be available.
  */
-type PupManifestV1Dependency struct {
-	ID               string                            `json:"id"` // pup that we depend on
-	Repository       PupManifestV1DependencyRepository `json:"repository"`
-	PermissionGroups []string                          `json:"permissionGroups"` // list of permission groups from that pup we want access to
-	Version          string                            `json:"version"`          // min version of the pup required
+type PupManifestDependency struct {
+	ID               string                          `json:"id"` // pup that we depend on
+	Repository       PupManifestDependencyRepository `json:"repository"`
+	PermissionGroups []string                        `json:"permissionGroups"` // list of permission groups from that pup we want access to
+	Version          string                          `json:"version"`          // min version of the pup required
 }
 
 /* A DependencyRepository specifies the location of a
@@ -109,7 +109,7 @@ type PupManifestV1Dependency struct {
  * so that if a user doesn't already have this repository set up we
  * can still resolve this dependency tree.
  */
-type PupManifestV1DependencyRepository struct {
+type PupManifestDependencyRepository struct {
 	Type     string `json:"type"`
 	Location string `json:"location"`
 }
@@ -117,7 +117,7 @@ type PupManifestV1DependencyRepository struct {
 /* Represents fields that are user settable, which provide the values
  * for templates (Args, ENV, ConfigFiles), we only care about Name
  */
-type PupManifestV1ConfigFields struct {
+type PupManifestConfigFields struct {
 	Sections []struct {
 		Name  string `json:"name"`
 		Label string `json:"label"`

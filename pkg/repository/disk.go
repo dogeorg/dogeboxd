@@ -8,12 +8,17 @@ import (
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 var _ dogeboxd.ManifestRepository = &ManifestRepositoryDisk{}
 
 type ManifestRepositoryDisk struct {
 	config dogeboxd.ManifestRepositoryConfiguration
+}
+
+func (r ManifestRepositoryDisk) Name() string {
+	return r.config.Name
 }
 
 func (r ManifestRepositoryDisk) Validate() (bool, error) {
@@ -53,7 +58,7 @@ func (r ManifestRepositoryDisk) List(_ bool) (dogeboxd.ManifestRepositoryList, e
 		return dogeboxd.ManifestRepositoryList{}, fmt.Errorf("failed to read manifest file: %w", err)
 	}
 
-	var manifest dogeboxd.PupManifest
+	var manifest pup.PupManifest
 	err = json.Unmarshal(manifestData, &manifest)
 	if err != nil {
 		return dogeboxd.ManifestRepositoryList{}, fmt.Errorf("failed to parse manifest file: %w", err)

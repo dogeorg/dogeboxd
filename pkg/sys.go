@@ -2,6 +2,9 @@ package dogeboxd
 
 import (
 	"context"
+	"time"
+
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 // see ./system/ for implementations
@@ -49,15 +52,21 @@ type NetworkState struct {
 	PendingNetwork SelectedNetwork
 }
 
+type RepositoryState struct {
+	Repositories []ManifestRepository
+}
+
 type State struct {
-	Network NetworkState
-	Dogebox DogeboxState
+	Network    NetworkState
+	Dogebox    DogeboxState
+	Repository RepositoryState
 }
 
 type StateManager interface {
 	Get() State
 	SetNetwork(s NetworkState)
 	SetDogebox(s DogeboxState)
+	SetRepository(s RepositoryState)
 	Save() error
 	Load() error
 }
@@ -124,4 +133,35 @@ type NetworkConnector interface {
 
 type NetworkPersistor interface {
 	Persist(network SelectedNetwork) error
+}
+
+type RepositoryManager interface {
+	GetAll() (map[string]ManifestRepositoryList, error)
+	GetRepositories() []ManifestRepository
+	AddRepository(repo ManifestRepositoryConfiguration) (ManifestRepository, error)
+}
+
+type ManifestRepositoryPup struct {
+	Name     string
+	Location string
+	Version  string
+	Manifest pup.PupManifest
+}
+
+type ManifestRepositoryList struct {
+	LastUpdated time.Time
+	Pups        []ManifestRepositoryPup
+}
+
+type ManifestRepository interface {
+	Name() string
+	Validate() (bool, error)
+	List(ignoreCache bool) (ManifestRepositoryList, error)
+	Download(diskPath string, remoteLocation string) error
+}
+
+type ManifestRepositoryConfiguration struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Location string `json:"location"`
 }

@@ -2,6 +2,8 @@ package dogeboxd
 
 import (
 	"encoding/json"
+
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 const (
@@ -36,14 +38,14 @@ const (
 // PupState is persisted to disk
 type PupState struct {
 	ID           string            `json:"id"`
-	Manifest     PupManifest       `json:"manifest"`
+	Manifest     pup.PupManifest   `json:"manifest"`
 	Config       map[string]string `json:"config"`
 	Installation string            `json:"installation"`
 	Enabled      bool              `json:"enabled"`
 	NeedsConf    bool              `json:"needsConf"`
 	NeedsDeps    bool              `json:"needsDeps"`
 	IP           string            `json:"ip"`
-	Version      string            `json:"enabled"`
+	Version      string            `json:"version"`
 }
 
 // PupStats is not persisted to disk, and holds the running

@@ -141,7 +141,7 @@ func writeNix(enabled bool, nixConfPath string, s dogeboxd.PupState) error {
 
 func deleteNix(nixConfPath string, s dogeboxd.PupState) error {
 	m := s.Manifest
-	p := filepath.Join(nixConfPath, fmt.Sprintf("pup_%s.nix", m.ID))
+	p := filepath.Join(nixConfPath, fmt.Sprintf("pup_%s.nix", m.Meta.Name))
 	err := os.Remove(p)
 	if err != nil {
 		return err

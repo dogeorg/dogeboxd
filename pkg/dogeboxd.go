@@ -41,7 +41,6 @@ import (
 	"context"
 	"crypto/rand"
 	_ "embed"
-	"errors"
 	"fmt"
 )
 
@@ -64,7 +63,6 @@ type Change struct {
 }
 
 type Dogeboxd struct {
-	Manifests      ManifestIndex
 	Pups           PupManager
 	SystemUpdater  SystemUpdater
 	SystemMonitor  SystemMonitor
@@ -72,13 +70,22 @@ type Dogeboxd struct {
 	NetworkManager NetworkManager
 	lifecycle      LifecycleManager
 	sm             StateManager
+	repo           RepositoryManager
 	jobs           chan Job
 	Changes        chan Change
 }
 
-func NewDogeboxd(stateManager StateManager, pups PupManager, man ManifestIndex, updater SystemUpdater, monitor SystemMonitor, journal JournalReader, networkManager NetworkManager, lifecycle LifecycleManager) Dogeboxd {
+func NewDogeboxd(
+	stateManager StateManager,
+	pups PupManager,
+	updater SystemUpdater,
+	monitor SystemMonitor,
+	journal JournalReader,
+	networkManager NetworkManager,
+	lifecycle LifecycleManager,
+	repositoryManager RepositoryManager,
+) Dogeboxd {
 	s := Dogeboxd{
-		Manifests:      man,
 		Pups:           pups,
 		SystemUpdater:  updater,
 		SystemMonitor:  monitor,
@@ -86,6 +93,7 @@ func NewDogeboxd(stateManager StateManager, pups PupManager, man ManifestIndex, 
 		NetworkManager: networkManager,
 		lifecycle:      lifecycle,
 		sm:             stateManager,
+		repo:           repositoryManager,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
 	}
@@ -198,23 +206,23 @@ func (t Dogeboxd) jobDispatcher(j Job) {
  */
 func (t *Dogeboxd) createPupFromManifest(j Job, manID string) {
 	// Find the matching manifest
-	m, ok := t.Manifests.FindManifest(manID)
-	if !ok {
-		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", manID)
-		t.sendFinishedJob("error", j)
-		return
-	}
+	// m, ok := t.Manifests.FindManifest(manID)
+	// if !ok {
+	// 	j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", manID)
+	// 	t.sendFinishedJob("error", j)
+	// 	return
+	// }
 
-	// create a new pup for the manifest
-	pupID, err := t.Pups.AdoptPup(m)
-	if err != nil {
-		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
-		t.sendFinishedJob("error", j)
-		return
-	}
+	// // create a new pup for the manifest
+	// pupID, err := t.Pups.AdoptPup(m)
+	// if err != nil {
+	// 	j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
+	// 	t.sendFinishedJob("error", j)
+	// 	return
+	// }
 
 	// send the job off to the SystemUpdater to install
-	t.sendSystemJobWithPupDetails(j, pupID)
+	// t.sendSystemJobWithPupDetails(j, pupID)
 }
 
 // Handle an UpdatePupConfig action
@@ -262,14 +270,14 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, error) {
 	// find the manifest, get the systemd service-name,
 	// subscribe to the JournalReader for that service:
-	man, ok := t.Manifests.FindManifest(pupID)
-	if !ok {
-		return nil, nil, errors.New("PUP not found")
+	state, _, err := t.Pups.GetPup(pupID)
+	if err != nil {
+		return nil, nil, err
 	}
 	// TODO this should possibly be the responsibility off
 	// journal reader so systemd concepts dont bleed into
 	// dogecoind..
-	service := fmt.Sprintf("%s.service", man.ID)
+	service := fmt.Sprintf("%s.service", state.ID)
 	fmt.Println("conencting to systemd journal: ", service)
 	service = "dbus.service" // TODO HAX REMOVE
 	return t.JournalReader.GetJournalChan(service)

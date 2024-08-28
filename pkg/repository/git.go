@@ -11,6 +11,7 @@ import (
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -24,6 +25,10 @@ type ManifestRepositoryGit struct {
 	config    dogeboxd.ManifestRepositoryConfiguration
 	_cache    dogeboxd.ManifestRepositoryList
 	_isCached bool
+}
+
+func (r ManifestRepositoryGit) Name() string {
+	return r.config.Name
 }
 
 func (r ManifestRepositoryGit) getShallowWorktree(tag string) (*git.Worktree, *git.Repository, error) {
@@ -49,10 +54,10 @@ func (r ManifestRepositoryGit) getShallowWorktree(tag string) (*git.Worktree, *g
 	return worktree, repo, nil
 }
 
-func (r ManifestRepositoryGit) ensureTagValidAndGetManifest(tag string) (dogeboxd.PupManifest, bool, error) {
+func (r ManifestRepositoryGit) ensureTagValidAndGetManifest(tag string) (pup.PupManifest, bool, error) {
 	worktree, _, err := r.getShallowWorktree(tag)
 	if err != nil {
-		return dogeboxd.PupManifest{}, false, err
+		return pup.PupManifest{}, false, err
 	}
 
 	for _, filename := range REQUIRED_FILES {
@@ -60,27 +65,27 @@ func (r ManifestRepositoryGit) ensureTagValidAndGetManifest(tag string) (dogebox
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("tag %s missing file %s", tag, filename)
-				return dogeboxd.PupManifest{}, false, nil
+				return pup.PupManifest{}, false, nil
 			}
-			return dogeboxd.PupManifest{}, false, fmt.Errorf("failed to check for file %s: %w", filename, err)
+			return pup.PupManifest{}, false, fmt.Errorf("failed to check for file %s: %w", filename, err)
 		}
 	}
 
 	content, err := worktree.Filesystem.Open("manifest.json")
 	if err != nil {
-		return dogeboxd.PupManifest{}, false, fmt.Errorf("failed to open manifest.json: %w", err)
+		return pup.PupManifest{}, false, fmt.Errorf("failed to open manifest.json: %w", err)
 	}
 	defer content.Close()
 
 	manifestBytes, err := io.ReadAll(content)
 	if err != nil {
-		return dogeboxd.PupManifest{}, false, fmt.Errorf("failed to read manifest.json: %w", err)
+		return pup.PupManifest{}, false, fmt.Errorf("failed to read manifest.json: %w", err)
 	}
 
-	var manifest dogeboxd.PupManifest
+	var manifest pup.PupManifest
 	err = json.Unmarshal(manifestBytes, &manifest)
 	if err != nil {
-		return dogeboxd.PupManifest{}, false, fmt.Errorf("failed to unmarshal manifest.json: %w", err)
+		return pup.PupManifest{}, false, fmt.Errorf("failed to unmarshal manifest.json: %w", err)
 	}
 
 	log.Printf("Successfully read manifest for tag %s", tag)
@@ -148,7 +153,7 @@ func (r ManifestRepositoryGit) List(ignoreCache bool) (dogeboxd.ManifestReposito
 	type tagResult struct {
 		version  string
 		valid    bool
-		manifest dogeboxd.PupManifest
+		manifest pup.PupManifest
 		err      error
 	}
 

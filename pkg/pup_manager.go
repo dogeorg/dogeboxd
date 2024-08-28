@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 /* The PupManager is collection of PupState and PupStats
@@ -26,7 +28,9 @@ type PupManager struct {
 	stats  map[string]*PupStats
 }
 
-func NewPupManager(pupDir string) (PupManager, error) {
+func NewPupManager(dataDir string) (PupManager, error) {
+	pupDir := filepath.Join(dataDir, "pups")
+
 	p := PupManager{
 		pupDir: pupDir,
 		state:  map[string]*PupState{},
@@ -65,11 +69,15 @@ func NewPupManager(pupDir string) (PupManager, error) {
 *
 * Returns PupID, error
  */
-func (t PupManager) AdoptPup(m PupManifest) (string, error) {
+func (t PupManager) AdoptPup(m pup.PupManifest) (string, error) {
 	// Firstly (for now), check if we already have this manifest installed
+
+	// TODO: Once we are tracking repository alongside installed pups
+	//       we should be checking this too.
+
 	for _, p := range t.state {
-		if m.ID == p.Manifest.ID {
-			return p.ID, errors.New("Pup already installed.")
+		if m.Meta.Name == p.Manifest.Meta.Name {
+			return p.ID, errors.New("pup already installed")
 		}
 	}
 

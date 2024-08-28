@@ -20,8 +20,9 @@ func NewStateManager() dogeboxd.StateManager {
 }
 
 type StateManager struct {
-	network dogeboxd.NetworkState
-	dogebox dogeboxd.DogeboxState
+	network    dogeboxd.NetworkState
+	dogebox    dogeboxd.DogeboxState
+	repository dogeboxd.RepositoryState
 }
 
 func (m *StateManager) reset() {
@@ -35,6 +36,9 @@ func (m *StateManager) reset() {
 			HasSetNetwork:      false,
 			HasFullyConfigured: false,
 		},
+	}
+	m.repository = dogeboxd.RepositoryState{
+		Repositories: []dogeboxd.ManifestRepository{},
 	}
 }
 
@@ -50,6 +54,10 @@ func (m StateManager) GobEncode() ([]byte, error) {
 		return nil, err
 	}
 
+	if err := encoder.Encode(m.repository); err != nil {
+		return nil, err
+	}
+
 	return buf.Bytes(), nil
 }
 
@@ -62,6 +70,10 @@ func (m *StateManager) GobDecode(data []byte) error {
 	}
 
 	if err := decoder.Decode(&m.dogebox); err != nil {
+		return err
+	}
+
+	if err := decoder.Decode(&m.repository); err != nil {
 		return err
 	}
 
@@ -81,6 +93,10 @@ func (s *StateManager) SetNetwork(ns dogeboxd.NetworkState) {
 
 func (s *StateManager) SetDogebox(dbs dogeboxd.DogeboxState) {
 	s.dogebox = dbs
+}
+
+func (s *StateManager) SetRepository(r dogeboxd.RepositoryState) {
+	s.repository = r
 }
 
 func (s *StateManager) Save() error {

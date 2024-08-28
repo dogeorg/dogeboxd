@@ -2,6 +2,8 @@ package dogeboxd
 
 import (
 	"time"
+
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 /* A ManifestSource represents an origin of PUP manifests, usually
@@ -9,18 +11,18 @@ import (
  * ManifestIndex, see also pkg/sources
  */
 type ManifestSource interface {
-	FindManifest(string) (PupManifest, bool)
+	FindManifest(string) (pup.PupManifest, bool)
 	Export() ManifestSourceExport
 }
 
 // returned by ManifestSource.Export, represents the ManifestSource
 // to the browser.
 type ManifestSourceExport struct {
-	ID          string        `json:"id"`
-	Label       string        `json:"label"`
-	URL         string        `json:"url"`
-	LastUpdated time.Time     `json:"lastUpdated"`
-	Available   []PupManifest `json:"available"`
+	ID          string            `json:"id"`
+	Label       string            `json:"label"`
+	URL         string            `json:"url"`
+	LastUpdated time.Time         `json:"lastUpdated"`
+	Available   []pup.PupManifest `json:"available"`
 }
 
 func (t ManifestSourceExport) Export() ManifestSourceExport {

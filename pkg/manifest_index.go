@@ -3,6 +3,8 @@ package dogeboxd
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 /* The ManifestIndex is collection of ManifestSources with methods for
@@ -44,14 +46,14 @@ func (t ManifestIndex) GetSource(name string) (ManifestSource, bool) {
 	return s, true
 }
 
-func (t ManifestIndex) FindManifest(manID string) (PupManifest, bool) {
+func (t ManifestIndex) FindManifest(manID string) (pup.PupManifest, bool) {
 	sourceID, _, ok := strings.Cut(manID, ".")
 	if !ok {
-		return PupManifest{}, false
+		return pup.PupManifest{}, false
 	}
 	source, ok := t.GetSource(sourceID)
 	if !ok {
-		return PupManifest{}, false
+		return pup.PupManifest{}, false
 	}
 	return source.FindManifest(manID)
 }
