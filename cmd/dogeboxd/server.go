@@ -30,7 +30,12 @@ func Server(sm dogeboxd.StateManager, config dogeboxd.ServerConfig) server {
 }
 
 func (t server) Start() {
-	repositoryManager := repository.NewRepositoryManager(t.sm)
+	pups, err := dogeboxd.NewPupManager(t.config.DataDir)
+	if err != nil {
+		log.Fatalf("Failed to load Pup state: %+v", err)
+	}
+
+	repositoryManager := repository.NewRepositoryManager(t.sm, pups)
 	nixManager := nix.NewNixManager(t.config)
 
 	// Set up our system interfaces so we can talk to the host OS
@@ -44,11 +49,6 @@ func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Set up PupManager and load the state for all installed pups
 	//
-
-	pups, err := dogeboxd.NewPupManager(t.config.DataDir)
-	if err != nil {
-		log.Fatalf("Failed to load Pup state: %+v", err)
-	}
 
 	for k, p := range pups.GetStateMap() {
 		fmt.Printf("pups %s:\n %+v\n", k, p)

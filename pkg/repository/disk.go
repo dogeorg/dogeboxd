@@ -21,6 +21,10 @@ func (r ManifestRepositoryDisk) Name() string {
 	return r.config.Name
 }
 
+func (r ManifestRepositoryDisk) Config() dogeboxd.ManifestRepositoryConfiguration {
+	return r.config
+}
+
 func (r ManifestRepositoryDisk) Validate() (bool, error) {
 	// Check if the folder exists
 	folderInfo, err := os.Stat(r.config.Location)

@@ -31,6 +31,10 @@ func (r ManifestRepositoryGit) Name() string {
 	return r.config.Name
 }
 
+func (r ManifestRepositoryGit) Config() dogeboxd.ManifestRepositoryConfiguration {
+	return r.config
+}
+
 func (r ManifestRepositoryGit) getShallowWorktree(tag string) (*git.Worktree, *git.Repository, error) {
 	storage := memory.NewStorage()
 	fs := memfs.New()

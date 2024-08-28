@@ -139,6 +139,7 @@ type RepositoryManager interface {
 	GetAll() (map[string]ManifestRepositoryList, error)
 	GetRepositories() []ManifestRepository
 	AddRepository(repo ManifestRepositoryConfiguration) (ManifestRepository, error)
+	RemoveRepository(name string) error
 }
 
 type ManifestRepositoryPup struct {
@@ -155,6 +156,7 @@ type ManifestRepositoryList struct {
 
 type ManifestRepository interface {
 	Name() string
+	Config() ManifestRepositoryConfiguration
 	Validate() (bool, error)
 	List(ignoreCache bool) (ManifestRepositoryList, error)
 	Download(diskPath string, remoteLocation string) error
