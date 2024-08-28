@@ -38,7 +38,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	recoveryMode := system.ShouldEnterRecovery()
+	stateManager := system.NewStateManager()
+	err := stateManager.Load()
+	if err != nil {
+		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)
+	}
+
+	recoveryMode := system.ShouldEnterRecovery(stateManager)
 	if forcedRecovery {
 		recoveryMode = true
 	}
@@ -60,6 +66,6 @@ func main() {
 		UiPort:   uiPort,
 	}
 
-	srv := Server(config)
+	srv := Server(stateManager, config)
 	srv.Start()
 }

@@ -17,6 +17,7 @@ type PupManifest struct {
 	PermissionGroups []PermissionGroup `json:"permissionGroups"`
 	Dependencies     []Dependency      `json:"dependencies"`
 	hydrated         bool
+	containerIP      string
 }
 
 // This is called when a Pup is loaded from storage, JSON/GOB etc.
