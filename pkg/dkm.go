@@ -38,33 +38,28 @@ type DKMResponseInvalidateToken struct {
 }
 
 type dkmManager struct {
-	dkmPup PupManifest
 	client *resty.Client
 }
 
-func NewDKMManager(dbx Dogeboxd) DKMManager {
+func NewDKMManager(pupManager PupManager) DKMManager {
 	// TODO: get the dkm pup from our internal state
-	dkmPup, found, _ := PupManifest{
-		containerIP: "127.0.0.1",
-	}, true, error(nil)
+	dkmIP := "127.0.0.1"
 
 	// if err != nil {
 	// 	log.Fatalln("Failed to find an instance of DKM:", err)
 	// }
 
-	if !found {
-		// You can't use dogebox without an instance of DKM
-		log.Fatalln("Could not find an instance of DKM installed. Aborting.")
-	}
+	// if !found {
+	// 	// You can't use dogebox without an instance of DKM
+	// 	log.Fatalln("Could not find an instance of DKM installed. Aborting.")
+	// }
 
 	client := resty.New()
-	// client.SetBaseURL(fmt.Sprintf("http://%s:80", dkmPup.containerIP))
-	client.SetBaseURL(fmt.Sprintf("http://%s:8089", dkmPup.containerIP))
+	client.SetBaseURL(fmt.Sprintf("http://%s:8089", dkmIP))
 	client.SetHeader("Accept", "application/json")
 	client.SetContentLength(true)
 
 	return dkmManager{
-		dkmPup: dkmPup,
 		client: client,
 	}
 }

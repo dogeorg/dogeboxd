@@ -135,7 +135,7 @@ func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc
 
 func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManager, ws WSRelay) conductor.Service {
 	sessions = make(map[string]Session)
-	dkm := NewDKMManager(dbx)
+	dkm := NewDKMManager(pups)
 
 	a := api{
 		mux:    http.NewServeMux(),
