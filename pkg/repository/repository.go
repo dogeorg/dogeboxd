@@ -48,6 +48,13 @@ func (rm repositoryManager) GetRepositories() []dogeboxd.ManifestRepository {
 }
 
 func (rm repositoryManager) AddRepository(repo dogeboxd.ManifestRepositoryConfiguration) (dogeboxd.ManifestRepository, error) {
+	// Ensure no existing repository has the same name
+	for _, r := range rm.repositories {
+		if r.Name() == repo.Name {
+			return nil, fmt.Errorf("repository with name %s already exists", repo.Name)
+		}
+	}
+
 	var repository dogeboxd.ManifestRepository
 
 	switch repo.Type {
