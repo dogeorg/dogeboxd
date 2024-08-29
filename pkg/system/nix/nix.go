@@ -10,12 +10,14 @@ import (
 	"text/template"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
-	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 type NixManager interface {
 	Rebuild() error
 	WriteDogeboxNixFile(filename string, content string) error
+	WritePupFile(pupState dogeboxd.PupState) error
+	UpdateSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error
+	UpdateOverlays(values OverlayTemplateValues) error
 }
 
 //go:embed templates/pup_container.nix
@@ -105,32 +107,26 @@ func (nm nixManager) writeTemplate(filename string, _template []byte, values int
 	return nil
 }
 
-// TODO; this shouldn't be defined here.
-type PupConfiguration struct {
-	ContainerIP string
-}
-
-func (nm nixManager) WritePupFiles(
-	pupManifest pup.PupManifest,
-	pupConfiguration PupConfiguration,
+func (nm nixManager) WritePupFile(
+	state dogeboxd.PupState,
 ) error {
 	values := PupContainerTemplateValues{
-		PUP_SLUG:    pupManifest.Meta.Name,
+		PUP_SLUG:    state.Manifest.Meta.Name,
 		PUP_ENABLED: true,
-		INTERNAL_IP: pupConfiguration.ContainerIP,
+		INTERNAL_IP: state.IP,
 		PUP_PORTS:   []int{},
 	}
 
-	for _, ex := range pupManifest.Container.Exposes {
+	for _, ex := range state.Manifest.Container.Exposes {
 		values.PUP_PORTS = append(values.PUP_PORTS, ex.Port)
 	}
 
-	filename := fmt.Sprintf("pup_%s.nix", pupManifest.Meta.Name)
+	filename := fmt.Sprintf("pup_%s.nix", state.Manifest.Meta.Name)
 
 	return nm.writeTemplate(filename, rawPupContainerTemplate, values)
 }
 
-func (nm nixManager) WriteSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error {
+func (nm nixManager) UpdateSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error {
 	return nm.writeTemplate("system_container_config.nix", rawSystemContainerConfigTemplate, values)
 }
 

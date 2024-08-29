@@ -137,9 +137,13 @@ type NetworkPersistor interface {
 
 type RepositoryManager interface {
 	GetAll() (map[string]ManifestRepositoryList, error)
-	GetRepositories() []ManifestRepository
+	GetRepositoryManifest(repositoryName, pupName, pupVersion string) (pup.PupManifest, error)
+	GetRepositoryPup(repositoryName, pupName, pupVersion string) (ManifestRepositoryPup, error)
+	GetRepository(name string) (ManifestRepository, error)
+	// GetRepositories() []ManifestRepository
 	AddRepository(repo ManifestRepositoryConfiguration) (ManifestRepository, error)
 	RemoveRepository(name string) error
+	DownloadPup(diskPath, repositoryName, pupName, pupVersion string) error
 }
 
 type ManifestRepositoryPup struct {

@@ -4,8 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"os"
-	"os/exec"
+	"log"
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -20,13 +19,14 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager, repositoryManager dogeboxd.RepositoryManager) SystemUpdater {
 	return SystemUpdater{
 		config:  config,
 		jobs:    make(chan dogeboxd.Job),
 		done:    make(chan dogeboxd.Job),
 		network: networkManager,
 		nix:     nixManager,
+		repo:    repositoryManager,
 	}
 }
 
@@ -36,6 +36,7 @@ type SystemUpdater struct {
 	done    chan dogeboxd.Job
 	network dogeboxd.NetworkManager
 	nix     nix.NixManager
+	repo    dogeboxd.RepositoryManager
 }
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -54,7 +55,7 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 					switch a := j.A.(type) {
 					case dogeboxd.InstallPup:
 						fmt.Printf("JON %+v", a)
-						err := installPup(t.config.NixDir, *j.State)
+						err := t.installPup(a, *j.State)
 						if err != nil {
 							fmt.Println("Failed to install pup", err)
 							j.Err = "Failed to install pup"
@@ -117,51 +118,62 @@ func (t SystemUpdater) GetUpdateChannel() chan dogeboxd.Job {
  *
  *
  */
-func installPup(nixConfPath string, s dogeboxd.PupState) error {
+func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.PupState) error {
+	// TODO: This should probably live in pupManager instead of here.
+
 	// TODO: Install deps!
-	return writeNix(true, nixConfPath, s)
+
+	log.Printf("Installing pup from %s: %s @ %s", pupSelection.RepositoryName, pupSelection.PupName, pupSelection.PupVersion)
+	pupPath := filepath.Join(t.config.DataDir, "pups", s.ID)
+
+	log.Printf("Downloading pup to %s", pupPath)
+	err := t.repo.DownloadPup(pupPath, pupSelection.RepositoryName, pupSelection.PupName, pupSelection.PupVersion)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Writing nix pup container config")
+	if err := t.nix.WritePupFile(s); err != nil {
+		return err
+	}
+
+	// TODO: This needs to use all pups, not just the one we're installing
+	log.Printf("Updating nix overlays with new pup")
+	if err := t.nix.UpdateOverlays(nix.OverlayTemplateValues{
+		PUPS: []struct {
+			PUP_NAME string
+			PUP_PATH string
+		}{
+			{PUP_NAME: s.Manifest.Meta.Name, PUP_PATH: pupPath},
+		},
+	}); err != nil {
+		return err
+	}
+
+	log.Printf("Rebuilding nix")
+	if err := t.nix.Rebuild(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func uninstallPup(nixConfPath string, s dogeboxd.PupState) error {
-	// TODO: uninstall deps!
-	return deleteNix(nixConfPath, s)
+	// TODO: uninstall deps if they're not needed by another pup.
+
+	// TODO: remove nix config
+
+	return nil
 }
 
 func enablePup(nixConfPath string, s dogeboxd.PupState) error {
-	return writeNix(true, nixConfPath, s)
+	// TODO: write nix config
+
+	return nil
 }
 
 func disablePup(nixConfPath string, s dogeboxd.PupState) error {
-	return writeNix(false, nixConfPath, s)
-}
+	// TODO: write nix config
 
-func writeNix(enabled bool, nixConfPath string, s dogeboxd.PupState) error {
-	return nil
-}
-
-func deleteNix(nixConfPath string, s dogeboxd.PupState) error {
-	m := s.Manifest
-	p := filepath.Join(nixConfPath, fmt.Sprintf("pup_%s.nix", m.Meta.Name))
-	err := os.Remove(p)
-	if err != nil {
-		return err
-	}
-	err = nixRebuild()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func nixRebuild() error {
-	md := exec.Command("nix", "rebuild")
-
-	output, err := md.CombinedOutput()
-	if err != nil {
-		fmt.Printf("Error executing nix rebuild: %s\n", err)
-		return err
-	} else {
-		fmt.Printf("nix output: %s\n", string(output))
-	}
 	return nil
 }

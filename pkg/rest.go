@@ -170,6 +170,7 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay) con
 		// TODO: Split out action for installation.
 		//       Needs to take a repository and a pup manifest name.
 		"POST /pup/{ID}/{action}": a.pupAction,
+		"PUT /pup":                a.installPup,
 		"POST /config/{PupID}":    a.updateConfig,
 		"/ws/log/{PupID}":         a.getLogSocket,
 		"/ws/state/":              a.getUpdateSocket,
@@ -593,13 +594,42 @@ func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, map[string]string{"id": id})
 }
 
+type InstallPupRequest struct {
+	PupName        string `json:"pupName"`
+	PupVersion     string `json:"pupVersion"`
+	RepositoryName string `json:"repositoryName"`
+}
+
+func (t api) installPup(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var req InstallPupRequest
+	err = json.Unmarshal(body, &req)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error unmarshalling JSON")
+		return
+	}
+
+	id := t.dbx.AddAction(InstallPup{PupName: req.PupName, PupVersion: req.PupVersion, RepositoryName: req.RepositoryName})
+	sendResponse(w, map[string]string{"id": id})
+}
+
 func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("ID")
 	action := r.PathValue("action")
+
+	if action == "install" {
+		sendErrorResponse(w, http.StatusBadRequest, "Must use PUT /pup to install")
+		return
+	}
+
 	var a Action
 	switch action {
-	case "install":
-		a = InstallPup{ManifestID: id}
 	case "uninstall":
 		a = UninstallPup{PupID: id}
 	case "enable":

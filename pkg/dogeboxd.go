@@ -176,7 +176,7 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 
 	// System actions
 	case InstallPup:
-		t.createPupFromManifest(j, a.ManifestID)
+		t.createPupFromManifest(j, a.PupName, a.PupVersion, a.RepositoryName)
 	case UninstallPup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case EnablePup:
@@ -204,25 +204,25 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 *
 * Future: support multiple pup instances per manifest
  */
-func (t *Dogeboxd) createPupFromManifest(j Job, manID string) {
-	// Find the matching manifest
-	// m, ok := t.Manifests.FindManifest(manID)
-	// if !ok {
-	// 	j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", manID)
-	// 	t.sendFinishedJob("error", j)
-	// 	return
-	// }
+func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, repositoryName string) {
+	// Fetch the correct manifest from the repository manager
+	m, err := t.repo.GetRepositoryManifest(repositoryName, pupName, pupVersion)
+	if err != nil {
+		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
+		t.sendFinishedJob("error", j)
+		return
+	}
 
-	// // create a new pup for the manifest
-	// pupID, err := t.Pups.AdoptPup(m)
-	// if err != nil {
-	// 	j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
-	// 	t.sendFinishedJob("error", j)
-	// 	return
-	// }
+	// create a new pup for the manifest
+	pupID, err := t.Pups.AdoptPup(m)
+	if err != nil {
+		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
+		t.sendFinishedJob("error", j)
+		return
+	}
 
 	// send the job off to the SystemUpdater to install
-	// t.sendSystemJobWithPupDetails(j, pupID)
+	t.sendSystemJobWithPupDetails(j, pupID)
 }
 
 // Handle an UpdatePupConfig action

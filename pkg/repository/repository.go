@@ -6,6 +6,7 @@ import (
 	"log"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 var REQUIRED_FILES = []string{"pup.nix", "manifest.json"}
@@ -43,8 +44,64 @@ func (rm repositoryManager) GetAll() (map[string]dogeboxd.ManifestRepositoryList
 	return available, nil
 }
 
-func (rm repositoryManager) GetRepositories() []dogeboxd.ManifestRepository {
-	return rm.repositories
+func (rm repositoryManager) GetRepositoryManifest(repositoryName, pupName, pupVersion string) (pup.PupManifest, error) {
+	for _, r := range rm.repositories {
+		if r.Name() == repositoryName {
+			list, err := r.List(false)
+			if err != nil {
+				return pup.PupManifest{}, err
+			}
+			for _, pup := range list.Pups {
+				if pup.Name == pupName && pup.Version == pupVersion {
+					return pup.Manifest, nil
+				}
+			}
+			return pup.PupManifest{}, fmt.Errorf("no pup found with name %s and version %s", pupName, pupVersion)
+		}
+	}
+
+	return pup.PupManifest{}, fmt.Errorf("no repository found with name %s", repositoryName)
+}
+
+func (rm repositoryManager) GetRepositoryPup(repositoryName, pupName, pupVersion string) (dogeboxd.ManifestRepositoryPup, error) {
+	r, err := rm.GetRepository(repositoryName)
+	if err != nil {
+		return dogeboxd.ManifestRepositoryPup{}, err
+	}
+
+	l, err := r.List(false)
+	if err != nil {
+		return dogeboxd.ManifestRepositoryPup{}, err
+	}
+
+	for _, pup := range l.Pups {
+		if pup.Name == pupName && pup.Version == pupVersion {
+			return pup, nil
+		}
+	}
+
+	return dogeboxd.ManifestRepositoryPup{}, fmt.Errorf("no pup found with name %s and version %s", pupName, pupVersion)
+}
+
+func (rm repositoryManager) GetRepository(name string) (dogeboxd.ManifestRepository, error) {
+	for _, r := range rm.repositories {
+		if r.Name() == name {
+			return r, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no repository found with name %s", name)
+}
+
+func (rm repositoryManager) DownloadPup(path, repositoryName, pupName, pupVersion string) error {
+	r, err := rm.GetRepository(repositoryName)
+	if err != nil {
+		return err
+	}
+
+	repoPup, err := rm.GetRepositoryPup(repositoryName, pupName, pupVersion)
+
+	return r.Download(path, repoPup.Location)
 }
 
 func (rm repositoryManager) AddRepository(repo dogeboxd.ManifestRepositoryConfiguration) (dogeboxd.ManifestRepository, error) {
