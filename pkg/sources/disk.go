@@ -1,4 +1,4 @@
-package repository
+package source
 
 import (
 	"encoding/json"
@@ -11,21 +11,21 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
-var _ dogeboxd.ManifestRepository = &ManifestRepositoryDisk{}
+var _ dogeboxd.ManifestSource = &ManifestSourceDisk{}
 
-type ManifestRepositoryDisk struct {
-	config dogeboxd.ManifestRepositoryConfiguration
+type ManifestSourceDisk struct {
+	config dogeboxd.ManifestSourceConfiguration
 }
 
-func (r ManifestRepositoryDisk) Name() string {
+func (r ManifestSourceDisk) Name() string {
 	return r.config.Name
 }
 
-func (r ManifestRepositoryDisk) Config() dogeboxd.ManifestRepositoryConfiguration {
+func (r ManifestSourceDisk) Config() dogeboxd.ManifestSourceConfiguration {
 	return r.config
 }
 
-func (r ManifestRepositoryDisk) Validate() (bool, error) {
+func (r ManifestSourceDisk) Validate() (bool, error) {
 	// Check if the folder exists
 	folderInfo, err := os.Stat(r.config.Location)
 	if err != nil {
@@ -50,8 +50,8 @@ func (r ManifestRepositoryDisk) Validate() (bool, error) {
 	return true, nil
 }
 
-func (r ManifestRepositoryDisk) List(_ bool) (dogeboxd.ManifestRepositoryList, error) {
-	// At the moment we only support a single pup per repository.
+func (r ManifestSourceDisk) List(_ bool) (dogeboxd.ManifestSourceList, error) {
+	// At the moment we only support a single pup per source.
 	// This will change in the future with the introduction of a root
 	// dogebox.json or something that can point to sub-pups.
 
@@ -59,31 +59,31 @@ func (r ManifestRepositoryDisk) List(_ bool) (dogeboxd.ManifestRepositoryList, e
 	manifestPath := filepath.Join(r.config.Location, "pup.manifest")
 	manifestData, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return dogeboxd.ManifestRepositoryList{}, fmt.Errorf("failed to read manifest file: %w", err)
+		return dogeboxd.ManifestSourceList{}, fmt.Errorf("failed to read manifest file: %w", err)
 	}
 
 	var manifest pup.PupManifest
 	err = json.Unmarshal(manifestData, &manifest)
 	if err != nil {
-		return dogeboxd.ManifestRepositoryList{}, fmt.Errorf("failed to parse manifest file: %w", err)
+		return dogeboxd.ManifestSourceList{}, fmt.Errorf("failed to parse manifest file: %w", err)
 	}
 
-	pup := dogeboxd.ManifestRepositoryPup{
+	pup := dogeboxd.ManifestSourcePup{
 		Name:     r.config.Name,
 		Location: r.config.Location,
 		Version:  manifest.Meta.Version,
 		Manifest: manifest,
 	}
 
-	return dogeboxd.ManifestRepositoryList{
+	return dogeboxd.ManifestSourceList{
 		LastUpdated: time.Now(),
-		Pups:        []dogeboxd.ManifestRepositoryPup{pup},
+		Pups:        []dogeboxd.ManifestSourcePup{pup},
 	}, nil
 }
 
-func (r ManifestRepositoryDisk) Download(diskPath string, remoteLocation string) error {
-	// At the moment we only support a single pup per repository,
+func (r ManifestSourceDisk) Download(diskPath string, remoteLocation string) error {
+	// At the moment we only support a single pup per source,
 	// so we can ignore the name field here, eventually it will be used.
-	// For a disk repository, we always just return what is on-disk, unversioned.
+	// For a disk source, we always just return what is on-disk, unversioned.
 	return nil
 }

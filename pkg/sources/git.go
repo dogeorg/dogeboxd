@@ -1,4 +1,4 @@
-package repository
+package source
 
 import (
 	"encoding/json"
@@ -19,23 +19,23 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-var _ dogeboxd.ManifestRepository = &ManifestRepositoryGit{}
+var _ dogeboxd.ManifestSource = &ManifestSourceGit{}
 
-type ManifestRepositoryGit struct {
-	config    dogeboxd.ManifestRepositoryConfiguration
-	_cache    dogeboxd.ManifestRepositoryList
+type ManifestSourceGit struct {
+	config    dogeboxd.ManifestSourceConfiguration
+	_cache    dogeboxd.ManifestSourceList
 	_isCached bool
 }
 
-func (r ManifestRepositoryGit) Name() string {
+func (r ManifestSourceGit) Name() string {
 	return r.config.Name
 }
 
-func (r ManifestRepositoryGit) Config() dogeboxd.ManifestRepositoryConfiguration {
+func (r ManifestSourceGit) Config() dogeboxd.ManifestSourceConfiguration {
 	return r.config
 }
 
-func (r ManifestRepositoryGit) getShallowWorktree(tag string) (*git.Worktree, *git.Repository, error) {
+func (r ManifestSourceGit) getShallowWorktree(tag string) (*git.Worktree, *git.Repository, error) {
 	storage := memory.NewStorage()
 	fs := memfs.New()
 
@@ -58,7 +58,7 @@ func (r ManifestRepositoryGit) getShallowWorktree(tag string) (*git.Worktree, *g
 	return worktree, repo, nil
 }
 
-func (r ManifestRepositoryGit) ensureTagValidAndGetManifest(tag string) (pup.PupManifest, bool, error) {
+func (r ManifestSourceGit) ensureTagValidAndGetManifest(tag string) (pup.PupManifest, bool, error) {
 	worktree, _, err := r.getShallowWorktree(tag)
 	if err != nil {
 		return pup.PupManifest{}, false, err
@@ -96,7 +96,7 @@ func (r ManifestRepositoryGit) ensureTagValidAndGetManifest(tag string) (pup.Pup
 	return manifest, true, nil
 }
 
-func (r ManifestRepositoryGit) Validate() (bool, error) {
+func (r ManifestSourceGit) Validate() (bool, error) {
 	if err := validateGitRemoteURL(r.config.Location); err != nil {
 		return false, fmt.Errorf("invalid git remote URL: %w", err)
 	}
@@ -130,7 +130,7 @@ func (r ManifestRepositoryGit) Validate() (bool, error) {
 	return true, nil
 }
 
-func (r ManifestRepositoryGit) List(ignoreCache bool) (dogeboxd.ManifestRepositoryList, error) {
+func (r ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList, error) {
 	if !ignoreCache && r._isCached {
 		return r._cache, nil
 	}
@@ -146,12 +146,12 @@ func (r ManifestRepositoryGit) List(ignoreCache bool) (dogeboxd.ManifestReposito
 	})
 
 	if err != nil {
-		return dogeboxd.ManifestRepositoryList{}, err
+		return dogeboxd.ManifestSourceList{}, err
 	}
 
 	iter, err := repo.Tags()
 	if err != nil {
-		return dogeboxd.ManifestRepositoryList{}, err
+		return dogeboxd.ManifestSourceList{}, err
 	}
 
 	type tagResult struct {
@@ -179,10 +179,10 @@ func (r ManifestRepositoryGit) List(ignoreCache bool) (dogeboxd.ManifestReposito
 	})
 
 	if err != nil {
-		return dogeboxd.ManifestRepositoryList{}, err
+		return dogeboxd.ManifestSourceList{}, err
 	}
 
-	validPups := []dogeboxd.ManifestRepositoryPup{}
+	validPups := []dogeboxd.ManifestSourcePup{}
 
 	for i := 0; i < tagCount; i++ {
 		result := <-resultChan
@@ -191,7 +191,7 @@ func (r ManifestRepositoryGit) List(ignoreCache bool) (dogeboxd.ManifestReposito
 			continue
 		}
 		if result.valid {
-			validPups = append(validPups, dogeboxd.ManifestRepositoryPup{
+			validPups = append(validPups, dogeboxd.ManifestSourcePup{
 				Name:     r.config.Name,
 				Location: result.version,
 				Version:  result.manifest.Meta.Version,
@@ -202,7 +202,7 @@ func (r ManifestRepositoryGit) List(ignoreCache bool) (dogeboxd.ManifestReposito
 		}
 	}
 
-	list := dogeboxd.ManifestRepositoryList{
+	list := dogeboxd.ManifestSourceList{
 		LastUpdated: time.Now(),
 		Pups:        validPups,
 	}
@@ -213,7 +213,7 @@ func (r ManifestRepositoryGit) List(ignoreCache bool) (dogeboxd.ManifestReposito
 	return r._cache, nil
 }
 
-func (r ManifestRepositoryGit) Download(diskPath string, location string) error {
+func (r ManifestSourceGit) Download(diskPath string, location string) error {
 	// At the moment we only support a single pup per repository,
 	// so we can ignore the name field here, eventually it will be used.
 	// For a disk repository, we always just return what is on-disk, unversioned.

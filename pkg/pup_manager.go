@@ -72,7 +72,7 @@ func NewPupManager(dataDir string) (PupManager, error) {
 func (t PupManager) AdoptPup(m pup.PupManifest) (string, error) {
 	// Firstly (for now), check if we already have this manifest installed
 
-	// TODO: Once we are tracking repository alongside installed pups
+	// TODO: Once we are tracking sources alongside installed pups
 	//       we should be checking this too.
 
 	for _, p := range t.state {
@@ -151,7 +151,7 @@ func (t PupManager) GetPup(id string) (PupState, PupStats, error) {
 	return PupState{}, PupStats{}, errors.New("pup not found")
 }
 
-func (t PupManager) GetAllFromSource(source ManifestRepositoryConfiguration) []*PupState {
+func (t PupManager) GetAllFromSource(source ManifestSourceConfiguration) []*PupState {
 	pups := []*PupState{}
 
 	for _, pup := range t.state {

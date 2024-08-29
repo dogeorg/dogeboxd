@@ -52,21 +52,21 @@ type NetworkState struct {
 	PendingNetwork SelectedNetwork
 }
 
-type RepositoryState struct {
-	Repositories []ManifestRepository
+type SourceState struct {
+	Sources []ManifestSource
 }
 
 type State struct {
-	Network    NetworkState
-	Dogebox    DogeboxState
-	Repository RepositoryState
+	Network NetworkState
+	Dogebox DogeboxState
+	Sources SourceState
 }
 
 type StateManager interface {
 	Get() State
 	SetNetwork(s NetworkState)
 	SetDogebox(s DogeboxState)
-	SetRepository(s RepositoryState)
+	SetSources(s SourceState)
 	Save() error
 	Load() error
 }
@@ -135,38 +135,37 @@ type NetworkPersistor interface {
 	Persist(network SelectedNetwork) error
 }
 
-type RepositoryManager interface {
-	GetAll() (map[string]ManifestRepositoryList, error)
-	GetRepositoryManifest(repositoryName, pupName, pupVersion string) (pup.PupManifest, error)
-	GetRepositoryPup(repositoryName, pupName, pupVersion string) (ManifestRepositoryPup, error)
-	GetRepository(name string) (ManifestRepository, error)
-	// GetRepositories() []ManifestRepository
-	AddRepository(repo ManifestRepositoryConfiguration) (ManifestRepository, error)
-	RemoveRepository(name string) error
-	DownloadPup(diskPath, repositoryName, pupName, pupVersion string) error
+type SourceManager interface {
+	GetAll() (map[string]ManifestSourceList, error)
+	GetSourceManifest(sourceName, pupName, pupVersion string) (pup.PupManifest, error)
+	GetSourcePup(sourceName, pupName, pupVersion string) (ManifestSourcePup, error)
+	GetSource(name string) (ManifestSource, error)
+	AddSource(source ManifestSourceConfiguration) (ManifestSource, error)
+	RemoveSource(name string) error
+	DownloadPup(diskPath, sourceName, pupName, pupVersion string) error
 }
 
-type ManifestRepositoryPup struct {
+type ManifestSourcePup struct {
 	Name     string
 	Location string
 	Version  string
 	Manifest pup.PupManifest
 }
 
-type ManifestRepositoryList struct {
+type ManifestSourceList struct {
 	LastUpdated time.Time
-	Pups        []ManifestRepositoryPup
+	Pups        []ManifestSourcePup
 }
 
-type ManifestRepository interface {
+type ManifestSource interface {
 	Name() string
-	Config() ManifestRepositoryConfiguration
+	Config() ManifestSourceConfiguration
 	Validate() (bool, error)
-	List(ignoreCache bool) (ManifestRepositoryList, error)
+	List(ignoreCache bool) (ManifestSourceList, error)
 	Download(diskPath string, remoteLocation string) error
 }
 
-type ManifestRepositoryConfiguration struct {
+type ManifestSourceConfiguration struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
 	Location string `json:"location"`

@@ -19,14 +19,14 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager, repositoryManager dogeboxd.RepositoryManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager, sourceManager dogeboxd.SourceManager) SystemUpdater {
 	return SystemUpdater{
 		config:  config,
 		jobs:    make(chan dogeboxd.Job),
 		done:    make(chan dogeboxd.Job),
 		network: networkManager,
 		nix:     nixManager,
-		repo:    repositoryManager,
+		sources: sourceManager,
 	}
 }
 
@@ -36,7 +36,7 @@ type SystemUpdater struct {
 	done    chan dogeboxd.Job
 	network dogeboxd.NetworkManager
 	nix     nix.NixManager
-	repo    dogeboxd.RepositoryManager
+	sources dogeboxd.SourceManager
 }
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -123,11 +123,11 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 
 	// TODO: Install deps!
 
-	log.Printf("Installing pup from %s: %s @ %s", pupSelection.RepositoryName, pupSelection.PupName, pupSelection.PupVersion)
+	log.Printf("Installing pup from %s: %s @ %s", pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
 	pupPath := filepath.Join(t.config.DataDir, "pups", s.ID)
 
 	log.Printf("Downloading pup to %s", pupPath)
-	err := t.repo.DownloadPup(pupPath, pupSelection.RepositoryName, pupSelection.PupName, pupSelection.PupVersion)
+	err := t.sources.DownloadPup(pupPath, pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
 	if err != nil {
 		return err
 	}

@@ -98,18 +98,18 @@ type PupManifestPermissionGroup struct {
  * groups from that pup need to be available.
  */
 type PupManifestDependency struct {
-	ID               string                          `json:"id"` // pup that we depend on
-	Repository       PupManifestDependencyRepository `json:"repository"`
-	PermissionGroups []string                        `json:"permissionGroups"` // list of permission groups from that pup we want access to
-	Version          string                          `json:"version"`          // min version of the pup required
+	ID               string                      `json:"id"` // pup that we depend on
+	Source           PupManifestDependencySource `json:"source"`
+	PermissionGroups []string                    `json:"permissionGroups"` // list of permission groups from that pup we want access to
+	Version          string                      `json:"version"`          // min version of the pup required
 }
 
-/* A DependencyRepository specifies the location of a
+/* A DependencySource specifies the location of a
  * dependency that needs to be installed. We list it in the manifest
- * so that if a user doesn't already have this repository set up we
+ * so that if a user doesn't already have this source set up we
  * can still resolve this dependency tree.
  */
-type PupManifestDependencyRepository struct {
+type PupManifestDependencySource struct {
 	Type     string `json:"type"`
 	Location string `json:"location"`
 }

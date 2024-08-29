@@ -9,9 +9,9 @@ type Action any
 
 // Install a pup on the system
 type InstallPup struct {
-	PupName        string
-	PupVersion     string
-	RepositoryName string
+	PupName    string
+	PupVersion string
+	SourceName string
 }
 
 // uninstall a pup

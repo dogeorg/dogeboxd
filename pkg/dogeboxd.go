@@ -70,7 +70,7 @@ type Dogeboxd struct {
 	NetworkManager NetworkManager
 	lifecycle      LifecycleManager
 	sm             StateManager
-	repo           RepositoryManager
+	sources        SourceManager
 	jobs           chan Job
 	Changes        chan Change
 }
@@ -83,7 +83,7 @@ func NewDogeboxd(
 	journal JournalReader,
 	networkManager NetworkManager,
 	lifecycle LifecycleManager,
-	repositoryManager RepositoryManager,
+	sourceManager SourceManager,
 ) Dogeboxd {
 	s := Dogeboxd{
 		Pups:           pups,
@@ -93,7 +93,7 @@ func NewDogeboxd(
 		NetworkManager: networkManager,
 		lifecycle:      lifecycle,
 		sm:             stateManager,
-		repo:           repositoryManager,
+		sources:        sourceManager,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
 	}
@@ -176,7 +176,7 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 
 	// System actions
 	case InstallPup:
-		t.createPupFromManifest(j, a.PupName, a.PupVersion, a.RepositoryName)
+		t.createPupFromManifest(j, a.PupName, a.PupVersion, a.SourceName)
 	case UninstallPup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case EnablePup:
@@ -204,9 +204,9 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 *
 * Future: support multiple pup instances per manifest
  */
-func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, repositoryName string) {
-	// Fetch the correct manifest from the repository manager
-	m, err := t.repo.GetRepositoryManifest(repositoryName, pupName, pupVersion)
+func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName string) {
+	// Fetch the correct manifest from the source manager
+	m, err := t.sources.GetSourceManifest(sourceName, pupName, pupVersion)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
 		t.sendFinishedJob("error", j)

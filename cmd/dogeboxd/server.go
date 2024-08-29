@@ -7,7 +7,7 @@ import (
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
-	"github.com/dogeorg/dogeboxd/pkg/repository"
+	source "github.com/dogeorg/dogeboxd/pkg/sources"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/dogeorg/dogeboxd/pkg/system/lifecycle"
 	"github.com/dogeorg/dogeboxd/pkg/system/network"
@@ -35,14 +35,14 @@ func (t server) Start() {
 		log.Fatalf("Failed to load Pup state: %+v", err)
 	}
 
-	repositoryManager := repository.NewRepositoryManager(t.sm, pups)
+	sourceManager := source.NewSourceManager(t.sm, pups)
 	nixManager := nix.NewNixManager(t.config)
 
 	// Set up our system interfaces so we can talk to the host OS
 	networkManager := network.NewNetworkManager(t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager()
 
-	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, repositoryManager)
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager)
 	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 
@@ -57,7 +57,7 @@ func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
 
-	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager, repositoryManager)
+	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager, sourceManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets

@@ -167,8 +167,6 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay) con
 	// Normal routes are used when we are not in recovery mode.
 	// nb. These are used in _addition_ to recovery routes.
 	normalRoutes := map[string]http.HandlerFunc{
-		// TODO: Split out action for installation.
-		//       Needs to take a repository and a pup manifest name.
 		"POST /pup/{ID}/{action}": a.pupAction,
 		"PUT /pup":                a.installPup,
 		"POST /config/{PupID}":    a.updateConfig,
@@ -199,13 +197,13 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay) con
 }
 
 type api struct {
-	dbx    Dogeboxd
-	dkm    DKMManager
-	mux    *http.ServeMux
-	pups   PupManager
-	config ServerConfig
-	ws     WSRelay
-	repo   RepositoryManager
+	dbx     Dogeboxd
+	dkm     DKMManager
+	mux     *http.ServeMux
+	pups    PupManager
+	config  ServerConfig
+	ws      WSRelay
+	sources SourceManager
 }
 
 type CreateMasterKeyRequestBody struct {
@@ -290,7 +288,7 @@ func (t api) logout(w http.ResponseWriter, r *http.Request) {
 func (t api) getRawBS() (any, error) {
 	dbxState := t.dbx.sm.Get().Dogebox
 
-	list, err := t.repo.GetAll()
+	list, err := t.sources.GetAll()
 	if err != nil {
 		return nil, err
 	}
@@ -595,9 +593,9 @@ func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 type InstallPupRequest struct {
-	PupName        string `json:"pupName"`
-	PupVersion     string `json:"pupVersion"`
-	RepositoryName string `json:"repositoryName"`
+	PupName    string `json:"pupName"`
+	PupVersion string `json:"pupVersion"`
+	SourceName string `json:"sourceName"`
 }
 
 func (t api) installPup(w http.ResponseWriter, r *http.Request) {
@@ -615,7 +613,7 @@ func (t api) installPup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := t.dbx.AddAction(InstallPup{PupName: req.PupName, PupVersion: req.PupVersion, RepositoryName: req.RepositoryName})
+	id := t.dbx.AddAction(InstallPup{PupName: req.PupName, PupVersion: req.PupVersion, SourceName: req.SourceName})
 	sendResponse(w, map[string]string{"id": id})
 }
 
