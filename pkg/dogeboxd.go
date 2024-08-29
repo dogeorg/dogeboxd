@@ -44,24 +44,6 @@ import (
 	"fmt"
 )
 
-// A job is an in-flight handling of an Action (see actions.go)
-type Job struct {
-	A       Action
-	ID      string
-	Err     string
-	Success any
-	State   *PupState // nilable, check before use!
-}
-
-// A Change is the result of a Job that will be sent back
-// to the Job issuer.
-type Change struct {
-	ID     string `json:"id"`
-	Error  string `json:"error"`
-	Type   string `json:"type"`
-	Update any    `json:"update"`
-}
-
 type Dogeboxd struct {
 	Pups           PupManager
 	SystemUpdater  SystemUpdater
