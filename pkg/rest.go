@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 	"github.com/gorilla/securecookie"
 	"github.com/rs/cors"
 )
@@ -133,7 +134,7 @@ func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc
 	return sessionHandler
 }
 
-func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManager, ws WSRelay) conductor.Service {
+func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay) conductor.Service {
 	sessions = make(map[string]Session)
 	dkm := NewDKMManager(pups)
 
@@ -141,7 +142,6 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 		mux:    http.NewServeMux(),
 		config: config,
 		dbx:    dbx,
-		man:    man,
 		pups:   pups,
 		ws:     ws,
 		dkm:    dkm,
@@ -168,6 +168,7 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 	// nb. These are used in _addition_ to recovery routes.
 	normalRoutes := map[string]http.HandlerFunc{
 		"POST /pup/{ID}/{action}": a.pupAction,
+		"PUT /pup":                a.installPup,
 		"POST /config/{PupID}":    a.updateConfig,
 		"/ws/log/{PupID}":         a.getLogSocket,
 		"/ws/state/":              a.getUpdateSocket,
@@ -196,13 +197,13 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, man ManifestIndex, pups PupManag
 }
 
 type api struct {
-	dbx    Dogeboxd
-	dkm    DKMManager
-	mux    *http.ServeMux
-	man    ManifestIndex
-	pups   PupManager
-	config ServerConfig
-	ws     WSRelay
+	dbx     Dogeboxd
+	dkm     DKMManager
+	mux     *http.ServeMux
+	pups    PupManager
+	config  ServerConfig
+	ws      WSRelay
+	sources SourceManager
 }
 
 type CreateMasterKeyRequestBody struct {
@@ -284,11 +285,27 @@ func (t api) logout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (t api) getRawBS() any {
+func (t api) getRawBS() (any, error) {
 	dbxState := t.dbx.sm.Get().Dogebox
 
+	list, err := t.sources.GetAll()
+	if err != nil {
+		return nil, err
+	}
+
+	flat := []pup.PupManifest{}
+
+	for _, l := range list {
+		for _, pup := range l.Pups {
+			flat = append(flat, pup.Manifest)
+		}
+	}
+
+	// TODO: Ideally this should return the straight map to the client,
+	//       but the frontend is currently just expecting an array.
+
 	return map[string]any{
-		"manifests": t.man.GetManifestMap(),
+		"manifests": flat,
 		"states":    t.pups.GetStateMap(),
 		"stats":     t.pups.GetStatsMap(),
 		"setupFacts": map[string]bool{
@@ -296,11 +313,17 @@ func (t api) getRawBS() any {
 			"hasConfiguredNetwork":             dbxState.InitialState.HasSetNetwork,
 			"hasCompletedInitialConfiguration": dbxState.InitialState.HasFullyConfigured,
 		},
-	}
+	}, nil
 }
 
 func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
-	sendResponse(w, t.getRawBS())
+	bs, err := t.getRawBS()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching bootstrap")
+		return
+	}
+
+	sendResponse(w, bs)
 }
 
 func (t api) hostReboot(w http.ResponseWriter, r *http.Request) {
@@ -541,7 +564,12 @@ func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
 
 func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
 	t.ws.GetWSHandler(WS_DEFAULT_CHANNEL, func() any {
-		return Change{ID: "internal", Error: "", Type: "bootstrap", Update: t.getRawBS()}
+		bs, err := t.getRawBS()
+		if err != nil {
+			return Change{ID: "internal", Error: "Failed to fetch bootstrap"}
+		}
+
+		return Change{ID: "internal", Error: "", Type: "bootstrap", Update: bs}
 	}).ServeHTTP(w, r)
 }
 
@@ -564,13 +592,42 @@ func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, map[string]string{"id": id})
 }
 
+type InstallPupRequest struct {
+	PupName    string `json:"pupName"`
+	PupVersion string `json:"pupVersion"`
+	SourceName string `json:"sourceName"`
+}
+
+func (t api) installPup(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var req InstallPupRequest
+	err = json.Unmarshal(body, &req)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error unmarshalling JSON")
+		return
+	}
+
+	id := t.dbx.AddAction(InstallPup{PupName: req.PupName, PupVersion: req.PupVersion, SourceName: req.SourceName})
+	sendResponse(w, map[string]string{"id": id})
+}
+
 func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("ID")
 	action := r.PathValue("action")
+
+	if action == "install" {
+		sendErrorResponse(w, http.StatusBadRequest, "Must use PUT /pup to install")
+		return
+	}
+
 	var a Action
 	switch action {
-	case "install":
-		a = InstallPup{ManifestID: id}
 	case "uninstall":
 		a = UninstallPup{PupID: id}
 	case "enable":

@@ -1,7 +1,7 @@
 package dogeboxd
 
 type ServerConfig struct {
-	PupDir   string
+	DataDir  string
 	NixDir   string
 	Bind     string
 	Port     int

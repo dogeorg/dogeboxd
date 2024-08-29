@@ -14,7 +14,7 @@ func main() {
 
 	var port int
 	var bind string
-	var pupDir string
+	var dataDir string
 	var nixDir string
 	var uiDir string
 	var uiPort int
@@ -24,8 +24,8 @@ func main() {
 
 	flag.IntVar(&port, "port", 8080, "REST API Port")
 	flag.StringVar(&bind, "addr", "127.0.0.1", "Address to bind to")
-	flag.StringVar(&pupDir, "pups", "./pups", "Directory to find local pups")
-	flag.StringVar(&nixDir, "nix", "./nix", "Directory to find nix ??")
+	flag.StringVar(&dataDir, "data", "/etc/dogebox", "Directory to write configuration files to")
+	flag.StringVar(&nixDir, "nix", "/etc/nixos/dogebox", "Directory to write dogebox-specific nix configuration to")
 	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
 	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
@@ -58,7 +58,7 @@ func main() {
 	config := dogeboxd.ServerConfig{
 		Port:     port,
 		Bind:     bind,
-		PupDir:   pupDir,
+		DataDir:  dataDir,
 		NixDir:   nixDir,
 		Verbose:  verbose,
 		Recovery: recoveryMode,

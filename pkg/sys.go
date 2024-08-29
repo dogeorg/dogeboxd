@@ -2,6 +2,9 @@ package dogeboxd
 
 import (
 	"context"
+	"time"
+
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 // see ./system/ for implementations
@@ -49,15 +52,21 @@ type NetworkState struct {
 	PendingNetwork SelectedNetwork
 }
 
+type SourceState struct {
+	Sources []ManifestSource
+}
+
 type State struct {
 	Network NetworkState
 	Dogebox DogeboxState
+	Sources SourceState
 }
 
 type StateManager interface {
 	Get() State
 	SetNetwork(s NetworkState)
 	SetDogebox(s DogeboxState)
+	SetSources(s SourceState)
 	Save() error
 	Load() error
 }
@@ -124,4 +133,40 @@ type NetworkConnector interface {
 
 type NetworkPersistor interface {
 	Persist(network SelectedNetwork) error
+}
+
+type SourceManager interface {
+	GetAll() (map[string]ManifestSourceList, error)
+	GetSourceManifest(sourceName, pupName, pupVersion string) (pup.PupManifest, error)
+	GetSourcePup(sourceName, pupName, pupVersion string) (ManifestSourcePup, error)
+	GetSource(name string) (ManifestSource, error)
+	AddSource(source ManifestSourceConfiguration) (ManifestSource, error)
+	RemoveSource(name string) error
+	DownloadPup(diskPath, sourceName, pupName, pupVersion string) error
+}
+
+type ManifestSourcePup struct {
+	Name     string
+	Location string
+	Version  string
+	Manifest pup.PupManifest
+}
+
+type ManifestSourceList struct {
+	LastUpdated time.Time
+	Pups        []ManifestSourcePup
+}
+
+type ManifestSource interface {
+	Name() string
+	Config() ManifestSourceConfiguration
+	Validate() (bool, error)
+	List(ignoreCache bool) (ManifestSourceList, error)
+	Download(diskPath string, remoteLocation string) error
+}
+
+type ManifestSourceConfiguration struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Location string `json:"location"`
 }
