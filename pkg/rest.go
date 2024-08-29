@@ -613,7 +613,7 @@ func (t api) installPup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := t.dbx.AddAction(InstallPup{PupName: req.PupName, PupVersion: req.PupVersion, SourceName: req.SourceName})
+	id := t.dbx.AddAction(InstallPup(req))
 	sendResponse(w, map[string]string{"id": id})
 }
 

@@ -88,7 +88,7 @@ func writeConfig(template *template.Template, values any) error {
 
 	err = template.Execute(f, values)
 	if err != nil {
-		fmt.Println("Failed to write wifi network template to NIX_SYSTEM_PATH: %+v", err)
+		fmt.Printf("Failed to write wifi network template to NIX_SYSTEM_PATH: %+v", err)
 		return err
 	}
 

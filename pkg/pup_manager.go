@@ -102,7 +102,7 @@ func (t PupManager) AdoptPup(m pup.PupManifest) (string, error) {
 
 	// Check if we have gone off the edge of the world
 	if t.lastIP[0] > 10 || (t.lastIP[0] == 10 && t.lastIP[1] > 0) {
-		return PupID, errors.New("Exhausted 65,536 IP addresses, what are you doing??")
+		return PupID, errors.New("exhausted 65,536 IP addresses, what are you doing??")
 	}
 
 	// Set up initial PupState and save it to disk
@@ -202,7 +202,7 @@ func (t PupManager) loadPups() error {
 	for _, path := range pupSaveFiles {
 		file, err := os.Open(path)
 		if err != nil {
-			fmt.Sprintf("Cannot find state for pup %s at %q: %w\n", path, err)
+			fmt.Printf("Failed to open pup save file at %q: %v\n", path, err)
 			continue
 		}
 		defer file.Close()
@@ -211,9 +211,9 @@ func (t PupManager) loadPups() error {
 		decoder := gob.NewDecoder(file)
 		if err := decoder.Decode(&state); err != nil {
 			if err == io.EOF {
-				fmt.Sprintf("file %q is empty, skipping %s", path)
+				fmt.Printf("pup state at %q is empty, skipping\n", path)
 			}
-			fmt.Sprintf("cannot decode object from file %q: %w", path, err)
+			fmt.Printf("cannot decode object from file %q: %v", path, err)
 			continue
 		}
 

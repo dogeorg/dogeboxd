@@ -19,7 +19,7 @@ func (t NetworkConnectorWPASupplicant) Connect(network dogeboxd.SelectedNetwork)
 	switch network.(type) {
 	case dogeboxd.SelectedNetworkEthernet:
 		{
-			return errors.New("Instantiated NetworkConnectorWPASupplicant for an ethernet network, aborting")
+			return errors.New("instantiated NetworkConnectorWPASupplicant for an ethernet network, aborting")
 		}
 	}
 
@@ -44,7 +44,7 @@ func (t NetworkConnectorWPASupplicant) Connect(network dogeboxd.SelectedNetwork)
 	// // Start wpa_supplicant
 	err := cmd.Start()
 	if err != nil {
-		log.Println("failed to start wpa_supplicant for interface %s, %+v", n.Interface, err)
+		log.Printf("failed to start wpa_supplicant for interface %s, %+v", n.Interface, err)
 		return err
 	}
 
@@ -55,7 +55,7 @@ func (t NetworkConnectorWPASupplicant) Connect(network dogeboxd.SelectedNetwork)
 	networkID, err := addNetworkCmd.CombinedOutput()
 	if err != nil {
 		log.Printf("failed to add network: %+v", err)
-		log.Printf(string(networkID))
+		log.Print(string(networkID))
 		return err
 	}
 

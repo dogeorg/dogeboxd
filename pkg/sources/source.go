@@ -100,6 +100,9 @@ func (sourceManager sourceManager) DownloadPup(path, sourceName, pupName, pupVer
 	}
 
 	sourcePup, err := sourceManager.GetSourcePup(sourceName, pupName, pupVersion)
+	if err != nil {
+		return err
+	}
 
 	return r.Download(path, sourcePup.Location)
 }

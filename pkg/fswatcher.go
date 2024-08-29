@@ -9,7 +9,6 @@ import (
 
 // Watcher Service monitors important files and updates State as needed
 type Watcher struct {
-	paths   []string
 	watcher fsnotify.Watcher
 }
 
