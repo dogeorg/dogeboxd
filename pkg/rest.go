@@ -170,6 +170,9 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay) con
 		"POST /pup/{ID}/{action}": a.pupAction,
 		"PUT /pup":                a.installPup,
 		"POST /config/{PupID}":    a.updateConfig,
+		"GET /sources":            a.getSources,
+		"PUT /source":             a.createSource,
+		"DELETE /source/:id":      a.deleteSource,
 		"/ws/log/{PupID}":         a.getLogSocket,
 		"/ws/state/":              a.getUpdateSocket,
 	}
@@ -550,6 +553,60 @@ func (t api) setPendingNetwork(w http.ResponseWriter, r *http.Request) {
 
 	id := t.dbx.AddAction(UpdatePendingSystemNetwork{Network: selectedNetwork})
 	sendResponse(w, map[string]string{"id": id})
+}
+
+func (t api) getSources(w http.ResponseWriter, r *http.Request) {
+	sources, err := t.sources.GetAll()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching sources")
+		return
+	}
+
+	sendResponse(w, map[string]any{
+		"success": true,
+		"sources": sources,
+	})
+}
+
+func (t api) createSource(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var req ManifestSourceConfiguration
+	if err := json.Unmarshal(body, &req); err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error parsing payload")
+		return
+	}
+
+	if _, err := t.sources.AddSource(req); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error adding source")
+		return
+	}
+
+	sendResponse(w, map[string]any{
+		"success": true,
+	})
+}
+
+func (t api) deleteSource(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		sendErrorResponse(w, http.StatusBadRequest, "Missing source name")
+		return
+	}
+
+	if err := t.sources.RemoveSource(name); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error deleting source")
+		return
+	}
+
+	sendResponse(w, map[string]any{
+		"success": true,
+	})
 }
 
 func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
