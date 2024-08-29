@@ -32,49 +32,48 @@ type WiFiNetwork struct {
 
 func (t NetworkManagerLinux) GetAvailableNetworks() []dogeboxd.NetworkConnection {
 	availableNetworkConnections := []dogeboxd.NetworkConnection{}
+	wifiInterfaceNames := []string{}
 
 	wifiClient, err := wifi.New()
 	if err != nil {
-		log.Println("Could not init a wifi interface client:", err)
-		return []dogeboxd.NetworkConnection{}
-	}
-	defer wifiClient.Close()
+		log.Println("Could not init a wifi interface client, skipping:", err)
+	} else {
+		defer wifiClient.Close()
 
-	wifiInterfaces, err := wifiClient.Interfaces()
-	if err != nil {
-		log.Println("Could not list wifi interfaces:", err)
-	}
-
-	wifiInterfaceNames := []string{}
-
-	for _, wifiInterface := range wifiInterfaces {
-		ssids, err := t.scanner.Scan(wifiInterface.Name)
+		wifiInterfaces, err := wifiClient.Interfaces()
 		if err != nil {
-			log.Printf("Failed to scan for Wifi networks on %s: %s", wifiInterface.Name, err)
-			continue
+			log.Println("Could not list wifi interfaces:", err)
 		}
 
-		foundNetworks := []dogeboxd.NetworkWifiSSID{}
-
-		for _, n := range ssids {
-			// Ignore anything without an SSID
-			if n.SSID == "" {
+		for _, wifiInterface := range wifiInterfaces {
+			ssids, err := t.scanner.Scan(wifiInterface.Name)
+			if err != nil {
+				log.Printf("Failed to scan for Wifi networks on %s: %s", wifiInterface.Name, err)
 				continue
 			}
 
-			foundNetworks = append(foundNetworks, dogeboxd.NetworkWifiSSID{
-				Ssid:       n.SSID,
-				Bssid:      n.BSSID,
-				Encryption: n.Encryption,
-			})
-		}
+			foundNetworks := []dogeboxd.NetworkWifiSSID{}
 
-		availableNetworkConnections = append(availableNetworkConnections, dogeboxd.NetworkWifi{
-			Type:      "wifi",
-			Interface: wifiInterface.Name,
-			Ssids:     foundNetworks,
-		})
-		wifiInterfaceNames = append(wifiInterfaceNames, wifiInterface.Name)
+			for _, n := range ssids {
+				// Ignore anything without an SSID
+				if n.SSID == "" {
+					continue
+				}
+
+				foundNetworks = append(foundNetworks, dogeboxd.NetworkWifiSSID{
+					Ssid:       n.SSID,
+					Bssid:      n.BSSID,
+					Encryption: n.Encryption,
+				})
+			}
+
+			availableNetworkConnections = append(availableNetworkConnections, dogeboxd.NetworkWifi{
+				Type:      "wifi",
+				Interface: wifiInterface.Name,
+				Ssids:     foundNetworks,
+			})
+			wifiInterfaceNames = append(wifiInterfaceNames, wifiInterface.Name)
+		}
 	}
 
 	allInterfaces, err := net.Interfaces()
