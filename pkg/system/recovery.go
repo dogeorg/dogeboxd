@@ -15,8 +15,38 @@ var VALID_RECOVERY_FILES = []string{"RECOVERY", "RECOVERY.TXT"}
 
 // This function should do detection on whether or not we should enter our "Recovery Mode".
 // This can always be overriden by a CLI flag if necessary.
-func ShouldEnterRecovery(sm dogeboxd.StateManager) bool {
-	return hasRecoveryTXT() || isInitialConfiguration(sm)
+func ShouldEnterRecovery(dogeboxDataDir string, sm dogeboxd.StateManager) bool {
+	return hasExternalRecoveryTXT() || isInitialConfiguration(sm) || HasForceRecoveryFile(dogeboxDataDir)
+}
+
+func ForceRecoveryNextBoot(dataDir string) error {
+	filePath := filepath.Join(dataDir, "force_recovery_next_boot")
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create force recovery file: %w", err)
+	}
+	defer file.Close()
+	return nil
+}
+
+func UnforceRecoveryNextBoot(dataDir string) error {
+	filePath := filepath.Join(dataDir, "force_recovery_next_boot")
+	if err := os.Remove(filePath); err != nil {
+		return fmt.Errorf("failed to remove force recovery file: %w", err)
+	}
+	return nil
+}
+
+func HasForceRecoveryFile(dataDir string) bool {
+	filePath := filepath.Join(dataDir, "force_recovery_next_boot")
+	if _, err := os.Stat(filePath); err == nil {
+		// We want to remove it as soon as we've read it.
+		if err := os.Remove(filePath); err != nil {
+			fmt.Printf("Failed to remove force recovery file: %v\n", err)
+		}
+		return true
+	}
+	return false
 }
 
 func isInitialConfiguration(sm dogeboxd.StateManager) bool {
@@ -29,7 +59,7 @@ func isInitialConfiguration(sm dogeboxd.StateManager) bool {
 	return !completedInitialConfiguration
 }
 
-func hasRecoveryTXT() bool {
+func hasExternalRecoveryTXT() bool {
 	file, err := os.Open("/proc/mounts")
 	if err != nil {
 		fmt.Printf("Error opening /proc/mounts: %v\n", err)

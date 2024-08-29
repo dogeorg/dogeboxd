@@ -1,13 +1,19 @@
-default: build/dogeboxd
+default: build
 
 .PHONY: clean, test
 clean:
 	rm -rf ./build
 
-build/dogeboxd: clean
+mkbuild:
 	mkdir -p build/
+
+build: build/dogeboxd build/enter_recovery_mode
+
+build/dogeboxd: clean, mkbuild
 	go build -o build/dogeboxd ./cmd/dogeboxd/. 
 
+build/enter_recovery_mode: clean, mkbuild
+	go build -o build/enter_recovery_mode ./cmd/enter_recovery_mode/.
 
 dev:
 	go run ./cmd/dogeboxd -v

@@ -44,7 +44,7 @@ func main() {
 		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)
 	}
 
-	recoveryMode := system.ShouldEnterRecovery(stateManager)
+	recoveryMode := system.ShouldEnterRecovery(dataDir, stateManager)
 	if forcedRecovery {
 		recoveryMode = true
 	}
