@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	source "github.com/dogeorg/dogeboxd/pkg/sources"
 )
 
 var _ dogeboxd.StateManager = &StateManager{}
@@ -16,6 +17,8 @@ func NewStateManager() dogeboxd.StateManager {
 	gob.Register(dogeboxd.SelectedNetworkEthernet{})
 	gob.Register(dogeboxd.SelectedNetworkWifi{})
 	gob.Register(dogeboxd.DogeboxStateInitialSetup{})
+	gob.Register(source.ManifestSourceDisk{})
+	gob.Register(source.ManifestSourceGit{})
 	return &StateManager{}
 }
 
@@ -38,7 +41,7 @@ func (m *StateManager) reset() {
 		},
 	}
 	m.source = dogeboxd.SourceState{
-		Sources: []dogeboxd.ManifestSource{},
+		SourceConfigs: []dogeboxd.ManifestSourceConfiguration{},
 	}
 }
 
@@ -84,6 +87,7 @@ func (s *StateManager) Get() dogeboxd.State {
 	return dogeboxd.State{
 		Network: s.network,
 		Dogebox: s.dogebox,
+		Sources: s.source,
 	}
 }
 
@@ -133,7 +137,7 @@ func (s *StateManager) Load() error {
 		if os.IsNotExist(err) {
 			log.Println("No existing state file found. Starting with empty state.")
 			s.reset()
-			return nil
+			return s.Save()
 		}
 		return err
 	}

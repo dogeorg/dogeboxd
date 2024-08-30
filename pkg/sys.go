@@ -53,7 +53,7 @@ type NetworkState struct {
 }
 
 type SourceState struct {
-	Sources []ManifestSource
+	SourceConfigs []ManifestSourceConfiguration
 }
 
 type State struct {
@@ -143,6 +143,7 @@ type SourceManager interface {
 	AddSource(source ManifestSourceConfiguration) (ManifestSource, error)
 	RemoveSource(name string) error
 	DownloadPup(diskPath, sourceName, pupName, pupVersion string) error
+	GetAllSourceConfigurations() []ManifestSourceConfiguration
 }
 
 type ManifestSourcePup struct {

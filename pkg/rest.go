@@ -214,7 +214,7 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay, sou
 		"POST /config/{PupID}":    a.updateConfig,
 		"GET /sources":            a.getSources,
 		"PUT /source":             a.createSource,
-		"DELETE /source/:id":      a.deleteSource,
+		"DELETE /source/{name}":   a.deleteSource,
 		"/ws/log/{PupID}":         a.getLogSocket,
 		"/ws/state/":              a.getUpdateSocket,
 	}
@@ -609,11 +609,7 @@ func (t api) setPendingNetwork(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) getSources(w http.ResponseWriter, r *http.Request) {
-	sources, err := t.sources.GetAll()
-	if err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching sources")
-		return
-	}
+	sources := t.sources.GetAllSourceConfigurations()
 
 	sendResponse(w, map[string]any{
 		"success": true,
@@ -647,6 +643,7 @@ func (t api) createSource(w http.ResponseWriter, r *http.Request) {
 
 func (t api) deleteSource(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
+
 	if name == "" {
 		sendErrorResponse(w, http.StatusBadRequest, "Missing source name")
 		return
