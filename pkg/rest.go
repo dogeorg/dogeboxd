@@ -2,6 +2,7 @@ package dogeboxd
 
 import (
 	"context"
+	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -21,11 +23,12 @@ import (
 const sessionExpiry = time.Hour
 
 type Session struct {
+	Token      string
 	Expiration time.Time
 	DKM_TOKEN  string
 }
 
-var sessions map[string]Session
+var sessions []Session
 
 func getBearerToken(r *http.Request) (bool, string) {
 	authHeader := r.Header.Get("authorization")
@@ -49,35 +52,49 @@ func getSession(r *http.Request) (Session, bool) {
 		return Session{}, false
 	}
 
-	session, exists := sessions[token]
+	for i, session := range sessions {
+		if session.Token == token {
 
-	if !exists {
-		return Session{}, false
+			if time.Now().After(session.Expiration) {
+				// Expired.
+				sessions = append(sessions[:i], sessions[i+1:]...)
+				return Session{}, false
+			}
+
+			return session, true
+		}
 	}
 
-	if time.Now().After(session.Expiration) {
-		// Expired.
-		delete(sessions, token)
-		return Session{}, false
-	}
-
-	return session, exists
+	return Session{}, false
 }
 
-func storeSession(r *http.Request, session Session) {
-	_, token := getBearerToken(r)
-	sessions[token] = session
+func storeSession(session Session, config ServerConfig) {
+	sessions = append(sessions, session)
+
+	if config.DevMode {
+		file, err := os.OpenFile(fmt.Sprintf("%s/dev-sessions.gob", config.DataDir), os.O_RDWR|os.O_CREATE, 0666)
+		if err == nil {
+			encoder := gob.NewEncoder(file)
+			err = encoder.Encode(sessions)
+			if err != nil {
+				log.Printf("Failed to encode sessions to dev-sessions.gob: %v", err)
+			}
+			file.Close()
+		} else {
+			log.Printf("Failed to open dev-sessions.gob: %v, ignoring..", err)
+		}
+	}
 }
 
 func newSession() (string, Session) {
-	session := Session{
-		Expiration: time.Now().Add(sessionExpiry),
-	}
 	tokenBytes := securecookie.GenerateRandomKey(32)
 	tokenHex := make([]byte, hex.EncodedLen(len(tokenBytes)))
 	hex.Encode(tokenHex, tokenBytes)
 	token := string(tokenHex)
-	sessions[string(token)] = session
+	session := Session{
+		Token:      token,
+		Expiration: time.Now().Add(sessionExpiry),
+	}
 	return token, session
 }
 
@@ -86,7 +103,14 @@ func delSession(r *http.Request) error {
 	if !tokenOK || token == "" {
 		return errors.New("failed to fetch bearer token")
 	}
-	delete(sessions, token)
+
+	for i, session := range sessions {
+		if session.Token == token {
+			sessions = append(sessions[:i], sessions[i+1:]...)
+			return nil
+		}
+	}
+
 	return nil
 }
 
@@ -135,7 +159,24 @@ func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc
 }
 
 func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay, sources SourceManager) conductor.Service {
-	sessions = make(map[string]Session)
+	sessions = []Session{}
+
+	if config.DevMode {
+		log.Println("In development mode: Loading REST API sessions..")
+		file, err := os.Open(fmt.Sprintf("%s/dev-sessions.gob", config.DataDir))
+		if err == nil {
+			decoder := gob.NewDecoder(file)
+			err = decoder.Decode(&sessions)
+			if err != nil {
+				log.Printf("Failed to decode sessions from dev-sessions.gob: %v", err)
+			}
+			file.Close()
+			log.Printf("Loaded %d sessions from dev-sessions.gob", len(sessions))
+		} else {
+			log.Printf("Failed to open dev-sessions.gob: %v", err)
+		}
+	}
+
 	dkm := NewDKMManager(pups)
 
 	a := api{
@@ -257,7 +298,7 @@ func (t api) authenticate(w http.ResponseWriter, r *http.Request) {
 	// We've authed. Save our dkm authentication token to a new session.
 	token, session := newSession()
 	session.DKM_TOKEN = dkmToken
-	storeSession(r, session)
+	storeSession(session, t.config)
 
 	sendResponse(w, map[string]any{
 		"success": true,
@@ -412,7 +453,7 @@ func (t api) createMasterKey(w http.ResponseWriter, r *http.Request) {
 	// We've authed. Save our dkm authentication token to a new session.
 	token, session := newSession()
 	session.DKM_TOKEN = dkmToken
-	storeSession(r, session)
+	storeSession(session, t.config)
 
 	sendResponse(w, map[string]any{
 		"success":    true,

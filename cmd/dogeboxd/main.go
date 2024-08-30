@@ -21,6 +21,7 @@ func main() {
 	var verbose bool
 	var help bool
 	var forcedRecovery bool
+	var dangerousDevMode bool
 
 	flag.IntVar(&port, "port", 8080, "REST API Port")
 	flag.StringVar(&bind, "addr", "127.0.0.1", "Address to bind to")
@@ -29,6 +30,7 @@ func main() {
 	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
 	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
+	flag.BoolVar(&dangerousDevMode, "danger-dev", false, "Enable dangerous development mode")
 	flag.BoolVar(&verbose, "v", false, "Be verbose")
 	flag.BoolVar(&help, "h", false, "Get help")
 	flag.Parse()
@@ -55,6 +57,12 @@ func main() {
 		log.Println("********************************************************************************")
 	}
 
+	if dangerousDevMode {
+		log.Println("********************************************************************************")
+		log.Println("******************************* DEV MODE ***************************************")
+		log.Println("********************************************************************************")
+	}
+
 	config := dogeboxd.ServerConfig{
 		Port:     port,
 		Bind:     bind,
@@ -64,6 +72,7 @@ func main() {
 		Recovery: recoveryMode,
 		UiDir:    uiDir,
 		UiPort:   uiPort,
+		DevMode:  dangerousDevMode,
 	}
 
 	srv := Server(stateManager, config)

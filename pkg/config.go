@@ -9,4 +9,5 @@ type ServerConfig struct {
 	Recovery bool
 	UiDir    string
 	UiPort   int
+	DevMode  bool
 }
