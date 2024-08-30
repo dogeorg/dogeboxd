@@ -63,7 +63,7 @@ func (t server) Start() {
 	// Setup our external APIs. REST, Websockets
 
 	wsh := dogeboxd.NewWSRelay(t.config, dbx.Changes)
-	rest := dogeboxd.RESTAPI(t.config, dbx, pups, wsh)
+	rest := dogeboxd.RESTAPI(t.config, dbx, pups, wsh, sourceManager)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */

@@ -134,17 +134,18 @@ func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc
 	return sessionHandler
 }
 
-func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay) conductor.Service {
+func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay, sources SourceManager) conductor.Service {
 	sessions = make(map[string]Session)
 	dkm := NewDKMManager(pups)
 
 	a := api{
-		mux:    http.NewServeMux(),
-		config: config,
-		dbx:    dbx,
-		pups:   pups,
-		ws:     ws,
-		dkm:    dkm,
+		mux:     http.NewServeMux(),
+		config:  config,
+		dbx:     dbx,
+		pups:    pups,
+		ws:      ws,
+		dkm:     dkm,
+		sources: sources,
 	}
 
 	routes := map[string]http.HandlerFunc{}
@@ -235,9 +236,15 @@ func (t api) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dkmToken, err := t.dkm.Authenticate(requestBody.Password)
+	dkmToken, dkmError, err := t.dkm.Authenticate(requestBody.Password)
+
 	if err != nil {
 		sendErrorResponse(w, 500, err.Error())
+		return
+	}
+
+	if dkmError != nil {
+		sendErrorResponse(w, 403, dkmError.Error())
 		return
 	}
 
@@ -384,9 +391,14 @@ func (t api) createMasterKey(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	dkmToken, err := t.dkm.Authenticate(requestBody.Password)
+	dkmToken, dkmError, err := t.dkm.Authenticate(requestBody.Password)
 	if err != nil {
 		sendErrorResponse(w, 500, err.Error())
+		return
+	}
+
+	if dkmError != nil {
+		sendErrorResponse(w, 403, dkmError.Error())
 		return
 	}
 

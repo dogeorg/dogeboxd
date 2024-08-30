@@ -1,19 +1,17 @@
 package dogeboxd
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/gorilla/securecookie"
 )
 
 type DKMManager interface {
 	CreateKey(password string) ([]string, error)
 	// Returns "" as a token if the password supplied is invalid.
-	Authenticate(password string) (string, error)
+	Authenticate(password string) (string, error, error)
 	RefreshToken(old string) (string, bool, error)
 	InvalidateToken(token string) (bool, error)
 }
@@ -22,20 +20,17 @@ type DKMResponseCreateKey struct {
 	SeedPhrase []string `json:"seedphrase"`
 }
 
-type DKMResponseLogin struct {
+type DKMResponseAuthenticate struct {
 	AuthenticationToken string `json:"token"`
+	ValidFor            int    `json:"valid_for"`
 }
 
-type DKMResponseRefreshToken struct {
-	// TODO
-	OK       bool   `json:"ok"`
-	NewToken string `json:"token"`
+type DKMErrorResponse struct {
+	Error  string `json:"error"`
+	Reason string `json:"reason"`
 }
 
-type DKMResponseInvalidateToken struct {
-	// TODO
-	OK bool `json:"ok"`
-}
+type DKMResponseInvalidateToken struct{}
 
 type dkmManager struct {
 	client *resty.Client
@@ -68,75 +63,77 @@ func (t dkmManager) CreateKey(password string) ([]string, error) {
 	// TODO: we probably want to add some restrictions on passwords that can be used here?
 
 	var result DKMResponseCreateKey
+	var errorResponse DKMErrorResponse
 
 	_, err := t.client.R().SetBody(map[string]string{
 		"password": password,
-	}).SetResult(&result).Post("/create")
+	}).SetResult(&result).SetError(&errorResponse).Post("/create")
 
 	if err != nil {
-		log.Printf("could not create key %+v", err)
+		log.Printf("Error calling DKM %+v", err)
 		return []string{}, nil
+	}
+
+	if errorResponse.Error != "" {
+		log.Printf("Error from DKM: [%s] %s", errorResponse.Error, errorResponse.Reason)
+		return []string{}, errors.New(errorResponse.Reason)
 	}
 
 	return result.SeedPhrase, nil
 }
 
-func (t dkmManager) Authenticate(password string) (string, error) {
-	// TODO: actually do this call once we have DKM setup properly.
+func (t dkmManager) Authenticate(password string) (string, error, error) {
+	var result DKMResponseAuthenticate
+	var errorResponse DKMErrorResponse
 
-	if password != "password1" {
-		return "", nil
+	_, err := t.client.R().SetBody(map[string]string{"password": password}).SetResult(&result).SetError(&errorResponse).Post("/login")
+
+	if err != nil {
+		log.Println("Failed to contact DKM:", err)
+		return "", nil, err
 	}
 
-	fakeDKMTokenBytes := securecookie.GenerateRandomKey(32)
-	if fakeDKMTokenBytes == nil {
-		return "", errors.New("failed to generate token")
+	if errorResponse.Error != "" {
+		log.Printf("Error from DKM: [%s] %s", errorResponse.Error, errorResponse.Reason)
+		return "", errors.New(errorResponse.Reason), nil
 	}
 
-	fakeDKMTokenHex := make([]byte, hex.EncodedLen(len(fakeDKMTokenBytes)))
-	hex.Encode(fakeDKMTokenHex, fakeDKMTokenBytes)
-
-	fakeDKmToken := string(fakeDKMTokenHex)
-
-	return fmt.Sprintf("dkm:%s", fakeDKmToken), nil
-	// var result DKMResponseLogin
-	// _, err := t.client.R().SetBody(map[string]string{"password": password}).SetResult(&result).Post("/login")
-
-	// if err != nil {
-	// 	log.Println("Failed to contact DKM:", err)
-	// 	return "", err
-	// }
-
-	// return result.AuthenticationToken, nil
+	return result.AuthenticationToken, nil, nil
 }
 
 func (t dkmManager) RefreshToken(oldToken string) (string, bool, error) {
-	var result DKMResponseRefreshToken
-	_, err := t.client.R().SetBody(map[string]string{"token": oldToken}).SetResult(&result).Post("/refresh-token")
+	var result DKMResponseAuthenticate
+	var errorResponse DKMErrorResponse
+
+	_, err := t.client.R().SetBody(map[string]string{"token": oldToken}).SetResult(&result).SetError(&errorResponse).Post("/roll-token")
 
 	if err != nil {
 		log.Println("Failed to contact DKM:", err)
 		return "", false, err
 	}
 
-	if !result.OK {
-		return "", false, nil
+	if errorResponse.Error != "" {
+		log.Printf("Error from DKM: [%s] %s", errorResponse.Error, errorResponse.Reason)
+		return "", false, errors.New(errorResponse.Reason)
 	}
 
-	return result.NewToken, true, nil
+	return result.AuthenticationToken, true, nil
 }
 
 func (t dkmManager) InvalidateToken(token string) (bool, error) {
 	var result DKMResponseInvalidateToken
-	_, err := t.client.R().SetBody(map[string]string{"token": token}).SetResult(&result).Post("/invalidate-token")
+	var errorResponse DKMErrorResponse
+
+	_, err := t.client.R().SetBody(map[string]string{"token": token}).SetResult(&result).SetError(&errorResponse).Post("/logout")
 
 	if err != nil {
 		log.Println("Failed to contact DKM:", err)
 		return false, err
 	}
 
-	if !result.OK {
-		return false, nil
+	if errorResponse.Error != "" {
+		log.Printf("Error from DKM: [%s] %s", errorResponse.Error, errorResponse.Reason)
+		return false, errors.New(errorResponse.Reason)
 	}
 
 	return true, nil
