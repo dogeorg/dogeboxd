@@ -15,7 +15,8 @@ import (
 
 type NixManager interface {
 	Rebuild() error
-	WriteRootIncludeFile() error
+	Init(pups dogeboxd.PupManager) error
+	WriteIncludeFile(pups dogeboxd.PupManager) error
 	WriteDogeboxNixFile(filename string, content string) error
 	WritePupFile(pupState dogeboxd.PupState) error
 	UpdateSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error
@@ -69,7 +70,11 @@ type SystemTemplateValues struct {
 }
 
 //go:embed templates/dogebox.nix
-var rawDogeboxTemplate []byte
+var rawIncludesFileTemplate []byte
+
+type IncludesFileTemplateValues struct {
+	PUP_IDS []string
+}
 
 var _ NixManager = &nixManager{}
 
@@ -83,23 +88,22 @@ func NewNixManager(config dogeboxd.ServerConfig) NixManager {
 	}
 }
 
-func (nm nixManager) Init() error {
-	return nm.WriteRootIncludeFile()
+func (nm nixManager) Init(pups dogeboxd.PupManager) error {
+	return nm.WriteIncludeFile(pups)
 }
 
-func (nm nixManager) WriteRootIncludeFile() error {
-	fullPath := filepath.Join(nm.config.NixDir, "dogebox.nix")
-
-	err := os.MkdirAll(filepath.Dir(fullPath), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directories for %s: %w", fullPath, err)
-	}
-	err = os.WriteFile(fullPath, rawDogeboxTemplate, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write file %s: %w", fullPath, err)
+func (nm nixManager) WriteIncludeFile(pups dogeboxd.PupManager) error {
+	installed := pups.GetStateMap()
+	var pupIDs []string
+	for id := range installed {
+		pupIDs = append(pupIDs, id)
 	}
 
-	return nil
+	values := IncludesFileTemplateValues{
+		PUP_IDS: pupIDs,
+	}
+
+	return nm.writeTemplate("dogebox.nix", rawIncludesFileTemplate, values)
 }
 
 func (nm nixManager) WriteDogeboxNixFile(filename string, content string) error {
@@ -191,7 +195,7 @@ func (nm nixManager) Rebuild() error {
 
 	output, err := md.CombinedOutput()
 	if err != nil {
-		log.Printf("Error executing nix rebuild: %w\n", err)
+		log.Printf("Error executing nix rebuild: %v\n", err)
 		log.Printf("nix output: %s\n", string(output))
 		return err
 	} else {

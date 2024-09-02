@@ -27,16 +27,12 @@
     isSystemUser = true;
     group =  "dogeboxd";
 
-    {{ if SSH_ENABLED }}
     openssh = {
       authorizedKeys = {
         keys = [
-          {{ range SSH_KEY := .SSH_KEYS }}
-            "{{ .SSH_KEY }}"
-          {{ end }}
+          {{ range .SSH_KEYS }}"{{.}}"{{ end }}
         ];
       };
     };
-    {{ end }}
   };
 }
