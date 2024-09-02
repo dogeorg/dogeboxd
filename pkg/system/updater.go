@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -129,6 +130,13 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	log.Printf("Downloading pup to %s", pupPath)
 	err := t.sources.DownloadPup(pupPath, pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
 	if err != nil {
+		return err
+	}
+
+	storagePath := filepath.Join(t.config.DataDir, "pups/storage", s.ID)
+
+	log.Printf("Creating pup storage directory: %s", storagePath)
+	if err := os.MkdirAll(storagePath, 0755); err != nil {
 		return err
 	}
 
