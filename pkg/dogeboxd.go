@@ -42,6 +42,7 @@ import (
 	"crypto/rand"
 	_ "embed"
 	"fmt"
+	"log"
 )
 
 type Dogeboxd struct {
@@ -188,18 +189,20 @@ func (t Dogeboxd) jobDispatcher(j Job) {
  */
 func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName string) {
 	// Fetch the correct manifest from the source manager
-	m, err := t.sources.GetSourceManifest(sourceName, pupName, pupVersion)
+	manifest, source, err := t.sources.GetSourceManifest(sourceName, pupName, pupVersion)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
 		t.sendFinishedJob("error", j)
+		log.Println(j.Err)
 		return
 	}
 
 	// create a new pup for the manifest
-	pupID, err := t.Pups.AdoptPup(m)
+	pupID, err := t.Pups.AdoptPup(manifest, source)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
 		t.sendFinishedJob("error", j)
+		log.Println(j.Err)
 		return
 	}
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 
 type PupManager struct {
 	pupDir string // Where pup state is stored
+	tmpDir string // Where temporary files are stored
 	lastIP net.IP // last issued IP address
 	state  map[string]*PupState
 	stats  map[string]*PupStats
@@ -30,9 +32,27 @@ type PupManager struct {
 
 func NewPupManager(dataDir string) (PupManager, error) {
 	pupDir := filepath.Join(dataDir, "pups")
+	tmpDir := filepath.Join(dataDir, "tmp")
+
+	if _, err := os.Stat(pupDir); os.IsNotExist(err) {
+		log.Printf("Pup directory %q not found, creating it", pupDir)
+		err = os.MkdirAll(pupDir, 0755)
+		if err != nil {
+			return PupManager{}, fmt.Errorf("failed to create pup directory: %w", err)
+		}
+	}
+
+	if _, err := os.Stat(tmpDir); os.IsNotExist(err) {
+		log.Printf("Tmp directory %q not found, creating it", tmpDir)
+		err = os.MkdirAll(tmpDir, 0755)
+		if err != nil {
+			return PupManager{}, fmt.Errorf("failed to create tmp directory: %w", err)
+		}
+	}
 
 	p := PupManager{
 		pupDir: pupDir,
+		tmpDir: tmpDir,
 		state:  map[string]*PupState{},
 		stats:  map[string]*PupStats{},
 	}
@@ -69,14 +89,10 @@ func NewPupManager(dataDir string) (PupManager, error) {
 *
 * Returns PupID, error
  */
-func (t PupManager) AdoptPup(m pup.PupManifest) (string, error) {
+func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, error) {
 	// Firstly (for now), check if we already have this manifest installed
-
-	// TODO: Once we are tracking sources alongside installed pups
-	//       we should be checking this too.
-
 	for _, p := range t.state {
-		if m.Meta.Name == p.Manifest.Meta.Name {
+		if m.Meta.Name == p.Manifest.Meta.Name && m.Meta.Version == p.Manifest.Meta.Version && p.Source.Name == source.Name() {
 			return p.ID, errors.New("pup already installed")
 		}
 	}
@@ -108,6 +124,7 @@ func (t PupManager) AdoptPup(m pup.PupManifest) (string, error) {
 	// Set up initial PupState and save it to disk
 	p := PupState{
 		ID:           PupID,
+		Source:       source.Config(),
 		Manifest:     m,
 		Config:       map[string]string{},
 		Installation: STATE_INSTALLING,
@@ -161,6 +178,15 @@ func (t PupManager) GetAllFromSource(source ManifestSourceConfiguration) []*PupS
 	}
 
 	return pups
+}
+
+func (t PupManager) GetPupFromSource(name string, source ManifestSourceConfiguration) *PupState {
+	for _, pup := range t.state {
+		if pup.Source == source && pup.Manifest.Meta.Name == name {
+			return pup
+		}
+	}
+	return nil
 }
 
 /* Updating a PupState follows the veradic update func pattern
@@ -217,6 +243,8 @@ func (t PupManager) loadPups() error {
 			continue
 		}
 
+		log.Printf("Loaded pup state: %+v", state)
+
 		// Success! add to index
 		t.indexPup(&state)
 	}
@@ -225,7 +253,7 @@ func (t PupManager) loadPups() error {
 
 func (t PupManager) savePup(p *PupState) error {
 	path := filepath.Join(t.pupDir, fmt.Sprintf("pup_%s.gob", p.ID))
-	tempFile, err := os.CreateTemp("", fmt.Sprintf("temp_%s", p.ID))
+	tempFile, err := os.CreateTemp(t.tmpDir, fmt.Sprintf("temp_%s", p.ID))
 	if err != nil {
 		return fmt.Errorf("cannot create temporary file: %w", err)
 	}

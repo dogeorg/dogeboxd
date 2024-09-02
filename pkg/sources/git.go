@@ -130,7 +130,7 @@ func (r ManifestSourceGit) Validate() (bool, error) {
 	return true, nil
 }
 
-func (r ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList, error) {
+func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList, error) {
 	if !ignoreCache && r._isCached {
 		return r._cache, nil
 	}

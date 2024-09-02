@@ -40,7 +40,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	stateManager := system.NewStateManager()
+	stateManager := system.NewStateManager(dataDir)
 	err := stateManager.Load()
 	if err != nil {
 		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)

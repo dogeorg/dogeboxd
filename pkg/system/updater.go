@@ -137,19 +137,6 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return err
 	}
 
-	// TODO: This needs to use all pups, not just the one we're installing
-	log.Printf("Updating nix overlays with new pup")
-	if err := t.nix.UpdateOverlays(nix.OverlayTemplateValues{
-		PUPS: []struct {
-			PUP_NAME string
-			PUP_PATH string
-		}{
-			{PUP_NAME: s.Manifest.Meta.Name, PUP_PATH: pupPath},
-		},
-	}); err != nil {
-		return err
-	}
-
 	log.Printf("Rebuilding nix")
 	if err := t.nix.Rebuild(); err != nil {
 		return err
