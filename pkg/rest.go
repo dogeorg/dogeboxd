@@ -159,7 +159,12 @@ func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc
 	return sessionHandler
 }
 
-func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay, sources SourceManager) conductor.Service {
+func RESTAPI(
+	config ServerConfig,
+	dbx Dogeboxd,
+	pups PupManager,
+	ws WSRelay,
+) conductor.Service {
 	sessions = []Session{}
 
 	if config.DevMode {
@@ -181,13 +186,12 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay, sou
 	dkm := NewDKMManager(pups)
 
 	a := api{
-		mux:     http.NewServeMux(),
-		config:  config,
-		dbx:     dbx,
-		pups:    pups,
-		ws:      ws,
-		dkm:     dkm,
-		sources: sources,
+		mux:    http.NewServeMux(),
+		config: config,
+		dbx:    dbx,
+		pups:   pups,
+		ws:     ws,
+		dkm:    dkm,
 	}
 
 	routes := map[string]http.HandlerFunc{}
@@ -244,13 +248,12 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay, sou
 }
 
 type api struct {
-	dbx     Dogeboxd
-	dkm     DKMManager
-	mux     *http.ServeMux
-	pups    PupManager
-	config  ServerConfig
-	ws      WSRelay
-	sources SourceManager
+	dbx    Dogeboxd
+	dkm    DKMManager
+	mux    *http.ServeMux
+	pups   PupManager
+	config ServerConfig
+	ws     WSRelay
 }
 
 type CreateMasterKeyRequestBody struct {
@@ -341,7 +344,7 @@ func (t api) logout(w http.ResponseWriter, r *http.Request) {
 func (t api) getRawBS() (any, error) {
 	dbxState := t.dbx.sm.Get().Dogebox
 
-	list, err := t.sources.GetAll()
+	list, err := t.dbx.sources.GetAll()
 	if err != nil {
 		return nil, err
 	}
@@ -517,6 +520,11 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	// TODO: connect to network.
 	// TODO: ensure network actually connects.
 
+	if err := t.dbx.nix.InitSystem(t.dbx.Pups); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
+		return
+	}
+
 	if requestBody.ReflectorToken != "" {
 		// TODO: ping reflector with relevant internal IP
 	}
@@ -533,6 +541,9 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendResponse(w, map[string]any{"status": "OK"})
+
+	// TODO: Rebuild nix
+	// TODO: Reboot.
 }
 
 func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {
@@ -611,7 +622,7 @@ func (t api) setPendingNetwork(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) getSources(w http.ResponseWriter, r *http.Request) {
-	sources := t.sources.GetAllSourceConfigurations()
+	sources := t.dbx.sources.GetAllSourceConfigurations()
 
 	sendResponse(w, map[string]any{
 		"success": true,
@@ -633,7 +644,7 @@ func (t api) createSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := t.sources.AddSource(req); err != nil {
+	if _, err := t.dbx.sources.AddSource(req); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error adding source")
 		return
 	}
@@ -651,7 +662,7 @@ func (t api) deleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := t.sources.RemoveSource(name); err != nil {
+	if err := t.dbx.sources.RemoveSource(name); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error deleting source")
 		return
 	}
@@ -673,7 +684,7 @@ type StoreListSourceEntry struct {
 }
 
 func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
-	available, err := t.sources.GetAll()
+	available, err := t.dbx.sources.GetAll()
 	if err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching sources")
 		return
@@ -688,7 +699,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 			// Check if we already have a pup in our list for this version.
 			if _, ok := pups[availablePup.Name]; !ok {
 				// TODO: Ideally not have to do this lookup.
-				s, err := t.sources.GetSource(k)
+				s, err := t.dbx.sources.GetSource(k)
 				if err != nil {
 					sendErrorResponse(w, http.StatusInternalServerError, "Error fetching source")
 					return

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
-	"github.com/dogeorg/dogeboxd/pkg/system/nix"
 )
 
 /*
@@ -20,7 +19,7 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager dogeboxd.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager) SystemUpdater {
 	return SystemUpdater{
 		config:     config,
 		jobs:       make(chan dogeboxd.Job),
@@ -37,7 +36,7 @@ type SystemUpdater struct {
 	jobs       chan dogeboxd.Job
 	done       chan dogeboxd.Job
 	network    dogeboxd.NetworkManager
-	nix        nix.NixManager
+	nix        dogeboxd.NixManager
 	sources    dogeboxd.SourceManager
 	pupManager dogeboxd.PupManager
 }
@@ -162,6 +161,12 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_READY)); err != nil {
 		log.Printf("Failed to update pup installation state: %w", err)
+		return err
+	}
+
+	// Update our core nix include file
+	if err := t.nix.UpdateIncludeFile(t.pupManager); err != nil {
+		log.Printf("Failed to update nix include file: %w", err)
 		return err
 	}
 

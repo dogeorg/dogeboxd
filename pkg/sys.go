@@ -171,3 +171,55 @@ type ManifestSourceConfiguration struct {
 	Type     string `json:"type"`
 	Location string `json:"location"`
 }
+
+type NixPupContainerServiceValues struct {
+	NAME string
+	EXEC string
+	CWD  string
+	ENV  []struct {
+		KEY string
+		VAL string
+	}
+}
+
+type NixPupContainerTemplateValues struct {
+	PUP_ID       string
+	PUP_ENABLED  bool
+	INTERNAL_IP  string
+	PUP_PORTS    []int
+	STORAGE_PATH string
+	PUP_PATH     string
+	NIX_FILE     string
+	SERVICES     []NixPupContainerServiceValues
+}
+
+type NixSystemContainerConfigTemplateValues struct {
+	// NETWORK_INTERFACE      string
+	DOGEBOX_HOST_IP        string
+	DOGEBOX_CONTAINER_CIDR string
+}
+
+type NixFirewallTemplateValues struct {
+	SSH_ENABLED bool
+}
+
+type NixSystemTemplateValues struct {
+	SYSTEM_HOSTNAME string
+	SSH_ENABLED     bool
+	SSH_KEYS        []string
+}
+
+type NixIncludesFileTemplateValues struct {
+	PUP_IDS []string
+}
+
+type NixManager interface {
+	Rebuild() error
+	InitSystem(pups PupManager) error
+	UpdateIncludeFile(pups PupManager) error
+	WriteDogeboxNixFile(filename string, content string) error
+	WritePupFile(pupState PupState) error
+	RemovePupFile(pupId string) error
+	UpdateSystem(values NixSystemTemplateValues) error
+	UpdateSystemContainerConfiguration(values NixSystemContainerConfigTemplateValues) error
+}

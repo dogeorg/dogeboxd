@@ -13,85 +13,68 @@ import (
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
-type NixManager interface {
-	Rebuild() error
-	Init(pups dogeboxd.PupManager) error
-	UpdateIncludeFile(pups dogeboxd.PupManager) error
-	WriteDogeboxNixFile(filename string, content string) error
-	WritePupFile(pupState dogeboxd.PupState) error
-	RemovePupFile(pupId string) error
-	UpdateSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error
-}
-
 //go:embed templates/pup_container.nix
 var rawPupContainerTemplate []byte
-
-type PupContainerServiceValues struct {
-	NAME string
-	EXEC string
-	CWD  string
-	ENV  []struct {
-		KEY string
-		VAL string
-	}
-}
-
-type PupContainerTemplateValues struct {
-	PUP_ID       string
-	PUP_ENABLED  bool
-	INTERNAL_IP  string
-	PUP_PORTS    []int
-	STORAGE_PATH string
-	PUP_PATH     string
-	NIX_FILE     string
-	SERVICES     []PupContainerServiceValues
-}
 
 //go:embed templates/system_container_config.nix
 var rawSystemContainerConfigTemplate []byte
 
-type SystemContainerConfigTemplateValues struct {
-	NETWORK_INTERFACE      string
-	DOGEBOX_HOST_IP        string
-	DOGEBOX_CONTAINER_CIDR string
-}
-
 //go:embed templates/firewall.nix
 var rawFirewallTemplate []byte
-
-type FirewallTemplateValues struct {
-	SSH_ENABLED bool
-}
 
 //go:embed templates/system.nix
 var rawSystemTemplate []byte
 
-type SystemTemplateValues struct {
-	SSH_ENABLED bool
-	SSH_KEYS    []string
-}
-
 //go:embed templates/dogebox.nix
 var rawIncludesFileTemplate []byte
 
-type IncludesFileTemplateValues struct {
-	PUP_IDS []string
-}
-
-var _ NixManager = &nixManager{}
+var _ dogeboxd.NixManager = &nixManager{}
 
 type nixManager struct {
 	config dogeboxd.ServerConfig
 }
 
-func NewNixManager(config dogeboxd.ServerConfig) NixManager {
+func NewNixManager(config dogeboxd.ServerConfig) dogeboxd.NixManager {
 	return nixManager{
 		config: config,
 	}
 }
 
-func (nm nixManager) Init(pups dogeboxd.PupManager) error {
-	return nm.UpdateIncludeFile(pups)
+func (nm nixManager) InitSystem(pups dogeboxd.PupManager) error {
+	if err := nm.UpdateIncludeFile(pups); err != nil {
+		return err
+	}
+
+	// TODO: set these values properly
+	sshEnabled := false
+	hostIp := "10.0.0.1"
+	containerCidr := "10.0.0.0/8"
+	sshKeys := []string{}
+	systemHostname := "dogebox"
+
+	if err := nm.UpdateSystem(dogeboxd.NixSystemTemplateValues{
+		SSH_ENABLED:     sshEnabled,
+		SSH_KEYS:        sshKeys,
+		SYSTEM_HOSTNAME: systemHostname,
+	}); err != nil {
+		return err
+	}
+
+	if err := nm.UpdateFirewall(dogeboxd.NixFirewallTemplateValues{
+		SSH_ENABLED: sshEnabled,
+	}); err != nil {
+		return err
+	}
+
+	if err := nm.UpdateSystemContainerConfiguration(dogeboxd.NixSystemContainerConfigTemplateValues{
+		// NETWORK_INTERFACE:      networkInterface,
+		DOGEBOX_HOST_IP:        hostIp,
+		DOGEBOX_CONTAINER_CIDR: containerCidr,
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (nm nixManager) UpdateIncludeFile(pups dogeboxd.PupManager) error {
@@ -103,7 +86,7 @@ func (nm nixManager) UpdateIncludeFile(pups dogeboxd.PupManager) error {
 		}
 	}
 
-	values := IncludesFileTemplateValues{
+	values := dogeboxd.NixIncludesFileTemplateValues{
 		PUP_IDS: pupIDs,
 	}
 
@@ -148,12 +131,12 @@ func (nm nixManager) writeTemplate(filename string, _template []byte, values int
 func (nm nixManager) WritePupFile(
 	state dogeboxd.PupState,
 ) error {
-	services := []PupContainerServiceValues{}
+	services := []dogeboxd.NixPupContainerServiceValues{}
 
 	for _, service := range state.Manifest.Container.Services {
 		cwd := filepath.Join(fmt.Sprintf("${pkgs.pup.%s}", service.Name), service.Command.CWD)
 
-		services = append(services, PupContainerServiceValues{
+		services = append(services, dogeboxd.NixPupContainerServiceValues{
 			NAME: service.Name,
 			EXEC: service.Command.Exec,
 			CWD:  cwd,
@@ -161,7 +144,7 @@ func (nm nixManager) WritePupFile(
 		})
 	}
 
-	values := PupContainerTemplateValues{
+	values := dogeboxd.NixPupContainerTemplateValues{
 		PUP_ID:       state.ID,
 		PUP_ENABLED:  state.Enabled,
 		INTERNAL_IP:  state.IP,
@@ -187,15 +170,15 @@ func (nm nixManager) RemovePupFile(pupId string) error {
 	return os.Remove(filepath.Join(nm.config.NixDir, filename))
 }
 
-func (nm nixManager) UpdateSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error {
+func (nm nixManager) UpdateSystemContainerConfiguration(values dogeboxd.NixSystemContainerConfigTemplateValues) error {
 	return nm.writeTemplate("system_container_config.nix", rawSystemContainerConfigTemplate, values)
 }
 
-func (nm nixManager) UpdateFirewall(values FirewallTemplateValues) error {
+func (nm nixManager) UpdateFirewall(values dogeboxd.NixFirewallTemplateValues) error {
 	return nm.writeTemplate("firewall.nix", rawFirewallTemplate, values)
 }
 
-func (nm nixManager) UpdateSystem(values SystemTemplateValues) error {
+func (nm nixManager) UpdateSystem(values dogeboxd.NixSystemTemplateValues) error {
 	return nm.writeTemplate("system.nix", rawSystemTemplate, values)
 }
 

@@ -54,6 +54,7 @@ type Dogeboxd struct {
 	lifecycle      LifecycleManager
 	sm             StateManager
 	sources        SourceManager
+	nix            NixManager
 	jobs           chan Job
 	Changes        chan Change
 }
@@ -67,6 +68,7 @@ func NewDogeboxd(
 	networkManager NetworkManager,
 	lifecycle LifecycleManager,
 	sourceManager SourceManager,
+	nix NixManager,
 ) Dogeboxd {
 	s := Dogeboxd{
 		Pups:           pups,
@@ -77,6 +79,7 @@ func NewDogeboxd(
 		lifecycle:      lifecycle,
 		sm:             stateManager,
 		sources:        sourceManager,
+		nix:            nix,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
 	}

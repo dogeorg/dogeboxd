@@ -38,11 +38,6 @@ func (t server) Start() {
 	sourceManager := source.NewSourceManager(t.sm, pups)
 	nixManager := nix.NewNixManager(t.config)
 
-	err = nixManager.Init(pups)
-	if err != nil {
-		log.Fatalf("Failed to run nix.Init(): %+v", err)
-	}
-
 	// Set up our system interfaces so we can talk to the host OS
 	networkManager := network.NewNetworkManager(t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager()
@@ -62,13 +57,13 @@ func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
 
-	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager, sourceManager)
+	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager, sourceManager, nixManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets
 
 	wsh := dogeboxd.NewWSRelay(t.config, dbx.Changes)
-	rest := dogeboxd.RESTAPI(t.config, dbx, pups, wsh, sourceManager)
+	rest := dogeboxd.RESTAPI(t.config, dbx, pups, wsh)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */

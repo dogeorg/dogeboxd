@@ -1,14 +1,14 @@
 { config, pkgs, lib, ... }:
 
 {
-  networking.hostname = "dogebox";
+  networking.hostName = lib.mkForce "{{ .SYSTEM_HOSTNAME }}";
   networking.networkmanager.enable = false;
 
   services.openssh.settings = {
     AllowUsers = [ "dogebox" ];
   };
 
-  services.openssh.banner = ""
+  services.openssh.banner = ''
 +===================================================+
 |                                                   |
 |      ____   ___   ____ _____ ____   _____  __     |
@@ -18,7 +18,7 @@
 |     |____/ \___/ \____|_____|____/ \___/_/\_\     |
 |                                                   |
 +===================================================+
-  "";
+'';
 
   services.openssh.enable = {{ .SSH_ENABLED }};
 
