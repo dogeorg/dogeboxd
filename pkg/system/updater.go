@@ -200,11 +200,32 @@ func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 }
 
 func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
+	pupDir := filepath.Join(t.config.DataDir, "pups")
+
 	log.Printf("Purging pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
 	if s.Installation != dogeboxd.STATE_UNINSTALLED {
 		log.Printf("Cannot purge pup %s in state %s", s.ID, s.Installation)
 		return fmt.Errorf("Cannot purge pup %s in state %s", s.ID, s.Installation)
+	}
+
+	// Delete pup state from disk
+	if err := os.Remove(filepath.Join(t.config.DataDir, fmt.Sprintf("pup_%s.gob", s.ID))); err != nil {
+		fmt.Println("Failed to remove pup state", err)
+		return err
+	}
+
+	// Delete downloaded pup source
+	if err := os.RemoveAll(filepath.Join(pupDir, s.ID)); err != nil {
+		fmt.Println("Failed to remove pup source", err)
+		return err
+	}
+
+	// Delete pup storage directory
+	err := os.RemoveAll(filepath.Join(pupDir, "storage", s.ID))
+	if err != nil {
+		fmt.Println("Failed to remove pup storage", err)
+		return err
 	}
 
 	if err := t.pupManager.PurgePup(s.ID); err != nil {
