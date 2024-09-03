@@ -136,6 +136,7 @@ func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc
 	// Whitelist those here.
 	// TODO: Don't hardcode these.
 	if route == "GET /system/bootstrap" ||
+		route == "POST /system/bootstrap" ||
 		route == "GET /system/network/list" ||
 		route == "PUT /system/network/set-pending" ||
 		route == "GET /keys" ||
