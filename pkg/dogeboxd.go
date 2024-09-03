@@ -242,6 +242,7 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	p, _, err := t.Pups.GetPup(PupID)
 	if err != nil {
 		j.Err = err.Error()
+		fmt.Println("Failed to get pup:", err)
 		t.sendFinishedJob("error", j)
 		return
 	}

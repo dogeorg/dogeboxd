@@ -135,6 +135,7 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	log.Printf("Downloading pup to %s", pupPath)
 	err := t.sources.DownloadPup(pupPath, pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
 	if err != nil {
+		log.Printf("Failed to download pup: %w", err)
 		return err
 	}
 
@@ -142,17 +143,25 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 
 	log.Printf("Creating pup storage directory: %s", storagePath)
 	if err := os.MkdirAll(storagePath, 0755); err != nil {
+		log.Printf("Failed to create pup storage directory: %w", err)
 		return err
 	}
 
 	// Now that we're mostly installed, enable it.
 	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(true))
 	if err != nil {
+		log.Printf("Failed to update pup enabled state: %w", err)
 		return err
 	}
 
 	log.Printf("Writing nix pup container config")
 	if err := t.nix.WritePupFile(newState); err != nil {
+		log.Printf("Failed to write nix pup file: %w", err)
+		return err
+	}
+
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_READY)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
 		return err
 	}
 
@@ -163,25 +172,45 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 	// TODO: uninstall deps if they're not needed by another pup.
 
-	// TODO
-	log.Printf("Would uninstall pup %s (%s)", s.Manifest.Meta.Name, s.ID)
-	log.Printf("But not implemented yet.")
+	log.Printf("Uninstalling pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
-	// TODO: Remove the nix config
-	// TODO: Rebuilds nix
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLING)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
+		return err
+	}
 
-	return nil
+	// Remove nix container configuration
+	if err := t.nix.RemovePupFile(s.ID); err != nil {
+		log.Printf("Failed to remove nix include file: %w", err)
+		return err
+	}
+
+	// Update our core nix include file
+	if err := t.nix.UpdateIncludeFile(t.pupManager); err != nil {
+		log.Printf("Failed to update nix include file: %w", err)
+		return err
+	}
+
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLED)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
+		return err
+	}
+
+	return t.nix.Rebuild()
 }
 
 func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
-	log.Printf("Would purge pup %s (%s)", s.Manifest.Meta.Name, s.ID)
-	log.Printf("But not implemented yet.")
+	log.Printf("Purging pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
-	// TODO: Checks the pup is in an uninstalled state.
-	// TODO: Removes the storage directory
-	// TODO: Removes the source download
-	// TODO: Removes the nix config
-	// TODO: Rebuilds nix
+	if s.Installation != dogeboxd.STATE_UNINSTALLED {
+		log.Printf("Cannot purge pup %s in state %s", s.ID, s.Installation)
+		return fmt.Errorf("Cannot purge pup %s in state %s", s.ID, s.Installation)
+	}
+
+	if err := t.pupManager.PurgePup(s.ID); err != nil {
+		log.Printf("Failed to purge pup %s: %w", s.ID, err)
+		return err
+	}
 
 	return nil
 }

@@ -144,6 +144,33 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 	return PupID, nil
 }
 
+func (t PupManager) PurgePup(pupId string) error {
+	// Delete pup state from disk
+	if err := os.Remove(filepath.Join(t.pupDir, fmt.Sprintf("pup_%s.gob", pupId))); err != nil {
+		fmt.Println("Failed to remove pup state", err)
+		return err
+	}
+
+	// Delete downloaded pup source
+	if err := os.RemoveAll(filepath.Join(t.pupDir, pupId)); err != nil {
+		fmt.Println("Failed to remove pup source", err)
+		return err
+	}
+
+	// Delete pup storage directory
+	err := os.RemoveAll(filepath.Join(t.pupDir, "storage", pupId))
+	if err != nil {
+		fmt.Println("Failed to remove pup storage", err)
+		return err
+	}
+
+	// Remove our in-memory state
+	delete(t.state, pupId)
+	delete(t.stats, pupId)
+
+	return nil
+}
+
 func (t PupManager) GetStateMap() map[string]PupState {
 	out := map[string]PupState{}
 	for k, v := range t.state {

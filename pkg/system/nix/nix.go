@@ -16,9 +16,10 @@ import (
 type NixManager interface {
 	Rebuild() error
 	Init(pups dogeboxd.PupManager) error
-	WriteIncludeFile(pups dogeboxd.PupManager) error
+	UpdateIncludeFile(pups dogeboxd.PupManager) error
 	WriteDogeboxNixFile(filename string, content string) error
 	WritePupFile(pupState dogeboxd.PupState) error
+	RemovePupFile(pupId string) error
 	UpdateSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error
 }
 
@@ -90,10 +91,10 @@ func NewNixManager(config dogeboxd.ServerConfig) NixManager {
 }
 
 func (nm nixManager) Init(pups dogeboxd.PupManager) error {
-	return nm.WriteIncludeFile(pups)
+	return nm.UpdateIncludeFile(pups)
 }
 
-func (nm nixManager) WriteIncludeFile(pups dogeboxd.PupManager) error {
+func (nm nixManager) UpdateIncludeFile(pups dogeboxd.PupManager) error {
 	installed := pups.GetStateMap()
 	var pupIDs []string
 	for id := range installed {
@@ -176,6 +177,12 @@ func (nm nixManager) WritePupFile(
 	filename := fmt.Sprintf("pup_%s.nix", state.ID)
 
 	return nm.writeTemplate(filename, rawPupContainerTemplate, values)
+}
+
+func (nm nixManager) RemovePupFile(pupId string) error {
+	// Remove pup nix file
+	filename := fmt.Sprintf("pup_%s.nix", pupId)
+	return os.Remove(filepath.Join(nm.config.NixDir, filename))
 }
 
 func (nm nixManager) UpdateSystemContainerConfiguration(values SystemContainerConfigTemplateValues) error {
