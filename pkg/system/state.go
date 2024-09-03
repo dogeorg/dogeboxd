@@ -13,16 +13,17 @@ import (
 
 var _ dogeboxd.StateManager = &StateManager{}
 
-func NewStateManager() dogeboxd.StateManager {
+func NewStateManager(dataDir string) dogeboxd.StateManager {
 	gob.Register(dogeboxd.SelectedNetworkEthernet{})
 	gob.Register(dogeboxd.SelectedNetworkWifi{})
 	gob.Register(dogeboxd.DogeboxStateInitialSetup{})
 	gob.Register(source.ManifestSourceDisk{})
 	gob.Register(source.ManifestSourceGit{})
-	return &StateManager{}
+	return &StateManager{dataDir: dataDir}
 }
 
 type StateManager struct {
+	dataDir string
 	network dogeboxd.NetworkState
 	dogebox dogeboxd.DogeboxState
 	source  dogeboxd.SourceState
@@ -104,12 +105,7 @@ func (s *StateManager) SetSources(state dogeboxd.SourceState) {
 }
 
 func (s *StateManager) Save() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	filePath := filepath.Join(homeDir, "dogeboxd.gob")
+	filePath := filepath.Join(s.dataDir, "dogeboxd.gob")
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
@@ -126,12 +122,7 @@ func (s *StateManager) Save() error {
 }
 
 func (s *StateManager) Load() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	filePath := filepath.Join(homeDir, "dogeboxd.gob")
+	filePath := filepath.Join(s.dataDir, "dogeboxd.gob")
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -20,7 +20,7 @@ func NewSourceManager(sm dogeboxd.StateManager, pm dogeboxd.PupManager) dogeboxd
 		case "local":
 			sources = append(sources, ManifestSourceDisk{config: c})
 		case "git":
-			sources = append(sources, ManifestSourceGit{config: c})
+			sources = append(sources, &ManifestSourceGit{config: c})
 		}
 	}
 
@@ -58,23 +58,23 @@ func (sourceManager *sourceManager) GetAll() (map[string]dogeboxd.ManifestSource
 	return available, nil
 }
 
-func (sourceManager *sourceManager) GetSourceManifest(sourceName, pupName, pupVersion string) (pup.PupManifest, error) {
+func (sourceManager *sourceManager) GetSourceManifest(sourceName, pupName, pupVersion string) (pup.PupManifest, dogeboxd.ManifestSource, error) {
 	for _, r := range sourceManager.sources {
 		if r.Name() == sourceName {
 			list, err := r.List(false)
 			if err != nil {
-				return pup.PupManifest{}, err
+				return pup.PupManifest{}, nil, err
 			}
 			for _, pup := range list.Pups {
 				if pup.Name == pupName && pup.Version == pupVersion {
-					return pup.Manifest, nil
+					return pup.Manifest, r, nil
 				}
 			}
-			return pup.PupManifest{}, fmt.Errorf("no pup found with name %s and version %s", pupName, pupVersion)
+			return pup.PupManifest{}, nil, fmt.Errorf("no pup found with name %s and version %s", pupName, pupVersion)
 		}
 	}
 
-	return pup.PupManifest{}, fmt.Errorf("no source found with name %s", sourceName)
+	return pup.PupManifest{}, nil, fmt.Errorf("no source found with name %s", sourceName)
 }
 
 func (sourceManager *sourceManager) GetSourcePup(sourceName, pupName, pupVersion string) (dogeboxd.ManifestSourcePup, error) {
@@ -144,7 +144,7 @@ func (sourceManager *sourceManager) AddSource(source dogeboxd.ManifestSourceConf
 	case "local":
 		s = ManifestSourceDisk{config: source}
 	case "git":
-		s = ManifestSourceGit{config: source}
+		s = &ManifestSourceGit{config: source}
 
 	default:
 		log.Printf("unknown source type: %s", source.Type)

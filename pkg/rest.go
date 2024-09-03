@@ -214,6 +214,7 @@ func RESTAPI(config ServerConfig, dbx Dogeboxd, pups PupManager, ws WSRelay, sou
 		"POST /config/{PupID}":    a.updateConfig,
 		"GET /sources":            a.getSources,
 		"PUT /source":             a.createSource,
+		"GET /sources/store":      a.getStoreList,
 		"DELETE /source/{name}":   a.deleteSource,
 		"/ws/log/{PupID}":         a.getLogSocket,
 		"/ws/state/":              a.getUpdateSocket,
@@ -659,6 +660,75 @@ func (t api) deleteSource(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type StoreListSourceEntryPup struct {
+	IsInstalled      bool                       `json:"isInstalled"`
+	InstalledVersion string                     `json:"installedVersion"`
+	Versions         map[string]pup.PupManifest `json:"versions"`
+}
+
+type StoreListSourceEntry struct {
+	LastUpdated string                             `json:"lastUpdated"`
+	Pups        map[string]StoreListSourceEntryPup `json:"pups"`
+}
+
+func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
+	available, err := t.sources.GetAll()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching sources")
+		return
+	}
+
+	response := map[string]StoreListSourceEntry{}
+
+	for k, source := range available {
+		pups := map[string]StoreListSourceEntryPup{}
+
+		for _, availablePup := range source.Pups {
+			// Check if we already have a pup in our list for this version.
+			if _, ok := pups[availablePup.Name]; !ok {
+				// TODO: Ideally not have to do this lookup.
+				s, err := t.sources.GetSource(k)
+				if err != nil {
+					sendErrorResponse(w, http.StatusInternalServerError, "Error fetching source")
+					return
+				}
+
+				// Check in our pup manager to see if this pup is installed.
+				// If it is, we set the InstalledVersion.
+				installedPupState := t.dbx.Pups.GetPupFromSource(availablePup.Name, s.Config())
+
+				isInstalled := installedPupState != nil
+
+				var installedVersion string
+
+				if isInstalled {
+					installedVersion = installedPupState.Version
+				}
+
+				versions := map[string]pup.PupManifest{}
+
+				pups[availablePup.Name] = StoreListSourceEntryPup{
+					IsInstalled:      isInstalled,
+					InstalledVersion: installedVersion,
+					Versions:         versions,
+				}
+			}
+
+			// Retrieve the struct, modify it, and store it back in the map
+			pupEntry := pups[availablePup.Name]
+			pupEntry.Versions[availablePup.Version] = availablePup.Manifest
+			pups[availablePup.Name] = pupEntry
+		}
+
+		response[k] = StoreListSourceEntry{
+			LastUpdated: source.LastUpdated.Format(time.RFC3339),
+			Pups:        pups,
+		}
+	}
+
+	sendResponse(w, response)
+}
+
 func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
 	pupid := r.PathValue("PupID")
 	cancel, logChan, err := t.dbx.GetLogChannel(pupid)
@@ -737,6 +807,8 @@ func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "uninstall":
 		a = UninstallPup{PupID: id}
+	case "purge":
+		a = PurgePup{PupID: id}
 	case "enable":
 		a = EnablePup{PupID: id}
 	case "disable":

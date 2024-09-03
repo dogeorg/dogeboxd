@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	network_connector "github.com/dogeorg/dogeboxd/pkg/system/network/connector"
@@ -87,6 +88,12 @@ outer:
 	for _, systemInterface := range allInterfaces {
 		// Ignore anything that doesn't have a hardware address.
 		if systemInterface.HardwareAddr == nil {
+			continue
+		}
+
+		// Ignore if it starts with "ve-pup-" as
+		// this is an internal pup-only interface.
+		if strings.HasPrefix(systemInterface.Name, "ve-pup-") {
 			continue
 		}
 

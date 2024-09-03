@@ -8,7 +8,7 @@ type PupManifest struct {
 	// The version of the actual manifest. This differs from the "version"
 	// of the pup, and the version of the deployed software for this pup.
 	// Valid values: 1
-	ManifestVersion  string                       `json:"manifestVersion"`
+	ManifestVersion  int                          `json:"manifestVersion"`
 	Meta             PupManifestMeta              `json:"meta"`
 	Config           PupManifestConfigFields      `json:"config"`
 	Container        PupManifestContainer         `json:"container"`
@@ -35,9 +35,12 @@ type PupManifestMeta struct {
  * and runtime details of whatever is to be executed.
  */
 type PupManifestContainer struct {
-	Build   PupManifestBuild          `json:"build"`
-	Command PupManifestCommand        `json:"command"`
-	Exposes []PupManifestExposeConfig `json:"exposes"`
+	Build PupManifestBuild `json:"build"`
+	// A single nix build file can provide multiple services, which all
+	// may need to be started separately. Each "service" should be provided
+	// as an artifact here with the correct execution configuration.
+	Services []PupManifestService      `json:"services"`
+	Exposes  []PupManifestExposeConfig `json:"exposes"`
 }
 
 /* PupManifestBuild holds information about the target nix
@@ -48,15 +51,11 @@ type PupManifestBuild struct {
 	NixFile string `json:"nixFile"`
 	// The SHA256 hash of the nix file.
 	NixFileSha256 string `json:"nixFileSha256"`
-	// A single nix build file can provide multiple services, which all
-	// may need to be started separately. Each "service" should be provided
-	// as an artifact here with the correct execution configuration.
-	Artifacts []PupManifestBuildArtifact `json:"artifacts"`
 }
 
-type PupManifestBuildArtifact struct {
-	Provides string             `json:"provides"`
-	Command  PupManifestCommand `json:"command"`
+type PupManifestService struct {
+	Name    string             `json:"name"`
+	Command PupManifestCommand `json:"command"`
 }
 
 /* Represents the command to run inside this PUP
@@ -77,7 +76,7 @@ type PupManifestExposeConfig struct {
 	Type string `json:"type"`
 	// HTTP, Raw TCP etc. Used by the frontend in addition to
 	// type to understand if something can be iframed.
-	TcpType string `json:"tcpType"`
+	TrafficType string `json:"trafficType"`
 	// The port that is being listened on inside the container.
 	Port int `json:"port"`
 }

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -19,24 +20,26 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager, sourceManager dogeboxd.SourceManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager nix.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager) SystemUpdater {
 	return SystemUpdater{
-		config:  config,
-		jobs:    make(chan dogeboxd.Job),
-		done:    make(chan dogeboxd.Job),
-		network: networkManager,
-		nix:     nixManager,
-		sources: sourceManager,
+		config:     config,
+		jobs:       make(chan dogeboxd.Job),
+		done:       make(chan dogeboxd.Job),
+		network:    networkManager,
+		nix:        nixManager,
+		sources:    sourceManager,
+		pupManager: pupManager,
 	}
 }
 
 type SystemUpdater struct {
-	config  dogeboxd.ServerConfig
-	jobs    chan dogeboxd.Job
-	done    chan dogeboxd.Job
-	network dogeboxd.NetworkManager
-	nix     nix.NixManager
-	sources dogeboxd.SourceManager
+	config     dogeboxd.ServerConfig
+	jobs       chan dogeboxd.Job
+	done       chan dogeboxd.Job
+	network    dogeboxd.NetworkManager
+	nix        nix.NixManager
+	sources    dogeboxd.SourceManager
+	pupManager dogeboxd.PupManager
 }
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -62,21 +65,28 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						}
 						t.done <- j
 					case dogeboxd.UninstallPup:
-						err := uninstallPup(t.config.NixDir, *j.State)
+						err := t.uninstallPup(*j.State)
 						if err != nil {
 							fmt.Println("Failed to uninstall pup", err)
 							j.Err = "Failed to uninstall pup"
 						}
 						t.done <- j
+					case dogeboxd.PurgePup:
+						err := t.purgePup(*j.State)
+						if err != nil {
+							fmt.Println("Failed to purge pup", err)
+							j.Err = "Failed to purge pup"
+						}
+						t.done <- j
 					case dogeboxd.EnablePup:
-						err := enablePup(t.config.NixDir, *j.State)
+						err := t.enablePup(*j.State)
 						if err != nil {
 							fmt.Println("Failed to enable pup", err)
 							j.Err = "Failed to enable pup"
 						}
 						t.done <- j
 					case dogeboxd.DisablePup:
-						err := disablePup(t.config.NixDir, *j.State)
+						err := t.disablePup(*j.State)
 						if err != nil {
 							fmt.Println("Failed to disable pup", err)
 							j.Err = "Failed to disable pup"
@@ -115,12 +125,8 @@ func (t SystemUpdater) GetUpdateChannel() chan dogeboxd.Job {
 /* InstallPup takes a PupManifest and ensures a nix config
  * is written and any packages installed so that the Pup can
  * be started.
- *
- *
  */
 func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.PupState) error {
-	// TODO: This should probably live in pupManager instead of here.
-
 	// TODO: Install deps!
 
 	log.Printf("Installing pup from %s: %s @ %s", pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
@@ -129,51 +135,125 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	log.Printf("Downloading pup to %s", pupPath)
 	err := t.sources.DownloadPup(pupPath, pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
 	if err != nil {
+		log.Printf("Failed to download pup: %w", err)
+		return err
+	}
+
+	storagePath := filepath.Join(t.config.DataDir, "pups/storage", s.ID)
+
+	log.Printf("Creating pup storage directory: %s", storagePath)
+	if err := os.MkdirAll(storagePath, 0755); err != nil {
+		log.Printf("Failed to create pup storage directory: %w", err)
+		return err
+	}
+
+	// Now that we're mostly installed, enable it.
+	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(true))
+	if err != nil {
+		log.Printf("Failed to update pup enabled state: %w", err)
 		return err
 	}
 
 	log.Printf("Writing nix pup container config")
-	if err := t.nix.WritePupFile(s); err != nil {
+	if err := t.nix.WritePupFile(newState); err != nil {
+		log.Printf("Failed to write nix pup file: %w", err)
 		return err
 	}
 
-	// TODO: This needs to use all pups, not just the one we're installing
-	log.Printf("Updating nix overlays with new pup")
-	if err := t.nix.UpdateOverlays(nix.OverlayTemplateValues{
-		PUPS: []struct {
-			PUP_NAME string
-			PUP_PATH string
-		}{
-			{PUP_NAME: s.Manifest.Meta.Name, PUP_PATH: pupPath},
-		},
-	}); err != nil {
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_READY)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
 		return err
 	}
 
 	log.Printf("Rebuilding nix")
-	if err := t.nix.Rebuild(); err != nil {
+	return t.nix.Rebuild()
+}
+
+func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
+	// TODO: uninstall deps if they're not needed by another pup.
+
+	log.Printf("Uninstalling pup %s (%s)", s.Manifest.Meta.Name, s.ID)
+
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLING)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
+		return err
+	}
+
+	// Remove nix container configuration
+	if err := t.nix.RemovePupFile(s.ID); err != nil {
+		log.Printf("Failed to remove nix include file: %w", err)
+		return err
+	}
+
+	// Update our core nix include file
+	if err := t.nix.UpdateIncludeFile(t.pupManager); err != nil {
+		log.Printf("Failed to update nix include file: %w", err)
+		return err
+	}
+
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLED)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
+		return err
+	}
+
+	return t.nix.Rebuild()
+}
+
+func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
+	pupDir := filepath.Join(t.config.DataDir, "pups")
+
+	log.Printf("Purging pup %s (%s)", s.Manifest.Meta.Name, s.ID)
+
+	if s.Installation != dogeboxd.STATE_UNINSTALLED {
+		log.Printf("Cannot purge pup %s in state %s", s.ID, s.Installation)
+		return fmt.Errorf("Cannot purge pup %s in state %s", s.ID, s.Installation)
+	}
+
+	// Delete pup state from disk
+	if err := os.Remove(filepath.Join(t.config.DataDir, fmt.Sprintf("pup_%s.gob", s.ID))); err != nil {
+		fmt.Println("Failed to remove pup state", err)
+		return err
+	}
+
+	// Delete downloaded pup source
+	if err := os.RemoveAll(filepath.Join(pupDir, s.ID)); err != nil {
+		fmt.Println("Failed to remove pup source", err)
+		return err
+	}
+
+	// Delete pup storage directory
+	err := os.RemoveAll(filepath.Join(pupDir, "storage", s.ID))
+	if err != nil {
+		fmt.Println("Failed to remove pup storage", err)
+		return err
+	}
+
+	if err := t.pupManager.PurgePup(s.ID); err != nil {
+		log.Printf("Failed to purge pup %s: %w", s.ID, err)
 		return err
 	}
 
 	return nil
 }
 
-func uninstallPup(nixConfPath string, s dogeboxd.PupState) error {
-	// TODO: uninstall deps if they're not needed by another pup.
+func (t SystemUpdater) enablePup(s dogeboxd.PupState) error {
+	log.Printf("Enabling pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
-	// TODO: remove nix config
+	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(true))
+	if err != nil {
+		return err
+	}
 
-	return nil
+	return t.nix.WritePupFile(newState)
 }
 
-func enablePup(nixConfPath string, s dogeboxd.PupState) error {
-	// TODO: write nix config
+func (t SystemUpdater) disablePup(s dogeboxd.PupState) error {
+	log.Printf("Disabling pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
-	return nil
-}
+	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(false))
+	if err != nil {
+		return err
+	}
 
-func disablePup(nixConfPath string, s dogeboxd.PupState) error {
-	// TODO: write nix config
-
-	return nil
+	return t.nix.WritePupFile(newState)
 }

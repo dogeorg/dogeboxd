@@ -42,6 +42,7 @@ import (
 	"crypto/rand"
 	_ "embed"
 	"fmt"
+	"log"
 )
 
 type Dogeboxd struct {
@@ -161,6 +162,8 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 		t.createPupFromManifest(j, a.PupName, a.PupVersion, a.SourceName)
 	case UninstallPup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
+	case PurgePup:
+		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case EnablePup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case DisablePup:
@@ -188,18 +191,20 @@ func (t Dogeboxd) jobDispatcher(j Job) {
  */
 func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName string) {
 	// Fetch the correct manifest from the source manager
-	m, err := t.sources.GetSourceManifest(sourceName, pupName, pupVersion)
+	manifest, source, err := t.sources.GetSourceManifest(sourceName, pupName, pupVersion)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
 		t.sendFinishedJob("error", j)
+		log.Println(j.Err)
 		return
 	}
 
 	// create a new pup for the manifest
-	pupID, err := t.Pups.AdoptPup(m)
+	pupID, err := t.Pups.AdoptPup(manifest, source)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
 		t.sendFinishedJob("error", j)
+		log.Println(j.Err)
 		return
 	}
 
@@ -209,7 +214,7 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName 
 
 // Handle an UpdatePupConfig action
 func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
-	err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
+	_, err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
 	if err != nil {
 		fmt.Println("couldn't update pup", err)
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
@@ -237,6 +242,7 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	p, _, err := t.Pups.GetPup(PupID)
 	if err != nil {
 		j.Err = err.Error()
+		fmt.Println("Failed to get pup:", err)
 		t.sendFinishedJob("error", j)
 		return
 	}

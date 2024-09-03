@@ -40,7 +40,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	stateManager := system.NewStateManager()
+	// Check if datadir exists and create if not
+	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
+		log.Printf("Specified datadir %s does not exist, creating it", dataDir)
+		os.MkdirAll(dataDir, 0755)
+	}
+
+	stateManager := system.NewStateManager(dataDir)
 	err := stateManager.Load()
 	if err != nil {
 		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)

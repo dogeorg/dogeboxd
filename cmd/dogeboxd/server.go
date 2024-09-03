@@ -38,11 +38,16 @@ func (t server) Start() {
 	sourceManager := source.NewSourceManager(t.sm, pups)
 	nixManager := nix.NewNixManager(t.config)
 
+	err = nixManager.Init(pups)
+	if err != nil {
+		log.Fatalf("Failed to run nix.Init(): %+v", err)
+	}
+
 	// Set up our system interfaces so we can talk to the host OS
 	networkManager := network.NewNetworkManager(t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager()
 
-	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager)
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups)
 	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 
