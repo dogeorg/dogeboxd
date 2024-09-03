@@ -47,7 +47,7 @@ func (t server) Start() {
 	networkManager := network.NewNetworkManager(t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager()
 
-	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager)
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups)
 	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 

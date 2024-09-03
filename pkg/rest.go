@@ -807,6 +807,8 @@ func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "uninstall":
 		a = UninstallPup{PupID: id}
+	case "purge":
+		a = PurgePup{PupID: id}
 	case "enable":
 		a = EnablePup{PupID: id}
 	case "disable":

@@ -196,16 +196,16 @@ func (t PupManager) GetPupFromSource(name string, source ManifestSourceConfigura
 * ie: err := manager.UpdatePup(id, SetPupInstallation(STATE_READY))
 * see bottom of file for options
  */
-func (t PupManager) UpdatePup(id string, updates ...func(*PupState)) error {
+func (t PupManager) UpdatePup(id string, updates ...func(*PupState)) (PupState, error) {
 	p, ok := t.state[id]
 	if !ok {
-		return errors.New("pup not found")
+		return PupState{}, errors.New("pup not found")
 	}
 	for _, updateFn := range updates {
 		updateFn(p)
 	}
 
-	return t.savePup(p)
+	return *p, t.savePup(p)
 }
 
 /* Gets the list of previously managed pupIDs and loads their

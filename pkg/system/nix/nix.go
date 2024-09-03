@@ -41,6 +41,7 @@ type PupContainerTemplateValues struct {
 	INTERNAL_IP  string
 	PUP_PORTS    []int
 	STORAGE_PATH string
+	PUP_PATH     string
 	NIX_FILE     string
 	SERVICES     []PupContainerServiceValues
 }
@@ -159,10 +160,11 @@ func (nm nixManager) WritePupFile(
 
 	values := PupContainerTemplateValues{
 		PUP_ID:       state.ID,
-		PUP_ENABLED:  true,
+		PUP_ENABLED:  state.Enabled,
 		INTERNAL_IP:  state.IP,
 		PUP_PORTS:    []int{},
 		STORAGE_PATH: filepath.Join(nm.config.DataDir, "pups/storage", state.ID),
+		PUP_PATH:     filepath.Join(nm.config.DataDir, "pups", state.ID),
 		NIX_FILE:     filepath.Join(nm.config.DataDir, "pups", state.ID, state.Manifest.Container.Build.NixFile),
 		SERVICES:     services,
 	}
@@ -170,8 +172,6 @@ func (nm nixManager) WritePupFile(
 	for _, ex := range state.Manifest.Container.Exposes {
 		values.PUP_PORTS = append(values.PUP_PORTS, ex.Port)
 	}
-
-	log.Printf("%+v", values)
 
 	filename := fmt.Sprintf("pup_%s.nix", state.ID)
 

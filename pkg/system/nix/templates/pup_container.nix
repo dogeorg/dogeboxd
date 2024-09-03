@@ -29,6 +29,12 @@ in
         hostPath = "{{ .STORAGE_PATH }}";
         isReadOnly = false;
       };
+
+      "PUP" = {
+        mountPoint = "/pup";
+        hostPath = "{{ .PUP_PATH }}";
+        isReadOnly = true;
+      };
     };
 
     ephemeral = true;

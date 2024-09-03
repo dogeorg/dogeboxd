@@ -39,8 +39,14 @@ type InstallPup struct {
 	SourceName string
 }
 
-// uninstall a pup
+// Uninstalling a pup will remove container
+// configuration, but keep storage.
 type UninstallPup struct {
+	PupID string
+}
+
+// Purging a pup will remove the container storage.
+type PurgePup struct {
 	PupID string
 }
 

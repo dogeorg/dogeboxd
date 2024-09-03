@@ -162,6 +162,8 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 		t.createPupFromManifest(j, a.PupName, a.PupVersion, a.SourceName)
 	case UninstallPup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
+	case PurgePup:
+		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case EnablePup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case DisablePup:
@@ -212,7 +214,7 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName 
 
 // Handle an UpdatePupConfig action
 func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
-	err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
+	_, err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
 	if err != nil {
 		fmt.Println("couldn't update pup", err)
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
