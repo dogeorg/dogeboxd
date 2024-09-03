@@ -97,8 +97,10 @@ func (nm nixManager) Init(pups dogeboxd.PupManager) error {
 func (nm nixManager) UpdateIncludeFile(pups dogeboxd.PupManager) error {
 	installed := pups.GetStateMap()
 	var pupIDs []string
-	for id := range installed {
-		pupIDs = append(pupIDs, id)
+	for id, state := range installed {
+		if state.Installation == dogeboxd.STATE_READY || state.Installation == dogeboxd.STATE_RUNNING {
+			pupIDs = append(pupIDs, id)
+		}
 	}
 
 	values := IncludesFileTemplateValues{
