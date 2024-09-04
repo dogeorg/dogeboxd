@@ -7,7 +7,7 @@ clean:
 mkbuild:
 	mkdir -p build/
 
-build: build/dogeboxd build/enter_recovery_mode build/dbx
+build: build/dogeboxd build/enter_recovery_mode build/dbx build/nixosrebuildswitch
 
 build/dogeboxd: clean, mkbuild
 	go build -o build/dogeboxd ./cmd/dogeboxd/. 
@@ -17,6 +17,9 @@ build/enter_recovery_mode: clean, mkbuild
 
 build/dbx: clean, mkbuild
 	go build -o build/dbx ./cmd/dbx/.
+
+build/nixosrebuildswitch: clean, mkbuild
+	go build -o build/nixosrebuildswitch ./cmd/nixosrebuildswitch/.
 
 dev:
 	go run ./cmd/dogeboxd -v

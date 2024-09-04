@@ -514,11 +514,14 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// OK.
-
 	// TODO: turn off AP
-	// TODO: connect to network.
-	// TODO: ensure network actually connects.
+
+	// This will try and connect to the pending network, and if
+	// that works, it will persist the network config to disk properly.
+	if err := t.dbx.NetworkManager.TryConnect(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
+		return
+	}
 
 	if err := t.dbx.nix.InitSystem(t.dbx.Pups); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
@@ -542,8 +545,30 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	sendResponse(w, map[string]any{"status": "OK"})
 
-	// TODO: Rebuild nix
-	// TODO: Reboot.
+	// Close the HTTP connection to the client, so we can disconnect successfully.
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	flusher.Flush()
+
+	if err := t.dbx.nix.Rebuild(); err != nil {
+		log.Printf("Error rebuilding nix: %v", err)
+		log.Println("Unfortunately we're going to have to reboot now, and there's no way we can report this to the client.")
+		// TODO: Maybe we write a file that gets shown to the user on next boot in dpanel?
+	}
+
+	log.Println("Dogebox successfully bootstrapped, rebooting so we can boot into normal mode.")
+
+	if t.config.DevMode {
+		log.Printf("In dev mode: Not rebooting, but killing service to make it obvious.")
+		os.Exit(0)
+		return
+	}
+
+	t.dbx.lifecycle.Reboot()
 }
 
 func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {

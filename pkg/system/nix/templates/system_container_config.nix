@@ -1,6 +1,8 @@
 { config, pkgs, lib, ... }:
 
 {
+  boot.enableContainers = true;
+
   networking.nat = {
     enable = true;
     internalInterfaces = [ "ve-pups-+" ];

@@ -6,9 +6,9 @@ import (
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
-func NewNetworkPersistor(network dogeboxd.SelectedNetwork) (dogeboxd.NetworkPersistor, error) {
+func NewNetworkPersistor(nix dogeboxd.NixManager, network dogeboxd.SelectedNetwork) (dogeboxd.NetworkPersistor, error) {
 	if isNix() {
-		return NetworkPersistorNix{}, nil
+		return NetworkPersistorNix{nix}, nil
 	}
 
 	return nil, errors.New("failed to intialise network persistor, no handler implemented")

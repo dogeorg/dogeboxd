@@ -28,6 +28,9 @@ var rawSystemTemplate []byte
 //go:embed templates/dogebox.nix
 var rawIncludesFileTemplate []byte
 
+//go:embed templates/network.nix
+var rawNetworkTemplate []byte
+
 var _ dogeboxd.NixManager = &nixManager{}
 
 type nixManager struct {
@@ -182,8 +185,14 @@ func (nm nixManager) UpdateSystem(values dogeboxd.NixSystemTemplateValues) error
 	return nm.writeTemplate("system.nix", rawSystemTemplate, values)
 }
 
+func (nm nixManager) UpdateNetwork(values dogeboxd.NixNetworkTemplateValues) error {
+	return nm.writeTemplate("network.nix", rawNetworkTemplate, values)
+}
+
 func (nm nixManager) Rebuild() error {
-	md := exec.Command("nixos-rebuild", "switch")
+	// This command is setuid as root so we can actually run it.
+	// It should live in /run/wrappers/bin/nixosrebuildswitch on nix systems.
+	md := exec.Command("nixosrebuildswitch")
 
 	output, err := md.CombinedOutput()
 	if err != nil {

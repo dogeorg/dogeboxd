@@ -213,6 +213,14 @@ type NixIncludesFileTemplateValues struct {
 	PUP_IDS []string
 }
 
+type NixNetworkTemplateValues struct {
+	USE_ETHERNET  bool
+	USE_WIRELESS  bool
+	INTERFACE     string
+	WIFI_SSID     string
+	WIFI_PASSWORD string
+}
+
 type NixManager interface {
 	Rebuild() error
 	InitSystem(pups PupManager) error
@@ -222,4 +230,5 @@ type NixManager interface {
 	RemovePupFile(pupId string) error
 	UpdateSystem(values NixSystemTemplateValues) error
 	UpdateSystemContainerConfiguration(values NixSystemContainerConfigTemplateValues) error
+	UpdateNetwork(values NixNetworkTemplateValues) error
 }

@@ -21,6 +21,7 @@ type NetworkManagerLinux struct {
 
 	sm      dogeboxd.StateManager
 	scanner network_wifi.WifiScanner
+	nix     dogeboxd.NixManager
 }
 
 type WiFiNetwork struct {
@@ -176,7 +177,7 @@ func (t NetworkManagerLinux) TryConnect() error {
 	// Create an instance of our network persistor, we do this here
 	// because depending on the type of network we want (ethernet/wifi)
 	// may result in a different persistor-type being used.
-	persistor, err := network_persistor.NewNetworkPersistor(state.PendingNetwork)
+	persistor, err := network_persistor.NewNetworkPersistor(t.nix, state.PendingNetwork)
 	if err != nil {
 		return err
 	}

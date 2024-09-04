@@ -35,4 +35,12 @@
       };
     };
   };
+
+  # TODO
+  #security.wrappers.nixosrebuildswitch = {
+  #  source = "/path/to/nixosrebuildswitch";
+  #  owner = "root";
+  #  group = "root";
+  #  setuid = true;
+  #};
 }

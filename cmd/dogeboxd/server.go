@@ -39,7 +39,7 @@ func (t server) Start() {
 	nixManager := nix.NewNixManager(t.config)
 
 	// Set up our system interfaces so we can talk to the host OS
-	networkManager := network.NewNetworkManager(t.sm)
+	networkManager := network.NewNetworkManager(nixManager, t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager()
 
 	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups)
@@ -84,9 +84,9 @@ func (t server) Start() {
 	c.Service("Dogeboxd", dbx)
 	c.Service("REST API", rest)
 	c.Service("UI Server", ui)
+	c.Service("System Updater", systemUpdater)
 
 	if !t.config.Recovery {
-		c.Service("System Updater", systemUpdater)
 		c.Service("System Monitor", systemMonitor)
 		c.Service("WSock Relay", wsh)
 	}

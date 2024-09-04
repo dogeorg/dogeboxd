@@ -57,7 +57,6 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 					}
 					switch a := j.A.(type) {
 					case dogeboxd.InstallPup:
-						fmt.Printf("JON %+v", a)
 						err := t.installPup(a, *j.State)
 						if err != nil {
 							fmt.Println("Failed to install pup", err)
@@ -93,7 +92,7 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						}
 						t.done <- j
 					case dogeboxd.UpdatePendingSystemNetwork:
-						err := t.network.SetPendingNetwork(*&a.Network)
+						err := t.network.SetPendingNetwork(a.Network)
 						if err != nil {
 							fmt.Println("Failed to set system network:", err)
 							j.Err = "Failed to set system network"
