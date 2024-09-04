@@ -118,6 +118,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						break dance
 					}
 					fmt.Printf("EVENT: %+v\n", p)
+					t.Changes <= Change{"", "", "pat-talk-to-tjs-about-this", p.State}
 
 				// Handle completed jobs from SystemUpdater
 				case j, ok := <-t.SystemUpdater.GetUpdateChannel():
