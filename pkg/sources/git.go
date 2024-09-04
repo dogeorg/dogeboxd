@@ -196,7 +196,7 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 		}
 		if result.valid {
 			validPups = append(validPups, dogeboxd.ManifestSourcePup{
-				Name:     r.config.Name,
+				Name:     result.manifest.Meta.Name,
 				Location: result.version,
 				Version:  result.manifest.Meta.Version,
 				Manifest: result.manifest,
