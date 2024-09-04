@@ -92,6 +92,10 @@ func (r ManifestSourceGit) ensureTagValidAndGetManifest(tag string) (pup.PupMani
 		return pup.PupManifest{}, false, fmt.Errorf("failed to unmarshal manifest.json: %w", err)
 	}
 
+	if err := manifest.Validate(); err != nil {
+		return pup.PupManifest{}, false, fmt.Errorf("manifest validation failed: %w", err)
+	}
+
 	log.Printf("Successfully read manifest for tag %s", tag)
 	return manifest, true, nil
 }

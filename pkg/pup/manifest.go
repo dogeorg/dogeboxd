@@ -1,5 +1,7 @@
 package pup
 
+import "fmt"
+
 /* PupManifest represents a Nix installed process
  * running inside the Dogebox Runtime Environment.
  * These are defined in pup.json files.
@@ -14,6 +16,44 @@ type PupManifest struct {
 	Container        PupManifestContainer         `json:"container"`
 	PermissionGroups []PupManifestPermissionGroup `json:"permissionGroups"`
 	Dependencies     []PupManifestDependency      `json:"dependencies"`
+}
+
+func (m *PupManifest) Validate() error {
+	if m.ManifestVersion != 1 {
+		return fmt.Errorf("unknown manifest version: %d", m.ManifestVersion)
+	}
+
+	if m.Meta.Name == "" {
+		return fmt.Errorf("manifest meta.name is required")
+	}
+
+	if m.Meta.Version == "" {
+		return fmt.Errorf("manifest meta.version is required")
+	}
+
+	if m.Container.Build.NixFile == "" {
+		return fmt.Errorf("manifest container.build.nixFile is required")
+	}
+
+	if m.Container.Build.NixFileSha256 == "" {
+		return fmt.Errorf("manifest container.build.nixFileSha256 is required")
+	}
+
+	if len(m.Container.Services) == 0 {
+		return fmt.Errorf("at least one service is required")
+	}
+
+	for _, service := range m.Container.Services {
+		if service.Name == "" {
+			return fmt.Errorf("service name is required")
+		}
+
+		if service.Command.Exec == "" {
+			return fmt.Errorf("service %s must have a non-empty exec command", service.Name)
+		}
+	}
+
+	return nil
 }
 
 /* PupManifestMeta holds meta information about this pup

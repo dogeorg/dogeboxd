@@ -68,6 +68,10 @@ func (r ManifestSourceDisk) List(_ bool) (dogeboxd.ManifestSourceList, error) {
 		return dogeboxd.ManifestSourceList{}, fmt.Errorf("failed to parse manifest file: %w", err)
 	}
 
+	if err := manifest.Validate(); err != nil {
+		return dogeboxd.ManifestSourceList{}, fmt.Errorf("manifest validation failed: %w", err)
+	}
+
 	pup := dogeboxd.ManifestSourcePup{
 		Name:     r.config.Name,
 		Location: r.config.Location,

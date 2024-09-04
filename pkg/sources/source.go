@@ -125,6 +125,22 @@ func (sourceManager *sourceManager) DownloadPup(path, sourceName, pupName, pupVe
 		return err
 	}
 
+	manifestPath := filepath.Join(path, "manifest.json")
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to read manifest file: %w", err)
+	}
+
+	var manifest pup.PupManifest
+	err = json.Unmarshal(manifestData, &manifest)
+	if err != nil {
+		return fmt.Errorf("failed to parse manifest file: %w", err)
+	}
+
+	if err := manifest.Validate(); err != nil {
+		return fmt.Errorf("manifest validation failed: %w", err)
+	}
+
 	return sourceManager.validatePupFiles(path)
 }
 
