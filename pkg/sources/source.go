@@ -145,7 +145,7 @@ func (sourceManager *sourceManager) DownloadPup(path, sourceName, pupName, pupVe
 }
 
 func (sourceManager *sourceManager) validatePupFiles(path string) error {
-	manifestPath := filepath.Join(path, "pup.manifest")
+	manifestPath := filepath.Join(path, "manifest.json")
 	manifestData, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return fmt.Errorf("failed to read manifest file: %w", err)
