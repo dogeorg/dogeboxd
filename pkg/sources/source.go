@@ -1,9 +1,12 @@
 package source
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
@@ -118,10 +121,39 @@ func (sourceManager *sourceManager) DownloadPup(path, sourceName, pupName, pupVe
 		return err
 	}
 
-	// TODO: Once downloaded, verify any specified files
-	//       in the manifest are actually present on disk
+	if err := r.Download(path, sourcePup.Location); err != nil {
+		return err
+	}
 
-	return r.Download(path, sourcePup.Location)
+	return sourceManager.validatePupFiles(path)
+}
+
+func (sourceManager *sourceManager) validatePupFiles(path string) error {
+	manifestPath := filepath.Join(path, "pup.manifest")
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to read manifest file: %w", err)
+	}
+
+	var manifest pup.PupManifest
+	err = json.Unmarshal(manifestData, &manifest)
+	if err != nil {
+		return fmt.Errorf("failed to parse manifest file: %w", err)
+	}
+
+	nixFilePath := filepath.Join(path, manifest.Container.Build.NixFile)
+	if _, err := os.Stat(nixFilePath); os.IsNotExist(err) {
+		return fmt.Errorf("nix file %s not found", manifest.Container.Build.NixFile)
+	}
+
+	if manifest.Meta.LogoPath != "" {
+		logoFilePath := filepath.Join(path, manifest.Meta.LogoPath)
+		if _, err := os.Stat(logoFilePath); os.IsNotExist(err) {
+			return fmt.Errorf("logo file %s not found", manifest.Meta.LogoPath)
+		}
+	}
+
+	return nil
 }
 
 func (sourceManager *sourceManager) GetAllSourceConfigurations() []dogeboxd.ManifestSourceConfiguration {

@@ -56,7 +56,7 @@ func (r ManifestSourceDisk) List(_ bool) (dogeboxd.ManifestSourceList, error) {
 	// dogebox.json or something that can point to sub-pups.
 
 	// Load the manifest file
-	manifestPath := filepath.Join(r.config.Location, "pup.manifest")
+	manifestPath := filepath.Join(r.config.Location, "manifest.json")
 	manifestData, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return dogeboxd.ManifestSourceList{}, fmt.Errorf("failed to read manifest file: %w", err)
