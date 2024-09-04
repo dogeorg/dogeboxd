@@ -2,7 +2,6 @@ package dogeboxd
 
 import (
 	"errors"
-	"fmt"
 	"log"
 
 	"github.com/go-resty/resty/v2"
@@ -37,20 +36,8 @@ type dkmManager struct {
 }
 
 func NewDKMManager(pupManager PupManager) DKMManager {
-	// TODO: get the dkm pup from our internal state
-	dkmIP := "127.0.0.1"
-
-	// if err != nil {
-	// 	log.Fatalln("Failed to find an instance of DKM:", err)
-	// }
-
-	// if !found {
-	// 	// You can't use dogebox without an instance of DKM
-	// 	log.Fatalln("Could not find an instance of DKM installed. Aborting.")
-	// }
-
 	client := resty.New()
-	client.SetBaseURL(fmt.Sprintf("http://%s:8089", dkmIP))
+	client.SetBaseURL("http://127.0.0.1:8089")
 	client.SetHeader("Accept", "application/json")
 	client.SetContentLength(true)
 
@@ -60,8 +47,6 @@ func NewDKMManager(pupManager PupManager) DKMManager {
 }
 
 func (t dkmManager) CreateKey(password string) ([]string, error) {
-	// TODO: we probably want to add some restrictions on passwords that can be used here?
-
 	var result DKMResponseCreateKey
 	var errorResponse DKMErrorResponse
 
