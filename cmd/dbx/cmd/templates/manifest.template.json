@@ -1,0 +1,32 @@
+{
+  "manifestVersion": 1,
+  "meta": {
+    "name": "{{.PUP_NAME}}",
+    "version": "0.0.1",
+    "logoPath": null
+  },
+  "config": {},
+  "container": {
+    "build": {
+      "nixFile": "pup.nix",
+      "nixFileSha256": ""
+    },
+    "services": [
+      {
+        "name": "{{.PUP_NAME}}-service",
+        "command": {
+          "exec": "/bin/server"
+        }
+      }
+    ],
+    "exposes": [
+      {
+        "type": "admin",
+        "trafficType": "http",
+        "port": 8080
+      }
+    ]
+  },
+  "permissionGroups": [],
+  "dependencies": []
+}
