@@ -6,8 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// pupCmd represents the pup command
-var pupCmd = &cobra.Command{
+var devPupCmd = &cobra.Command{
 	Use:   "pup",
 	Short: "Pup development commands",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -16,15 +15,5 @@ var pupCmd = &cobra.Command{
 }
 
 func init() {
-	devCmd.AddCommand(pupCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// pupCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// pupCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	devCmd.AddCommand(devPupCmd)
 }

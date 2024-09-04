@@ -23,7 +23,7 @@ type TemplateValues struct {
 }
 
 // initCmd represents the init command
-var pupInitCmd = &cobra.Command{
+var devPupInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Create a new pup",
 	Run: func(cmd *cobra.Command, args []string) {
@@ -59,15 +59,24 @@ var pupInitCmd = &cobra.Command{
 			return
 		}
 
+		cmd.Printf("Wrote %s\n", filepath.Join(pupDir, "manifest.json"))
+
 		if err := writeTemplate(filepath.Join(pupDir, "pup.nix"), pupTemplate, values); err != nil {
 			cmd.PrintErrln("Error: failed to write pup template")
 			return
 		}
 
+		cmd.Printf("Wrote %s\n", filepath.Join(pupDir, "pup.nix"))
+
 		if err := writeTemplate(filepath.Join(pupDir, "server.go"), serverGoTemplate, values); err != nil {
 			cmd.PrintErrln("Error: failed to write server template")
 			return
 		}
+
+		cmd.Printf("Wrote %s\n", filepath.Join(pupDir, "server.go"))
+
+		devPupUpdateHashCmd.Flags().Set("pupDir", pupDir)
+		devPupUpdateHashCmd.Run(devPupUpdateHashCmd, args)
 
 		cmd.Println("Pup initialized successfully:", pupDir)
 	},
@@ -94,7 +103,7 @@ func writeTemplate(path string, templateRaw []byte, data any) error {
 }
 
 func init() {
-	pupInitCmd.Flags().StringP("name", "n", "", "Name of the pup")
-	pupInitCmd.MarkFlagRequired("name")
-	pupCmd.AddCommand(pupInitCmd)
+	devPupInitCmd.Flags().StringP("name", "n", "", "Name of the pup")
+	devPupInitCmd.MarkFlagRequired("name")
+	devPupCmd.AddCommand(devPupInitCmd)
 }

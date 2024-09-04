@@ -9,7 +9,7 @@
   "container": {
     "build": {
       "nixFile": "pup.nix",
-      "nixFileSha256": ""
+      "nixFileSha256": "replace-me"
     },
     "services": [
       {
