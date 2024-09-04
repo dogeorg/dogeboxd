@@ -4,7 +4,6 @@
   networking.nat = {
     enable = true;
     internalInterfaces = [ "ve-pups-+" ];
-    #externalInterface = "{{ .NETWORK_INTERFACE }}";
     enableIPv6 = false;
   };
 
