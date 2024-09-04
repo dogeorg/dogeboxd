@@ -12,7 +12,7 @@ import (
 func main() {
 	var dataDir string
 	var help bool
-	flag.StringVar(&dataDir, "data", "/etc/dogebox", "Directory to write configuration files to")
+	flag.StringVar(&dataDir, "data", "/opt/dogebox", "Directory to write configuration files to")
 	flag.BoolVar(&help, "h", false, "Get help")
 
 	if help {

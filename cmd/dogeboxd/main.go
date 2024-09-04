@@ -25,7 +25,7 @@ func main() {
 
 	flag.IntVar(&port, "port", 8080, "REST API Port")
 	flag.StringVar(&bind, "addr", "127.0.0.1", "Address to bind to")
-	flag.StringVar(&dataDir, "data", "/etc/dogebox", "Directory to write configuration files to")
+	flag.StringVar(&dataDir, "data", "/opt/dogebox", "Directory to write configuration files to")
 	flag.StringVar(&nixDir, "nix", "/etc/nixos/dogebox", "Directory to write dogebox-specific nix configuration to")
 	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
 	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
