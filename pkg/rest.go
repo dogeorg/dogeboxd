@@ -341,45 +341,34 @@ func (t api) logout(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (t api) getRawBS() (any, error) {
+type BootstrapFacts struct {
+	HasGeneratedKey                  bool `json:"hasGeneratedKey"`
+	HasConfiguredNetwork             bool `json:"hasConfiguredNetwork"`
+	HasCompletedInitialConfiguration bool `json:"hasCompletedInitialConfiguration"`
+}
+
+type BootstrapResponse struct {
+	States     map[string]PupState `json:"states"`
+	Stats      map[string]PupStats `json:"stats"`
+	SetupFacts BootstrapFacts      `json:"setupFacts"`
+}
+
+func (t api) getRawBS() BootstrapResponse {
 	dbxState := t.dbx.sm.Get().Dogebox
 
-	list, err := t.dbx.sources.GetAll()
-	if err != nil {
-		return nil, err
-	}
-
-	flat := []pup.PupManifest{}
-
-	for _, l := range list {
-		for _, pup := range l.Pups {
-			flat = append(flat, pup.Manifest)
-		}
-	}
-
-	// TODO: Ideally this should return the straight map to the client,
-	//       but the frontend is currently just expecting an array.
-
-	return map[string]any{
-		"manifests": flat,
-		"states":    t.pups.GetStateMap(),
-		"stats":     t.pups.GetStatsMap(),
-		"setupFacts": map[string]bool{
-			"hasGeneratedKey":                  dbxState.InitialState.HasGeneratedKey,
-			"hasConfiguredNetwork":             dbxState.InitialState.HasSetNetwork,
-			"hasCompletedInitialConfiguration": dbxState.InitialState.HasFullyConfigured,
+	return BootstrapResponse{
+		States: t.pups.GetStateMap(),
+		Stats:  t.pups.GetStatsMap(),
+		SetupFacts: BootstrapFacts{
+			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
+			HasConfiguredNetwork:             dbxState.InitialState.HasSetNetwork,
+			HasCompletedInitialConfiguration: dbxState.InitialState.HasFullyConfigured,
 		},
-	}, nil
+	}
 }
 
 func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
-	bs, err := t.getRawBS()
-	if err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching bootstrap")
-		return
-	}
-
-	sendResponse(w, bs)
+	sendResponse(w, t.getRawBS())
 }
 
 func (t api) hostReboot(w http.ResponseWriter, r *http.Request) {
@@ -778,11 +767,7 @@ func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
 
 func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
 	t.ws.GetWSHandler(WS_DEFAULT_CHANNEL, func() any {
-		bs, err := t.getRawBS()
-		if err != nil {
-			return Change{ID: "internal", Error: "Failed to fetch bootstrap"}
-		}
-
+		bs := t.getRawBS()
 		return Change{ID: "internal", Error: "", Type: "bootstrap", Update: bs}
 	}).ServeHTTP(w, r)
 }
