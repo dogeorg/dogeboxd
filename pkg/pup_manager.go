@@ -11,9 +11,22 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
+
+const (
+	PUP_CHANGED_INSTALLATION int = iota
+	PUP_ADOPTED                  = iota
+)
+
+// Represents a change to pup state
+type Pupdate struct {
+	ID    string
+	Event int // see consts above ^
+	State PupState
+}
 
 /* The PupManager is collection of PupState and PupStats
 * for all installed Pups.
@@ -23,11 +36,13 @@ import (
  */
 
 type PupManager struct {
-	pupDir string // Where pup state is stored
-	tmpDir string // Where temporary files are stored
-	lastIP net.IP // last issued IP address
-	state  map[string]*PupState
-	stats  map[string]*PupStats
+	pupDir            string // Where pup state is stored
+	tmpDir            string // Where temporary files are stored
+	lastIP            net.IP // last issued IP address
+	mu                *sync.Mutex
+	state             map[string]*PupState
+	stats             map[string]*PupStats
+	updateSubscribers map[chan Pupdate]bool
 }
 
 func NewPupManager(dataDir string) (PupManager, error) {
@@ -50,11 +65,14 @@ func NewPupManager(dataDir string) (PupManager, error) {
 		}
 	}
 
+	mu := sync.Mutex{}
 	p := PupManager{
-		pupDir: pupDir,
-		tmpDir: tmpDir,
-		state:  map[string]*PupState{},
-		stats:  map[string]*PupStats{},
+		pupDir:            pupDir,
+		tmpDir:            tmpDir,
+		state:             map[string]*PupState{},
+		stats:             map[string]*PupStats{},
+		updateSubscribers: map[chan Pupdate]bool{},
+		mu:                &mu,
 	}
 	// load pups from disk
 	err := p.loadPups()
@@ -141,6 +159,12 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 
 	// If we've successfully saved to disk, set up in-memory.
 	t.indexPup(&p)
+	// Send a Pupdate announcing 'adopted'
+	t.sendPupdate(Pupdate{
+		ID:    PupID,
+		Event: PUP_ADOPTED,
+		State: p,
+	})
 	return PupID, nil
 }
 
@@ -150,6 +174,29 @@ func (t PupManager) PurgePup(pupId string) error {
 	delete(t.stats, pupId)
 
 	return nil
+}
+
+func (t PupManager) GetUpdateChannel() chan Pupdate {
+	ch := make(chan Pupdate)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.updateSubscribers[ch] = true
+	return ch
+}
+
+func (t PupManager) sendPupdate(p Pupdate) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for ch := range t.updateSubscribers {
+		select {
+		case ch <- p:
+			// sent pupdate to subscriber
+		default:
+			// channel is closed or full, delete it
+			delete(t.updateSubscribers, ch)
+		}
+	}
 }
 
 func (t PupManager) GetStateMap() map[string]PupState {
@@ -204,13 +251,21 @@ func (t PupManager) GetPupFromSource(name string, source ManifestSourceConfigura
 * ie: err := manager.UpdatePup(id, SetPupInstallation(STATE_READY))
 * see bottom of file for options
  */
-func (t PupManager) UpdatePup(id string, updates ...func(*PupState)) (PupState, error) {
+func (t PupManager) UpdatePup(id string, updates ...func(*PupState, *[]Pupdate)) (PupState, error) {
 	p, ok := t.state[id]
 	if !ok {
 		return PupState{}, errors.New("pup not found")
 	}
+
+	// capture any pupdates from updateFns
+	pupdates := []Pupdate{}
 	for _, updateFn := range updates {
-		updateFn(p)
+		updateFn(p, &pupdates)
+	}
+
+	// send any pupdates
+	for _, pu := range pupdates {
+		t.sendPupdate(pu)
 	}
 
 	return *p, t.savePup(p)
@@ -300,34 +355,39 @@ func (t PupManager) indexPup(p *PupState) {
 /*                Varadic Update Funcs for PupManager.UpdatePup:             */
 /*****************************************************************************/
 
-func SetPupInstallation(state string) func(*PupState) {
-	return func(p *PupState) {
+func SetPupInstallation(state string) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
 		p.Installation = state
+		*pu = append(*pu, Pupdate{
+			ID:    p.ID,
+			Event: PUP_CHANGED_INSTALLATION,
+			State: *p,
+		})
 	}
 }
 
-func SetPupConfig(newFields map[string]string) func(*PupState) {
-	return func(p *PupState) {
+func SetPupConfig(newFields map[string]string) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
 		for k, v := range newFields {
 			p.Config[k] = v
 		}
 	}
 }
 
-func PupEnabled(b bool) func(*PupState) {
-	return func(p *PupState) {
+func PupEnabled(b bool) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
 		p.Enabled = b
 	}
 }
 
-func PupNeedsConf(b bool) func(*PupState) {
-	return func(p *PupState) {
+func PupNeedsConf(b bool) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
 		p.NeedsConf = b
 	}
 }
 
-func PupNeedsDeps(b bool) func(*PupState) {
-	return func(p *PupState) {
+func PupNeedsDeps(b bool) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
 		p.NeedsDeps = b
 	}
 }

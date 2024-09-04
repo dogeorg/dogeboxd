@@ -112,6 +112,13 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					t.jobDispatcher(j)
 
+				// Handle updates from PupManager
+				case p, ok := <-t.Pups.GetUpdateChannel():
+					if !ok {
+						break dance
+					}
+					fmt.Printf("EVENT: %+v\n", p)
+
 				// Handle completed jobs from SystemUpdater
 				case j, ok := <-t.SystemUpdater.GetUpdateChannel():
 					if !ok {

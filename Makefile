@@ -27,5 +27,8 @@ dev:
 multipassdev:
 	go run ./cmd/dogeboxd -v -addr 0.0.0.0 -pups ~/
 
+orb:
+	go run ./cmd/dogeboxd --addr 0.0.0.0 --danger-dev --data ~/data --nix ~/data/nix --port 3000 --uiport 8080
+
 test:
 	go test -v ./test
