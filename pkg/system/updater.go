@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
 	"fmt"
 	"log"
@@ -136,6 +137,29 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	if err != nil {
 		log.Printf("Failed to download pup: %w", err)
 		return err
+	}
+
+	// Ensure the nix file configured in the manifest matches the hash specified.
+	// Read pupPath s.Manifest.Container.Build.NixFile and hash it with sha256
+	nixFile, err := os.ReadFile(filepath.Join(pupPath, s.Manifest.Container.Build.NixFile))
+	if err != nil {
+		log.Printf("Failed to read specified nix file: %w", err)
+		return err
+	}
+	nixFileSha256 := sha256.Sum256(nixFile)
+
+	// Compare the sha256 hash of the nix file to the hash specified in the manifest
+	if fmt.Sprintf("%x", nixFileSha256) != s.Manifest.Container.Build.NixFileSha256 {
+		log.Printf("Nix file hash mismatch")
+
+		// Transition pup into a broken state. We probably need a "why" somewhere to convey to the user.
+		_, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_BROKEN))
+		if err != nil {
+			log.Printf("Failed to transition pup into broken installation state: %w", err)
+			return err
+		}
+
+		return fmt.Errorf("Nix file hash mismatch")
 	}
 
 	storagePath := filepath.Join(t.config.DataDir, "pups/storage", s.ID)

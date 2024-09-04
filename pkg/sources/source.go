@@ -118,6 +118,9 @@ func (sourceManager *sourceManager) DownloadPup(path, sourceName, pupName, pupVe
 		return err
 	}
 
+	// TODO: Once downloaded, verify any specified files
+	//       in the manifest are actually present on disk
+
 	return r.Download(path, sourcePup.Location)
 }
 
