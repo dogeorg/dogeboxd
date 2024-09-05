@@ -18,6 +18,7 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/pup"
 	"github.com/gorilla/securecookie"
 	"github.com/rs/cors"
+	"golang.org/x/mod/semver"
 )
 
 const sessionExpiry = time.Hour
@@ -688,7 +689,9 @@ func (t api) deleteSource(w http.ResponseWriter, r *http.Request) {
 
 type StoreListSourceEntryPup struct {
 	IsInstalled      bool                       `json:"isInstalled"`
+	InstalledID      string                     `json:"installedId"`
 	InstalledVersion string                     `json:"installedVersion"`
+	LatestVersion    string                     `json:"latestVersion"`
 	Versions         map[string]pup.PupManifest `json:"versions"`
 }
 
@@ -727,9 +730,11 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 				isInstalled := installedPupState != nil
 
 				var installedVersion string
+				var installedID string
 
 				if isInstalled {
 					installedVersion = installedPupState.Version
+					installedID = installedPupState.ID
 				}
 
 				versions := map[string]pup.PupManifest{}
@@ -737,6 +742,8 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 				pups[availablePup.Name] = StoreListSourceEntryPup{
 					IsInstalled:      isInstalled,
 					InstalledVersion: installedVersion,
+					InstalledID:      installedID,
+					LatestVersion:    availablePup.Version,
 					Versions:         versions,
 				}
 			}
@@ -744,6 +751,11 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 			// Retrieve the struct, modify it, and store it back in the map
 			pupEntry := pups[availablePup.Name]
 			pupEntry.Versions[availablePup.Version] = availablePup.Manifest
+
+			if semver.Compare(availablePup.Version, pups[availablePup.Name].LatestVersion) > 0 {
+				pupEntry.LatestVersion = availablePup.Version
+			}
+
 			pups[availablePup.Name] = pupEntry
 		}
 
