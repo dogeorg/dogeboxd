@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -277,7 +278,15 @@ func (t SystemUpdater) enablePup(s dogeboxd.PupState) error {
 		return err
 	}
 
-	return t.nix.WritePupFile(newState)
+	if err := t.nix.WritePupFile(newState); err != nil {
+		return err
+	}
+
+	if err := t.nix.Rebuild(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (t SystemUpdater) disablePup(s dogeboxd.PupState) error {
@@ -285,6 +294,15 @@ func (t SystemUpdater) disablePup(s dogeboxd.PupState) error {
 
 	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(false))
 	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("sudo", "machinectlstop", s.ID)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error executing machinectlstop:", err)
 		return err
 	}
 
