@@ -117,14 +117,14 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
-					t.Changes <- Change{"", "", "pup", p.State}
+					t.Changes <- Change{"internal", "", "pup", p.State}
 
 				// Handle stats from PupManager
 				case stats, ok := <-t.Pups.GetStatsChannel():
 					if !ok {
 						break dance
 					}
-					t.Changes <- Change{"", "", "stats", stats}
+					t.Changes <- Change{"internal", "", "stats", stats}
 
 				// Handle completed jobs from SystemUpdater
 				case j, ok := <-t.SystemUpdater.GetUpdateChannel():
