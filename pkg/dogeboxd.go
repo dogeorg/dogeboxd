@@ -131,6 +131,12 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
+					if j.Err == "" && j.State != nil {
+						state, _, err := t.Pups.GetPup(j.State.ID)
+						if err == nil {
+							j.Success = state
+						}
+					}
 					t.sendFinishedJob("action", j)
 
 				}
