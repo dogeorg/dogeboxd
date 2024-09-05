@@ -52,32 +52,33 @@ type PupState struct {
 // PupStats is not persisted to disk, and holds the running
 // stats for the pup process, ie: disk, CPU, etc.
 type PupStats struct {
-	ID       string      `json:"id"`
-	Status   string      `json:"status"`
-	StatCPU  FloatBuffer `json:"status_cpu"`
-	StatMEM  FloatBuffer `json:"status_mem"`
-	StatDISK FloatBuffer `json:"status_disk"`
+	ID          string      `json:"id"`
+	Status      string      `json:"status"`
+	StatCPU     FloatBuffer `json:"status_cpu_percent"`
+	StatMEM     FloatBuffer `json:"status_mem_total"`
+	StatMEMPERC FloatBuffer `json:"status_mem_percent"`
+	StatDISK    FloatBuffer `json:"status_disk"`
 }
 
 type FloatBuffer struct {
-	Values []float32
+	Values []float64
 	Head   int
 }
 
 func NewFloatBuffer(size int) FloatBuffer {
 	return FloatBuffer{
-		Values: make([]float32, size),
+		Values: make([]float64, size),
 		Head:   0,
 	}
 }
 
-func (b *FloatBuffer) Add(value float32) {
+func (b *FloatBuffer) Add(value float64) {
 	b.Values[b.Head] = value
 	b.Head = (b.Head + 1) % len(b.Values)
 }
 
-func (b *FloatBuffer) GetValues() []float32 {
-	lastN := make([]float32, len(b.Values))
+func (b *FloatBuffer) GetValues() []float64 {
+	lastN := make([]float64, len(b.Values))
 	for i := 0; i < len(b.Values); i++ {
 		lastN[i] = b.Values[(b.Head-i-1+len(b.Values))%len(b.Values)]
 	}

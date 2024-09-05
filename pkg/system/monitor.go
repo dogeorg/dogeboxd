@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"strings"
 	"time"
 
 	dbus "github.com/coreos/go-systemd/v22/dbus"
@@ -59,17 +58,18 @@ func (t SystemMonitor) Run(started, stopped chan bool, stop chan context.Context
 				case <-timer.C:
 					stats, err := getStatus(t.services)
 					if err != nil {
-						fmt.Println("rrr")
+						fmt.Println("error getting stats from systemd:", err)
+						continue mainloop
 					}
 					select {
 					case t.stats <- stats:
 					default:
+						fmt.Println("couldn't write to output channel")
 					}
 					timer.Reset(5 * time.Second)
 				}
 			}
 		}()
-
 		started <- true
 		<-stop
 		// do shutdown things
@@ -79,19 +79,7 @@ func (t SystemMonitor) Run(started, stopped chan bool, stop chan context.Context
 }
 
 func (t *SystemMonitor) updateServices(args []string) {
-	for _, s := range args {
-		if strings.HasPrefix(s, "-") {
-			x := strings.TrimPrefix(s, "-")
-			for i, v := range t.services {
-				if v == x {
-					t.services = append((t.services)[:i], (t.services)[i+1:]...)
-					break
-				}
-			}
-		} else {
-			t.services = append(t.services, s)
-		}
-	}
+	t.services = args
 }
 
 func getStatus(serviceNames []string) (map[string]dogeboxd.ProcStatus, error) {
