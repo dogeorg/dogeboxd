@@ -128,6 +128,11 @@ func (t SystemUpdater) GetUpdateChannel() chan dogeboxd.Job {
 func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.PupState) error {
 	// TODO: Install deps!
 
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_INSTALLING)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
+		return err
+	}
+
 	log.Printf("Installing pup from %s: %s @ %s", pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
 	pupPath := filepath.Join(t.config.DataDir, "pups", s.ID)
 
@@ -203,7 +208,7 @@ func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 	log.Printf("Uninstalling pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLING)); err != nil {
-		log.Printf("Failed to update pup installation state: %w", err)
+		log.Printf("Failed to update pup uninstalling state: %w", err)
 		return err
 	}
 
