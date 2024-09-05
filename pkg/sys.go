@@ -136,7 +136,7 @@ type NetworkPersistor interface {
 }
 
 type SourceManager interface {
-	GetAll() (map[string]ManifestSourceList, error)
+	GetAll(ignoreCache bool) (map[string]ManifestSourceList, error)
 	GetSourceManifest(sourceName, pupName, pupVersion string) (pup.PupManifest, ManifestSource, error)
 	GetSourcePup(sourceName, pupName, pupVersion string) (ManifestSourcePup, error)
 	GetSource(name string) (ManifestSource, error)

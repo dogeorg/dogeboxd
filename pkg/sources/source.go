@@ -46,11 +46,11 @@ type sourceManager struct {
 	sources []dogeboxd.ManifestSource
 }
 
-func (sourceManager *sourceManager) GetAll() (map[string]dogeboxd.ManifestSourceList, error) {
+func (sourceManager *sourceManager) GetAll(ignoreCache bool) (map[string]dogeboxd.ManifestSourceList, error) {
 	available := map[string]dogeboxd.ManifestSourceList{}
 
 	for _, r := range sourceManager.sources {
-		l, err := r.List(false)
+		l, err := r.List(ignoreCache)
 		if err != nil {
 			return nil, err
 		}

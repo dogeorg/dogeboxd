@@ -701,7 +701,9 @@ type StoreListSourceEntry struct {
 }
 
 func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
-	available, err := t.dbx.sources.GetAll()
+	forceRefresh := r.URL.Query().Get("refresh") == "true"
+
+	available, err := t.dbx.sources.GetAll(forceRefresh)
 	if err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching sources")
 		return
