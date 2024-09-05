@@ -68,6 +68,10 @@ type PupManifestMeta struct {
 	Version string `json:"version"`
 	// Optional. A path to a logo for this pup.
 	LogoPath string `json:"logoPath"`
+	// A short description, single line.
+	ShortDescription string `json:"shortDescription"`
+	// Optional, longer description. Used for store listings.
+	LongDescription string `json:"longDescription"`
 }
 
 /* PupManfiestV1Container contains information about the
