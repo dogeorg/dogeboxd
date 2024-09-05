@@ -47,8 +47,16 @@ func getBearerToken(r *http.Request) (bool, string) {
 	return true, authPart[1]
 }
 
-func getSession(r *http.Request) (Session, bool) {
-	tokenOK, token := getBearerToken(r)
+func getQueryToken(r *http.Request) (bool, string) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		return false, ""
+	}
+	return true, token
+}
+
+func getSession(r *http.Request, tokenExtractor func(r *http.Request) (bool, string)) (Session, bool) {
+	tokenOK, token := tokenExtractor(r)
 	if !tokenOK || token == "" {
 		return Session{}, false
 	}
@@ -122,8 +130,15 @@ func authReq(dbx Dogeboxd, route string, next http.HandlerFunc) http.HandlerFunc
 		})
 	}
 
+	tokenExtractor := getBearerToken
+
+	// Handle Websocket request authentication separately.
+	if strings.HasPrefix(route, "/ws/") {
+		tokenExtractor = getQueryToken
+	}
+
 	sessionHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, ok := getSession(r)
+		_, ok := getSession(r, tokenExtractor)
 
 		if !ok {
 			w.WriteHeader(401)
@@ -313,7 +328,7 @@ func (t api) authenticate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) logout(w http.ResponseWriter, r *http.Request) {
-	session, sessionOK := getSession(r)
+	session, sessionOK := getSession(r, getBearerToken)
 	if !sessionOK {
 		sendErrorResponse(w, 500, "Failed to fetch session")
 		return
