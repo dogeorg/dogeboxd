@@ -333,9 +333,14 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 						s.StatMEM.Add(v.MEMMb)
 						s.StatMEMPERC.Add(v.MEMPercent)
 						s.StatDISK.Add(float64(0.0))
-						// TODO: how do we handle STATE_STOPPING etc
-						if v.Running {
+						// Calculate our status
+						p := t.state[id]
+						if v.Running && p.Enabled {
 							s.Status = STATE_RUNNING
+						} else if v.Running && !p.Enabled {
+							s.Status = STATE_STOPPING
+						} else if !v.Running && p.Enabled {
+							s.Status = STATE_STARTING
 						} else {
 							s.Status = STATE_STOPPED
 						}

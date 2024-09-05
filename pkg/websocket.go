@@ -95,7 +95,6 @@ func (t WSRelay) GetWSHandler(channel string, initialPayloader func() any) *webs
 	}
 	h := websocket.Server{
 		Handler: func(ws *websocket.Conn) {
-			fmt.Println("HANDL")
 			stop := make(chan bool)
 			t.newWs <- WSCONN{ws, stop, sync.Once{}, channel}
 
@@ -119,7 +118,6 @@ func (t *WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel con
 	start := make(chan bool)
 	h := websocket.Server{
 		Handler: func(ws *websocket.Conn) {
-			fmt.Println("HANDL")
 			t.newWs <- WSCONN{ws, stop, sync.Once{}, channel}
 			start <- true
 			<-stop // hold the connection until stopper closes
@@ -142,7 +140,6 @@ func (t *WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel con
 					close(stop)
 					break
 				}
-				fmt.Println(">>", channel, s)
 				t.Broadcast(channel, s)
 			}
 		}
