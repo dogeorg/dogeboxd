@@ -131,7 +131,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
-					t.sendFinishedJob("system", j)
+					t.sendFinishedJob("action", j)
 
 				}
 			}
@@ -205,7 +205,7 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName 
 	manifest, source, err := t.sources.GetSourceManifest(sourceName, pupName, pupVersion)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
-		t.sendFinishedJob("error", j)
+		t.sendFinishedJob("action", j)
 		log.Println(j.Err)
 		return
 	}
@@ -214,7 +214,7 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName 
 	pupID, err := t.Pups.AdoptPup(manifest, source)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
-		t.sendFinishedJob("error", j)
+		t.sendFinishedJob("action", j)
 		log.Println(j.Err)
 		return
 	}
@@ -229,7 +229,7 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 	if err != nil {
 		fmt.Println("couldn't update pup", err)
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
-		t.sendFinishedJob("error", j)
+		t.sendFinishedJob("action", j)
 		return
 	}
 
@@ -237,10 +237,10 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 	if err != nil {
 		fmt.Println("Couldnt get pup", u.PupID)
 		j.Err = err.Error()
-		t.sendFinishedJob("error", j)
+		t.sendFinishedJob("action", j)
 		return
 	}
-	t.sendFinishedJob("PupStatus", j)
+	t.sendFinishedJob("action", j)
 }
 
 // helper to report a completed job back to the client
@@ -254,7 +254,7 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	if err != nil {
 		j.Err = err.Error()
 		fmt.Println("Failed to get pup:", err)
-		t.sendFinishedJob("error", j)
+		t.sendFinishedJob("action", j)
 		return
 	}
 	j.State = &p
