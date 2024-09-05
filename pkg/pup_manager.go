@@ -1,6 +1,7 @@
 package dogeboxd
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/gob"
 	"errors"
@@ -42,10 +43,12 @@ type PupManager struct {
 	mu                *sync.Mutex
 	state             map[string]*PupState
 	stats             map[string]*PupStats
-	updateSubscribers map[chan Pupdate]bool
+	updateSubscribers map[chan Pupdate]bool    // listeners for 'Pupdates'
+	statsSubscribers  map[chan []PupStats]bool // listeners for 'PupStats'
+	monitor           SystemMonitor
 }
 
-func NewPupManager(dataDir string) (PupManager, error) {
+func NewPupManager(dataDir string, monitor SystemMonitor) (PupManager, error) {
 	pupDir := filepath.Join(dataDir, "pups")
 	tmpDir := filepath.Join(dataDir, "tmp")
 
@@ -72,7 +75,9 @@ func NewPupManager(dataDir string) (PupManager, error) {
 		state:             map[string]*PupState{},
 		stats:             map[string]*PupStats{},
 		updateSubscribers: map[chan Pupdate]bool{},
+		statsSubscribers:  map[chan []PupStats]bool{},
 		mu:                &mu,
+		monitor:           monitor,
 	}
 	// load pups from disk
 	err := p.loadPups()
@@ -94,7 +99,7 @@ func NewPupManager(dataDir string) (PupManager, error) {
 		}
 	}
 	p.lastIP = ip
-
+	p.updateMonitoredPups()
 	return p, nil
 }
 
@@ -176,6 +181,7 @@ func (t PupManager) PurgePup(pupId string) error {
 	return nil
 }
 
+/* Hand out channels to pupdate subscribers */
 func (t PupManager) GetUpdateChannel() chan Pupdate {
 	ch := make(chan Pupdate)
 	t.mu.Lock()
@@ -184,6 +190,7 @@ func (t PupManager) GetUpdateChannel() chan Pupdate {
 	return ch
 }
 
+// send pupdates to subscribers
 func (t PupManager) sendPupdate(p Pupdate) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -195,6 +202,37 @@ func (t PupManager) sendPupdate(p Pupdate) {
 		default:
 			// channel is closed or full, delete it
 			delete(t.updateSubscribers, ch)
+		}
+	}
+}
+
+/* Hand out channels to stat subscribers */
+func (t PupManager) GetStatsChannel() chan []PupStats {
+	ch := make(chan []PupStats)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.statsSubscribers[ch] = true
+	return ch
+}
+
+// send stats to subscribers
+func (t PupManager) sendStats() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	stats := []PupStats{}
+
+	for _, v := range t.stats {
+		stats = append(stats, *v)
+	}
+
+	for ch := range t.statsSubscribers {
+		select {
+		case ch <- stats:
+			// sent stats to subscriber
+		default:
+			// channel is closed or full, delete it
+			delete(t.statsSubscribers, ch)
 		}
 	}
 }
@@ -271,6 +309,49 @@ func (t PupManager) UpdatePup(id string, updates ...func(*PupState, *[]Pupdate))
 	return *p, t.savePup(p)
 }
 
+/* Run as a service so we can listen for stats from the
+* SystemMonitor and update t.stats
+ */
+func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) error {
+	go func() {
+		go func() {
+		mainloop:
+			for {
+				select {
+				case <-stop:
+					break mainloop
+				case stats := <-t.monitor.GetStatChannel():
+					// turn ProcStatus into updates to t.state
+					for k, v := range stats {
+						id := k[strings.Index(k, "-")+1 : strings.Index(k, ".")]
+						s, ok := t.stats[id]
+						if !ok {
+							fmt.Println("skipping stats for unfound pup", id)
+							continue
+						}
+						s.StatCPU.Add(v.CPUPercent)
+						s.StatMEM.Add(v.MEMMb)
+						s.StatMEMPERC.Add(v.MEMPercent)
+						s.StatDISK.Add(float64(0.0))
+						// TODO: how do we handle STATE_STOPPING etc
+						if v.Running {
+							s.Status = STATE_RUNNING
+						} else {
+							s.Status = STATE_STOPPED
+						}
+					}
+					t.sendStats()
+				}
+			}
+		}()
+		started <- true
+		<-stop
+		// do shutdown things
+		stopped <- true
+	}()
+	return nil
+}
+
 /* Gets the list of previously managed pupIDs and loads their
 * state into memory.
  */
@@ -335,20 +416,33 @@ func (t PupManager) savePup(p *PupState) error {
 		return fmt.Errorf("cannot rename temporary file to %q: %w", path, err)
 	}
 
+	t.updateMonitoredPups()
 	return nil
 }
 
 func (t PupManager) indexPup(p *PupState) {
 	s := PupStats{
-		ID:       p.ID,
-		Status:   STATE_STOPPED,
-		StatCPU:  NewFloatBuffer(32),
-		StatMEM:  NewFloatBuffer(32),
-		StatDISK: NewFloatBuffer(32),
+		ID:          p.ID,
+		Status:      STATE_STOPPED,
+		StatCPU:     NewFloatBuffer(30),
+		StatMEM:     NewFloatBuffer(30),
+		StatMEMPERC: NewFloatBuffer(30),
+		StatDISK:    NewFloatBuffer(30),
 	}
 
 	t.state[p.ID] = p
 	t.stats[p.ID] = &s
+}
+
+/* Set the list of monitored services on the SystemMonitor */
+func (t PupManager) updateMonitoredPups() {
+	serviceNames := []string{}
+	for _, p := range t.state {
+		if p.Installation == STATE_READY && p.Enabled {
+			serviceNames = append(serviceNames, fmt.Sprintf("container@pup-%s.service", p.ID))
+		}
+	}
+	t.monitor.GetMonChannel() <- serviceNames
 }
 
 /*****************************************************************************/

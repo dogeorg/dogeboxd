@@ -112,13 +112,19 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					t.jobDispatcher(j)
 
-				// Handle updates from PupManager
+				// Handle pupdates from PupManager
 				case p, ok := <-t.Pups.GetUpdateChannel():
 					if !ok {
 						break dance
 					}
-					fmt.Printf("EVENT: %+v\n", p)
-					t.Changes <= Change{"", "", "pat-talk-to-tjs-about-this", p.State}
+					t.Changes <- Change{"", "", "pup", p.State}
+
+				// Handle stats from PupManager
+				case stats, ok := <-t.Pups.GetStatsChannel():
+					if !ok {
+						break dance
+					}
+					t.Changes <- Change{"", "", "stats", stats}
 
 				// Handle completed jobs from SystemUpdater
 				case j, ok := <-t.SystemUpdater.GetUpdateChannel():
@@ -127,12 +133,6 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					t.sendFinishedJob("system", j)
 
-				// Handle updates from the system monitor
-				case v, ok := <-t.SystemMonitor.GetStatChannel():
-					if !ok {
-						break dance
-					}
-					t.Changes <- Change{"", "", "status", v}
 				}
 			}
 		}()

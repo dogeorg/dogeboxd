@@ -30,7 +30,9 @@ func Server(sm dogeboxd.StateManager, config dogeboxd.ServerConfig) server {
 }
 
 func (t server) Start() {
-	pups, err := dogeboxd.NewPupManager(t.config.DataDir)
+	systemMonitor := system.NewSystemMonitor(t.config)
+
+	pups, err := dogeboxd.NewPupManager(t.config.DataDir, systemMonitor)
 	if err != nil {
 		log.Fatalf("Failed to load Pup state: %+v", err)
 	}
@@ -43,7 +45,6 @@ func (t server) Start() {
 	lifecycleManager := lifecycle.NewLifecycleManager()
 
 	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups)
-	systemMonitor := system.NewSystemMonitor(t.config)
 	journalReader := system.NewJournalReader(t.config)
 
 	/* ----------------------------------------------------------------------- */
@@ -89,6 +90,7 @@ func (t server) Start() {
 	if !t.config.Recovery {
 		c.Service("System Monitor", systemMonitor)
 		c.Service("WSock Relay", wsh)
+		c.Service("Pup Manager", pups)
 	}
 
 	// c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))
