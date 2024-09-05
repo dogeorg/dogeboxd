@@ -238,7 +238,7 @@ func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
 	}
 
 	// Delete pup state from disk
-	if err := os.Remove(filepath.Join(t.config.DataDir, fmt.Sprintf("pup_%s.gob", s.ID))); err != nil {
+	if err := os.Remove(filepath.Join(pupDir, fmt.Sprintf("pup_%s.gob", s.ID))); err != nil {
 		fmt.Println("Failed to remove pup state", err)
 		return err
 	}
