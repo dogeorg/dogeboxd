@@ -20,11 +20,6 @@ func serveSPA(directory string, mainIndex string) http.HandlerFunc {
 	mainIndexPath := filepath.Join(directory, mainIndex)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Disable caching
-		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Expires", "0")
-
 		if r.URL.Path == "/" {
 			http.ServeFile(w, r, mainIndexPath)
 			return
