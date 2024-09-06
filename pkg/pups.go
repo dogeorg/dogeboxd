@@ -12,6 +12,7 @@ const (
 	STATE_UNREADY      string = "unready"
 	STATE_UNINSTALLING string = "uninstalling"
 	STATE_UNINSTALLED  string = "uninstalled"
+	STATE_PURGING      string = "purging"
 	STATE_BROKEN       string = "broken"
 	STATE_STOPPED      string = "stopped"
 	STATE_STARTING     string = "starting"

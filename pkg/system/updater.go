@@ -234,6 +234,11 @@ func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 }
 
 func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_PURGING)); err != nil {
+		log.Printf("Failed to update pup purging state: %w", err)
+		return err
+	}
+
 	pupDir := filepath.Join(t.config.DataDir, "pups")
 
 	log.Printf("Purging pup %s (%s)", s.Manifest.Meta.Name, s.ID)
