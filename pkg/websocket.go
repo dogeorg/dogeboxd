@@ -51,6 +51,7 @@ func (t WSRelay) Run(started, stopped chan bool, stop chan context.Context) erro
 		started <- true
 		<-stop
 		for _, sock := range t.socks {
+			fmt.Println("SHUTDOWN, CLOSING CHANNELS")
 			sock.Close()
 		}
 		stopped <- true
@@ -75,6 +76,7 @@ func (t *WSRelay) Broadcast(channel string, v any) {
 	}
 	if len(deleteMe) > 0 {
 		for pos := range deleteMe {
+			fmt.Println("CLEANUP OLD CHANNELS")
 			t.socks[pos].Close()
 			fmt.Println("removing sock", pos)
 			t.socks[pos] = t.socks[len(t.socks)-1]
@@ -137,6 +139,7 @@ func (t *WSRelay) GetWSChannelHandler(channel string, ch chan string, cancel con
 				break out
 			case s, ok := <-ch:
 				if !ok {
+					fmt.Println("CLOSING CHANNEL 1")
 					close(stop)
 					break
 				}
@@ -156,6 +159,7 @@ type WSCONN struct {
 
 func (t *WSCONN) Close() {
 	t.once.Do(func() {
+		fmt.Println("CLOSING CHANNEL 2")
 		close(t.Stop)
 	})
 }

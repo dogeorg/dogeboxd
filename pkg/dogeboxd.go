@@ -295,8 +295,7 @@ func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, 
 	// TODO this should possibly be the responsibility off
 	// journal reader so systemd concepts dont bleed into
 	// dogecoind..
-	service := fmt.Sprintf("%s.service", state.ID)
+	service := fmt.Sprintf("container@pup-%s.service", state.ID)
 	fmt.Println("conencting to systemd journal: ", service)
-	service = "dbus.service" // TODO HAX REMOVE
 	return t.JournalReader.GetJournalChan(service)
 }
