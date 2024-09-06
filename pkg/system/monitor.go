@@ -65,6 +65,16 @@ func (t SystemMonitor) Run(started, stopped chan bool, stop chan context.Context
 					break mainloop
 				case s := <-t.mon:
 					t.updateServices(s)
+					stats, err := t.runChecks(t.services)
+					if err != nil {
+						continue mainloop
+					}
+					select {
+					case t.stats <- stats:
+					default:
+						fmt.Println("couldn't write to output channel")
+					}
+
 				case s := <-t.fastMon:
 					stop, _ := context.WithCancel(ctx)
 					t.fastLooper(s, stop) // quickly iterate run check for a pup starting/stopping
