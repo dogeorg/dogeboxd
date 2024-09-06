@@ -131,6 +131,19 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
+					// if this job was successful, AND it was a
+					// job that results in the stop/start of a pup,
+					// tell the PupManager to poll for state changes
+					switch j.A.(type) {
+					case InstallPup:
+						t.Pups.FastPollPup(j.State.ID)
+					case EnablePup:
+						t.Pups.FastPollPup(j.State.ID)
+					case DisablePup:
+						t.Pups.FastPollPup(j.State.ID)
+					}
+
+					// TODO: explain why we I this
 					if j.Err == "" && j.State != nil {
 						state, _, err := t.Pups.GetPup(j.State.ID)
 						if err == nil {
