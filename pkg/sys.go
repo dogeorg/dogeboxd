@@ -20,6 +20,8 @@ type SystemUpdater interface {
 type SystemMonitor interface {
 	GetMonChannel() chan []string
 	GetStatChannel() chan map[string]ProcStatus
+	GetFastMonChannel() chan string
+	GetFastStatChannel() chan map[string]ProcStatus
 }
 
 // actively listen for systemd journal entries

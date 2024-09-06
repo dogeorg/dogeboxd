@@ -320,6 +320,7 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 				select {
 				case <-stop:
 					break mainloop
+
 				case stats := <-t.monitor.GetStatChannel():
 					// turn ProcStatus into updates to t.state
 					for k, v := range stats {
@@ -333,6 +334,32 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 						s.StatMEM.Add(v.MEMMb)
 						s.StatMEMPERC.Add(v.MEMPercent)
 						s.StatDISK.Add(float64(0.0))
+						// Calculate our status
+						p := t.state[id]
+						if v.Running && p.Enabled {
+							s.Status = STATE_RUNNING
+						} else if v.Running && !p.Enabled {
+							s.Status = STATE_STOPPING
+						} else if !v.Running && p.Enabled {
+							s.Status = STATE_STARTING
+						} else {
+							s.Status = STATE_STOPPED
+						}
+					}
+					t.sendStats()
+
+				case stats := <-t.monitor.GetFastStatChannel():
+					// This will recieve stats rapidly when pups
+					// are changing state (shutting down, starting up)
+					// these should not be recorded in the floatBuffers
+					// but only to rapidly track STATUS change
+					for k, v := range stats {
+						id := k[strings.Index(k, "-")+1 : strings.Index(k, ".")]
+						s, ok := t.stats[id]
+						if !ok {
+							fmt.Println("skipping stats for unfound pup", id)
+							continue
+						}
 						// Calculate our status
 						p := t.state[id]
 						if v.Running && p.Enabled {
@@ -443,11 +470,18 @@ func (t PupManager) indexPup(p *PupState) {
 func (t PupManager) updateMonitoredPups() {
 	serviceNames := []string{}
 	for _, p := range t.state {
-		if p.Installation == STATE_READY && p.Enabled {
+		if p.Installation == STATE_READY {
 			serviceNames = append(serviceNames, fmt.Sprintf("container@pup-%s.service", p.ID))
 		}
 	}
 	t.monitor.GetMonChannel() <- serviceNames
+}
+
+// called when we expect a pup to be changing state,
+// this will rapidly poll for a few seconds and update
+// the frontend with status.
+func (t PupManager) FastPollPup(id string) {
+	t.monitor.GetFastMonChannel() <- fmt.Sprintf("container@pup-%s.service", id)
 }
 
 /*****************************************************************************/
