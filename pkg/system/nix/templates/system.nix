@@ -5,7 +5,7 @@
   networking.networkmanager.enable = false;
 
   services.openssh.settings = {
-    AllowUsers = [ "dogebox" ];
+    AllowUsers = [ "shibe" ];
   };
 
   services.openssh.banner = ''
@@ -22,11 +22,7 @@
 
   services.openssh.enable = {{ .SSH_ENABLED }};
 
-  users.groups.dogeboxd = {};
-  users.users.dogeboxd = {
-    isSystemUser = true;
-    group =  "dogeboxd";
-
+  users.users.shibe = {
     openssh = {
       authorizedKeys = {
         keys = [
