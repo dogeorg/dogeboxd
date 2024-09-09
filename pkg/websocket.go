@@ -155,7 +155,10 @@ type WSCONN struct {
 }
 
 func (t *WSCONN) Close() {
-	t.once.Do(func() {
-		close(t.Stop)
-	})
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Recovered from panic:", r)
+		}
+	}()
+	close(t.Stop)
 }
