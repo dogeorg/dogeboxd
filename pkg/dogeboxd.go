@@ -203,6 +203,9 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	case UpdatePupConfig:
 		t.updatePupConfig(j, a)
 
+	case UpdatePupProviders:
+		t.updatePupProviders(j, a)
+
 	// Host Actions
 	case UpdatePendingSystemNetwork:
 		t.SystemUpdater.AddJob(j)
@@ -245,6 +248,26 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName 
 // Handle an UpdatePupConfig action
 func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 	_, err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
+	if err != nil {
+		fmt.Println("couldn't update pup", err)
+		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
+		t.sendFinishedJob("action", j)
+		return
+	}
+
+	j.Success, _, err = t.Pups.GetPup(u.PupID)
+	if err != nil {
+		fmt.Println("Couldnt get pup", u.PupID)
+		j.Err = err.Error()
+		t.sendFinishedJob("action", j)
+		return
+	}
+	t.sendFinishedJob("action", j)
+}
+
+// Handle an UpdatePupProviders action
+func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
+	_, err := t.Pups.UpdatePup(u.PupID, SetPupProviders(u.Payload))
 	if err != nil {
 		fmt.Println("couldn't update pup", err)
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)

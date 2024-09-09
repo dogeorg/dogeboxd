@@ -507,6 +507,12 @@ func SetPupConfig(newFields map[string]string) func(*PupState, *[]Pupdate) {
 	}
 }
 
+func SetPupProviders(newProviders map[string]string) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
+		p.Providers = newProviders
+	}
+}
+
 func PupEnabled(b bool) func(*PupState, *[]Pupdate) {
 	return func(p *PupState, pu *[]Pupdate) {
 		p.Enabled = b
