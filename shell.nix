@@ -8,5 +8,6 @@ pkgs.mkShell {
 
   shellHook = ''
     export PS1="\[\e[32m\]dogeboxd-env:\w \$\[\e[0m\] "
+    export LD_LIBRARY_PATH=$(nix-build '<nixpkgs>' -A systemd)/lib:$LD_LIBRARY_PATH
   '';
 }
