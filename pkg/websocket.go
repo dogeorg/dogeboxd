@@ -158,8 +158,10 @@ type WSCONN struct {
 }
 
 func (t *WSCONN) Close() {
-	t.once.Do(func() {
-		fmt.Println("CLOSING CHANNEL 2")
-		close(t.Stop)
-	})
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Recovered from panic:", r)
+		}
+	}()
+	close(t.Stop)
 }
