@@ -261,6 +261,15 @@ func (t PupManager) GetPup(id string) (PupState, PupStats, error) {
 	return PupState{}, PupStats{}, errors.New("pup not found")
 }
 
+func (t PupManager) FindPupByIP(ip string) (PupState, PupStats, error) {
+	for _, p := range t.state {
+		if ip == p.IP {
+			return t.GetPup(p.ID)
+		}
+	}
+	return PupState{}, PupStats{}, errors.New("pup not found")
+}
+
 func (t PupManager) GetAllFromSource(source ManifestSourceConfiguration) []*PupState {
 	pups := []*PupState{}
 

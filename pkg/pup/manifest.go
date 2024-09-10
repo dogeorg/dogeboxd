@@ -10,12 +10,12 @@ type PupManifest struct {
 	// The version of the actual manifest. This differs from the "version"
 	// of the pup, and the version of the deployed software for this pup.
 	// Valid values: 1
-	ManifestVersion  int                          `json:"manifestVersion"`
-	Meta             PupManifestMeta              `json:"meta"`
-	Config           PupManifestConfigFields      `json:"config"`
-	Container        PupManifestContainer         `json:"container"`
-	PermissionGroups []PupManifestPermissionGroup `json:"permissionGroups"`
-	Dependencies     []PupManifestDependency      `json:"dependencies"`
+	ManifestVersion int                     `json:"manifestVersion"`
+	Meta            PupManifestMeta         `json:"meta"`
+	Config          PupManifestConfigFields `json:"config"`
+	Container       PupManifestContainer    `json:"container"`
+	Interfaces      []PupManifestInterface  `json:"interfaces"`
+	Dependencies    []PupManifestDependency `json:"dependencies"`
 }
 
 func (m *PupManifest) Validate() error {
@@ -125,6 +125,12 @@ type PupManifestExposeConfig struct {
 	Port int `json:"port"`
 }
 
+type PupManifestInterface struct {
+	Name             string                       `json:"name"`    // the globally unique name for this interface
+	Version          string                       `json:"version"` // Semver ie: 0.1.1
+	PermissionGroups []PupManifestPermissionGroup `json:"permissionGroups"`
+}
+
 /* PermissionGroups define how other
  * pups can request access to this pup's
  * APIs and resources, via their Dependencies
@@ -141,10 +147,10 @@ type PupManifestPermissionGroup struct {
  * groups from that pup need to be available.
  */
 type PupManifestDependency struct {
-	ID               string                      `json:"id"` // pup that we depend on
-	Source           PupManifestDependencySource `json:"source"`
-	PermissionGroups []string                    `json:"permissionGroups"` // list of permission groups from that pup we want access to
-	Version          string                      `json:"version"`          // min version of the pup required
+	InterfaceName    string                      `json:"interfaceName"`    // interface that we depend on
+	InterfaceVersion string                      `json:"interfaceVersion"` // semver expression
+	PermissionGroups []string                    `json:"permissionGroups"` // list of permission groups from that interface we want
+	DefaultSource    PupManifestDependencySource `json:"source"`           // optional, default package that provides this interface
 }
 
 /* A DependencySource specifies the location of a

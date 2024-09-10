@@ -1,6 +1,9 @@
 package dogeboxd
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 )
@@ -9,18 +12,66 @@ type PupRouter struct {
 	pm PupManager
 }
 
-// matchRoute checks if a URL matches any of the given route patterns, including wildcard segments.
-func (t PupManager) matchRoute(urlStr string, routes []string) (matchedRoute string, ok bool) {
-	// Parse the URL to get the path
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		return "", false
+func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
+	// Who is this request from?
+	var originIsPup bool = false
+	var originIP string
+
+	// handle proxies
+	if r.Header.Get("X-Forwarded-For") != "" {
+		// If there are multiple IPs in X-Forwarded-For, take the first one
+		originIP = strings.Split(forwarded, ",")[0]
+	} else {
+		// otherwise just use the remote address
+		originIP = strings.Split(r.RemoteAddr, ":")[0]
 	}
 
-	// Extract and normalize the path from the URL
-	path := strings.TrimRight(u.Path, "/")
-	pathSegments := strings.Split(path, "/")
+	originPup, _, err := t.pm.FindPupByID(originIP)
+	if err == nil {
+		originIsPup = true
+	}
 
+	// Who is this request going to?
+	path := strings.TrimRight(r.URL.Path, "/") // unsure if we want to trim ...
+	pathSegments := strings.Split(path, "/")
+	iface := pathSegments[0]        // first part of the path is the target interface
+	pathSegments = pathSegments[1:] // trim that out of the request
+
+	// Handle dbx requests:
+	if iface == "dbx" {
+		// TODO
+		return forbidden(w, "dbx apis currently unavailable")
+	}
+
+	// Handle interface requests:
+	if !originIsPup {
+		// you must be a pup!
+		return forbidden(w, "You are not a Pup we know about")
+	}
+	// check the pup has a provider for this interface and get the provider pup
+	providerID, ok := originPup.Providers[iface]
+	if !ok {
+		return forbidden(w, "Your manifest does not depend on interface: ", iface)
+	}
+
+	providerPup, _, err := t.pm.GetPup(providerID)
+	if err != nil {
+		return forbidden(w, "Your pup's provider for this interface no longer exists")
+	}
+
+	// Does the request match any of their permissionGroup routes?
+	routes := []string{}
+	for _, i := range originPup.Manifest.Interfaces {
+		if i.Name == iface {
+			for _, pg := range i.PermissionGroups {
+				for _, r := range pg.Routes {
+					routes = append(routes, r)
+				}
+			}
+		}
+	}
+
+	matchingRoute := ""
 	for _, route := range routes {
 		route = strings.Split(route, "/")
 		routeSegments := strings.Split(route, "/")
@@ -48,12 +99,45 @@ func (t PupManager) matchRoute(urlStr string, routes []string) (matchedRoute str
 		}
 
 		if match {
-			return route, true
+			matchingRoute = route
+			break
 		}
 	}
 
-	// No match found
-	return "", false
+	if matchingRoute == "" {
+		return forbidden(w, "No matching route available")
+	}
+
+	// Rewrite the request and proxy
+	port := "8080" // TODO: this should come from the providerPup somewhere
+	targetURL, err := url.Parse(fmt.Sprintf("http://%s:%s/", providerPup.IP, port, strings.Join(pathSegments, "/")))
+	if err != nil {
+		http.Error(w, "Failed to parse URL", http.StatusInternalServerError)
+		return
+	}
+
+	// Copy the original request's query parameters
+	targetURL.RawQuery = r.URL.RawQuery
+
+	// Create a new request with the modified URL
+	proxyReq := new(http.Request)
+	*proxyReq = *r
+	proxyReq.URL = targetURL
+	proxyReq.Host = targetURL.Host
+
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	// Serve the request to the proxy
+	proxy.ServeHTTP(w, proxyReq)
+}
+
+func forbidden(w http.ResponseWriter, reasons ...string) {
+	reason := "Access Denied"
+	if len(reasons) > 0 {
+		reason := fmt.Sprint(reasons)
+	}
+	w.WriteHeader(http.StatusForbidden)
+	w.Write([]byte(reason))
 }
 
 // func main() {
