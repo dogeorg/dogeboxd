@@ -225,6 +225,7 @@ type NixNetworkTemplateValues struct {
 
 type NixManager interface {
 	Rebuild() error
+	RebuildBoot() error
 	InitSystem(pups PupManager) error
 	UpdateIncludeFile(pups PupManager) error
 	WriteDogeboxNixFile(filename string, content string) error

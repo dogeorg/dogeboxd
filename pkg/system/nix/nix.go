@@ -189,6 +189,22 @@ func (nm nixManager) UpdateNetwork(values dogeboxd.NixNetworkTemplateValues) err
 	return nm.writeTemplate("network.nix", rawNetworkTemplate, values)
 }
 
+func (nm nixManager) RebuildBoot() error {
+	// This command is setuid as root so we can actually run it.
+	// It should live in /run/wrappers/bin/nixosrebuildboot on nix systems.
+	md := exec.Command("nixosrebuildboot")
+
+	output, err := md.CombinedOutput()
+	if err != nil {
+		log.Printf("Error executing nix rebuild boot: %v\n", err)
+		log.Printf("nix output: %s\n", string(output))
+		return err
+	} else {
+		log.Printf("nix output: %s\n", string(output))
+	}
+	return nil
+}
+
 func (nm nixManager) Rebuild() error {
 	// This command is setuid as root so we can actually run it.
 	// It should live in /run/wrappers/bin/nixosrebuildswitch on nix systems.
