@@ -116,19 +116,16 @@ type PupManifestCommand struct {
 
 /* Allow the user to expose certain ports in their container. */
 type PupManifestExposeConfig struct {
-	// Freeform field, but we'll handle certain cases of "admin" or "public"
-	Type string `json:"type"`
-	// HTTP, Raw TCP etc. Used by the frontend in addition to
-	// type to understand if something can be iframed.
-	TrafficType string `json:"trafficType"`
-	// The port that is being listened on inside the container.
-	Port int `json:"port"`
+	Type        string   `json:"type"`        // Freeform field, but we'll handle certain cases of "admin" or "public", "api"
+	TrafficType string   `json:"trafficType"` // HTTP, Raw TCP etc. Used by the frontend in addition to type to understand if something can be iframed.
+	Port        int      `json:"port"`        // The port that is being listened on inside the container.
+	Interfaces  []string `json:"interfaces"`  // Designates that certain interfaces can be accessed on this port
 }
 
 type PupManifestInterface struct {
-	Name             string                       `json:"name"`    // the globally unique name for this interface
-	Version          string                       `json:"version"` // Semver ie: 0.1.1
-	PermissionGroups []PupManifestPermissionGroup `json:"permissionGroups"`
+	Name             string                       `json:"name"`             // the globally unique name for this interface
+	Version          string                       `json:"version"`          // Semver ie: 0.1.1
+	PermissionGroups []PupManifestPermissionGroup `json:"permissionGroups"` // The permission groups that make up this interface
 }
 
 /* PermissionGroups define how other

@@ -109,8 +109,17 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Rewrite the request and proxy
-	port := "8080" // TODO: this should come from the providerPup somewhere
-	targetURL, err := url.Parse(fmt.Sprintf("http://%s:%s/", providerPup.IP, port, strings.Join(pathSegments, "/")))
+	host := providerPup.IP
+	port := 0
+	// find the port the interface is listening on
+	for _, exp := range providerPup.Container.Exposes {
+		for _, i := range exp.Interfaces {
+			if iface == i {
+				port = exp.Port
+			}
+		}
+	}
+	targetURL, err := url.Parse(fmt.Sprintf("http://%s:%d/%s", host, port, strings.Join(pathSegments, "/")))
 	if err != nil {
 		http.Error(w, "Failed to parse URL", http.StatusInternalServerError)
 		return
@@ -139,22 +148,3 @@ func forbidden(w http.ResponseWriter, reasons ...string) {
 	w.WriteHeader(http.StatusForbidden)
 	w.Write([]byte(reason))
 }
-
-// func main() {
-// 	routes := []string{"/foo/*/bar", "/baz", "/qux/*"}
-// 	urlsToTest := []string{
-// 		"https://example.com/foo/test/bar",
-// 		"https://example.com/baz",
-// 		"https://example.com/qux/anything",
-// 		"https://example.com/foo/test",
-// 		"https://example.com/qux",
-// 	}
-//
-// 	for _, urlStr := range urlsToTest {
-// 		if route, ok := matchRoute(urlStr, routes); ok {
-// 			println(urlStr, "matches", route)
-// 		} else {
-// 			println(urlStr, "does not match any route")
-// 		}
-// 	}
-// }
