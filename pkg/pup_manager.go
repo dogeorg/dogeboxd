@@ -115,7 +115,7 @@ func NewPupManager(dataDir string, monitor SystemMonitor) (PupManager, error) {
 func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, error) {
 	// Firstly (for now), check if we already have this manifest installed
 	for _, p := range t.state {
-		if m.Meta.Name == p.Manifest.Meta.Name && m.Meta.Version == p.Manifest.Meta.Version && p.Source.Name == source.Name() {
+		if m.Meta.Name == p.Manifest.Meta.Name && m.Meta.Version == p.Manifest.Meta.Version && p.Source.ID == source.Config().ID {
 			return p.ID, errors.New("pup already installed")
 		}
 	}

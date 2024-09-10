@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,6 +26,10 @@ type ManifestSourceGit struct {
 	config    dogeboxd.ManifestSourceConfiguration
 	_cache    dogeboxd.ManifestSourceList
 	_isCached bool
+}
+
+func (r ManifestSourceGit) ConfigFromLocation(location string) (dogeboxd.ManifestSourceConfiguration, error) {
+	return dogeboxd.ManifestSourceConfiguration{}, nil
 }
 
 func (r ManifestSourceGit) Name() string {
@@ -58,14 +63,71 @@ func (r ManifestSourceGit) getShallowWorktree(tag string) (*git.Worktree, *git.R
 	return worktree, repo, nil
 }
 
-func (r ManifestSourceGit) ensureTagValidAndGetManifest(tag string) (pup.PupManifest, bool, error) {
-	worktree, _, err := r.getShallowWorktree(tag)
-	if err != nil {
-		return pup.PupManifest{}, false, err
+func (r ManifestSourceGit) getSourceDetailsFromWorktree(worktree *git.Worktree) (dogeboxd.SourceDetails, bool, error) {
+	indexPath := "dogebox.json"
+	_, err := worktree.Filesystem.Stat(indexPath)
+	if err == nil {
+		content, err := worktree.Filesystem.Open(indexPath)
+		if err != nil {
+			return dogeboxd.SourceDetails{}, false, fmt.Errorf("failed to open dogebox.json: %w", err)
+		}
+		defer content.Close()
+
+		manifestBytes, err := io.ReadAll(content)
+		if err != nil {
+			return dogeboxd.SourceDetails{}, false, fmt.Errorf("failed to read dogebox.json: %w", err)
+		}
+
+		d, err := ParseAndValidateSourceDetails(string(manifestBytes))
+		if err != nil {
+			return dogeboxd.SourceDetails{}, false, fmt.Errorf("failed to parse and validate dogebox.json: %w", err)
+		}
+
+		return d, true, nil
 	}
 
+	return dogeboxd.SourceDetails{}, false, nil
+}
+
+func (r ManifestSourceGit) ensureTagValidAndGetPups(tag string) ([]pup.PupManifest, error) {
+	pupManifests := []pup.PupManifest{}
+
+	worktree, _, err := r.getShallowWorktree(tag)
+	if err != nil {
+		return []pup.PupManifest{}, err
+	}
+
+	pupLocations := []string{}
+
+	tagDetails, foundDetails, err := r.getSourceDetailsFromWorktree(worktree)
+	if err != nil {
+		return []pup.PupManifest{}, err
+	}
+
+	if foundDetails {
+		for _, pup := range tagDetails.Pups {
+			pupLocations = append(pupLocations, pup.Location)
+		}
+	} else {
+		pupLocations = append(pupLocations, ".")
+	}
+
+	for _, pupLocation := range pupLocations {
+		pupManifest, isValid, err := r.getPupManifestFromWorktreeLocation(tag, worktree, pupLocation)
+		if err != nil {
+			return []pup.PupManifest{}, err
+		}
+		if isValid {
+			pupManifests = append(pupManifests, pupManifest)
+		}
+	}
+
+	return pupManifests, nil
+}
+
+func (r ManifestSourceGit) getPupManifestFromWorktreeLocation(tag string, worktree *git.Worktree, location string) (pup.PupManifest, bool, error) {
 	for _, filename := range REQUIRED_FILES {
-		_, err := worktree.Filesystem.Stat(filename)
+		_, err := worktree.Filesystem.Stat(filepath.Join(location, filename))
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("tag %s missing file %s", tag, filename)
@@ -75,7 +137,7 @@ func (r ManifestSourceGit) ensureTagValidAndGetManifest(tag string) (pup.PupMani
 		}
 	}
 
-	content, err := worktree.Filesystem.Open("manifest.json")
+	content, err := worktree.Filesystem.Open(location)
 	if err != nil {
 		return pup.PupManifest{}, false, fmt.Errorf("failed to open manifest.json: %w", err)
 	}
@@ -96,7 +158,7 @@ func (r ManifestSourceGit) ensureTagValidAndGetManifest(tag string) (pup.PupMani
 		return pup.PupManifest{}, false, fmt.Errorf("manifest validation failed: %w", err)
 	}
 
-	log.Printf("Successfully read manifest for tag %s", tag)
+	log.Printf("Successfully read manifest for location %s", location)
 	return manifest, true, nil
 }
 
@@ -139,9 +201,6 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 		return r._cache, nil
 	}
 
-	// At the moment we only support a single pup per repository.
-	// This will change in the future with the introduction of a root
-	// dogebox.json or something that can point to sub-pups.
 	repo, err := git.Clone(memory.NewStorage(), memfs.New(), &git.CloneOptions{
 		URL:          r.config.Location,
 		Depth:        1,
@@ -158,14 +217,13 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 		return dogeboxd.ManifestSourceList{}, err
 	}
 
-	type tagResult struct {
-		version  string
-		valid    bool
-		manifest pup.PupManifest
-		err      error
+	type TagResult struct {
+		version   string
+		manifests []pup.PupManifest
+		err       error
 	}
 
-	resultChan := make(chan tagResult)
+	resultChan := make(chan TagResult)
 	var tagCount int
 
 	err = iter.ForEach(func(p *plumbing.Reference) error {
@@ -174,8 +232,8 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 		if semver.IsValid(tagName) {
 			tagCount++
 			go func(ref, version string) {
-				pupManifest, isValid, err := r.ensureTagValidAndGetManifest(ref)
-				resultChan <- tagResult{version: version, valid: isValid, manifest: pupManifest, err: err}
+				manifests, err := r.ensureTagValidAndGetPups(ref)
+				resultChan <- TagResult{version: version, manifests: manifests, err: err}
 			}(tagRef, tagName)
 		}
 
@@ -194,20 +252,41 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 			log.Printf("Error validating tag %s: %v", result.version, result.err)
 			continue
 		}
-		if result.valid {
+
+		for _, manifest := range result.manifests {
 			validPups = append(validPups, dogeboxd.ManifestSourcePup{
-				Name:     result.manifest.Meta.Name,
+				Name:     manifest.Meta.Name,
 				Location: result.version,
-				Version:  result.manifest.Meta.Version,
-				Manifest: result.manifest,
+				Version:  manifest.Meta.Version,
+				Manifest: manifest,
 			})
-		} else {
-			log.Printf("Found valid semver tag %s but tag is missing required files", result.version)
+		}
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return dogeboxd.ManifestSourceList{}, err
+	}
+
+	details, foundDetails, err := r.getSourceDetailsFromWorktree(worktree)
+	if err != nil {
+		return dogeboxd.ManifestSourceList{}, err
+	}
+
+	if !foundDetails {
+		details = dogeboxd.SourceDetails{
+			Name: validPups[0].Name,
+			Pups: []dogeboxd.SourceDetailsPup{
+				{
+					Location: ".",
+				},
+			},
 		}
 	}
 
 	list := dogeboxd.ManifestSourceList{
 		LastUpdated: time.Now(),
+		Details:     details,
 		Pups:        validPups,
 	}
 
