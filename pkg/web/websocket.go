@@ -1,24 +1,43 @@
-package dogeboxd
+package web
 
 import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
 
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"golang.org/x/net/websocket"
 )
+
+func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
+	pupid := r.PathValue("PupID")
+	cancel, logChan, err := t.dbx.GetLogChannel(pupid)
+	if err != nil {
+		fmt.Println("ERR", err)
+		sendErrorResponse(w, http.StatusBadRequest, "Error establishing log channel")
+	}
+	t.ws.GetWSChannelHandler(fmt.Sprintf("%s-log", pupid), logChan, cancel).ServeHTTP(w, r)
+}
+
+func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
+	t.ws.GetWSHandler(WS_DEFAULT_CHANNEL, func() any {
+		bs := t.getRawBS()
+		return dogeboxd.Change{ID: "internal", Error: "", Type: "bootstrap", Update: bs}
+	}).ServeHTTP(w, r)
+}
 
 const WS_DEFAULT_CHANNEL string = "updates"
 
 type WSRelay struct {
-	config ServerConfig
+	config dogeboxd.ServerConfig
 	socks  []WSCONN
-	relay  chan Change
+	relay  chan dogeboxd.Change
 	newWs  chan WSCONN
 }
 
-func NewWSRelay(config ServerConfig, relay chan Change) WSRelay {
+func NewWSRelay(config dogeboxd.ServerConfig, relay chan dogeboxd.Change) WSRelay {
 	if config.Recovery {
 		log.Printf("In recovery mode: not initialising WSRelay")
 		return WSRelay{}

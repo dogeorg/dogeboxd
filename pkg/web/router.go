@@ -1,4 +1,4 @@
-package dogeboxd
+package web
 
 import (
 	"fmt"
@@ -6,10 +6,12 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
 type PupRouter struct {
-	pm PupManager
+	pm dogeboxd.PupManager
 }
 
 func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
@@ -20,13 +22,13 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 	// handle proxies
 	if r.Header.Get("X-Forwarded-For") != "" {
 		// If there are multiple IPs in X-Forwarded-For, take the first one
-		originIP = strings.Split(forwarded, ",")[0]
+		originIP = strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]
 	} else {
 		// otherwise just use the remote address
 		originIP = strings.Split(r.RemoteAddr, ":")[0]
 	}
 
-	originPup, _, err := t.pm.FindPupByID(originIP)
+	originPup, _, err := t.pm.FindPupByIP(originIP)
 	if err == nil {
 		originIsPup = true
 	}
@@ -40,23 +42,28 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 	// Handle dbx requests:
 	if iface == "dbx" {
 		// TODO
-		return forbidden(w, "dbx apis currently unavailable")
+		forbidden(w, "dbx apis currently unavailable")
+		return
 	}
 
 	// Handle interface requests:
 	if !originIsPup {
 		// you must be a pup!
-		return forbidden(w, "You are not a Pup we know about")
+		forbidden(w, "You are not a Pup we know about")
+		return
+
 	}
 	// check the pup has a provider for this interface and get the provider pup
 	providerID, ok := originPup.Providers[iface]
 	if !ok {
-		return forbidden(w, "Your manifest does not depend on interface: ", iface)
+		forbidden(w, "Your manifest does not depend on interface: ", iface)
+		return
 	}
 
 	providerPup, _, err := t.pm.GetPup(providerID)
 	if err != nil {
-		return forbidden(w, "Your pup's provider for this interface no longer exists")
+		forbidden(w, "Your pup's provider for this interface no longer exists")
+		return
 	}
 
 	// Does the request match any of their permissionGroup routes?
@@ -73,7 +80,7 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 
 	matchingRoute := ""
 	for _, route := range routes {
-		route = strings.Split(route, "/")
+		// route = strings.Split(route, "/")
 		routeSegments := strings.Split(route, "/")
 
 		// Check if the route and path have the same number of segments or if the route has one less (due to a wildcard)
@@ -105,14 +112,15 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if matchingRoute == "" {
-		return forbidden(w, "No matching route available")
+		forbidden(w, "No matching route available")
+		return
 	}
 
 	// Rewrite the request and proxy
 	host := providerPup.IP
 	port := 0
 	// find the port the interface is listening on
-	for _, exp := range providerPup.Container.Exposes {
+	for _, exp := range providerPup.Manifest.Container.Exposes {
 		for _, i := range exp.Interfaces {
 			if iface == i {
 				port = exp.Port
@@ -143,7 +151,7 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 func forbidden(w http.ResponseWriter, reasons ...string) {
 	reason := "Access Denied"
 	if len(reasons) > 0 {
-		reason := fmt.Sprint(reasons)
+		reason = fmt.Sprint(reasons)
 	}
 	w.WriteHeader(http.StatusForbidden)
 	w.Write([]byte(reason))

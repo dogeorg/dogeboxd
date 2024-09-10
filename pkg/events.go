@@ -67,7 +67,7 @@ type UpdatePupConfig struct {
 }
 
 // Updates the providers of dependant interfaces for this pup
-type UpdatePupConfig struct {
+type UpdatePupProviders struct {
 	PupID   string
 	Payload map[string]string
 }
