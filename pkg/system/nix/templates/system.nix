@@ -31,19 +31,4 @@
       };
     };
   };
-
-  # TODO
-  #security.wrappers.nixosrebuildswitch = {
-  #  source = "/path/to/nixosrebuildswitch";
-  #  owner = "root";
-  #  group = "root";
-  #  setuid = true;
-  #};
-
-  #security.wrappers.machinectlstop = {
-  #  source = "/path/to/machinectlstop";
-  #  owner = "root";
-  #  group = "root";
-  #  setuid = true;
-  #};
 }
