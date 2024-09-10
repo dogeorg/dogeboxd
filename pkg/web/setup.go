@@ -124,7 +124,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	flusher.Flush()
 
-	if err := t.nix.Rebuild(); err != nil {
+	if err := t.nix.RebuildBoot(); err != nil {
 		log.Printf("Error rebuilding nix: %v", err)
 		log.Println("Unfortunately we're going to have to reboot now, and there's no way we can report this to the client.")
 		// TODO: Maybe we write a file that gets shown to the user on next boot in dpanel?
