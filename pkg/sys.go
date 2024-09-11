@@ -161,23 +161,22 @@ type SourceManager interface {
 
 type ManifestSourcePup struct {
 	Name     string
-	Location string
+	Location map[string]string
 	Version  string
 	Manifest pup.PupManifest
 }
 
 type ManifestSourceList struct {
-	LastUpdated time.Time
-	Details     SourceDetails
+	Config      ManifestSourceConfiguration
+	LastChecked time.Time
 	Pups        []ManifestSourcePup
 }
 
 type ManifestSource interface {
-	ConfigFromLocation(location string) (ManifestSourceConfiguration, error)
+	ValidateFromLocation(location string) (ManifestSourceConfiguration, error)
 	Config() ManifestSourceConfiguration
-	Validate() (bool, error)
 	List(ignoreCache bool) (ManifestSourceList, error)
-	Download(diskPath string, remoteLocation string) error
+	Download(diskPath string, remoteLocation map[string]string) error
 }
 
 type ManifestSourceConfiguration struct {

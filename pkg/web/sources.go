@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -25,6 +26,7 @@ func (t api) createSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := t.sources.AddSource(req.Location); err != nil {
+		log.Printf("Error adding source: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error adding source")
 		return
 	}

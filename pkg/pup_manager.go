@@ -48,23 +48,14 @@ type PupManager struct {
 	monitor           SystemMonitor
 }
 
-func NewPupManager(dataDir string, monitor SystemMonitor) (PupManager, error) {
+func NewPupManager(dataDir string, tmpDir string, monitor SystemMonitor) (PupManager, error) {
 	pupDir := filepath.Join(dataDir, "pups")
-	tmpDir := filepath.Join(dataDir, "tmp")
 
 	if _, err := os.Stat(pupDir); os.IsNotExist(err) {
 		log.Printf("Pup directory %q not found, creating it", pupDir)
 		err = os.MkdirAll(pupDir, 0755)
 		if err != nil {
 			return PupManager{}, fmt.Errorf("failed to create pup directory: %w", err)
-		}
-	}
-
-	if _, err := os.Stat(tmpDir); os.IsNotExist(err) {
-		log.Printf("Tmp directory %q not found, creating it", tmpDir)
-		err = os.MkdirAll(tmpDir, 0755)
-		if err != nil {
-			return PupManager{}, fmt.Errorf("failed to create tmp directory: %w", err)
 		}
 	}
 

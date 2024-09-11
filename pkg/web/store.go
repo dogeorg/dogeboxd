@@ -9,15 +9,15 @@ import (
 )
 
 type StoreListSourceEntryPup struct {
-	IsInstalled      bool                       `json:"isInstalled"`
-	InstalledID      string                     `json:"installedId"`
-	InstalledVersion string                     `json:"installedVersion"`
-	LatestVersion    string                     `json:"latestVersion"`
-	Versions         map[string]pup.PupManifest `json:"versions"`
+	LatestVersion string                     `json:"latestVersion"`
+	Versions      map[string]pup.PupManifest `json:"versions"`
 }
 
 type StoreListSourceEntry struct {
-	LastUpdated string                             `json:"lastUpdated"`
+	Name        string                             `json:"name"`
+	Description string                             `json:"description"`
+	Location    string                             `json:"location"`
+	LastChecked string                             `json:"lastChecked"`
 	Pups        map[string]StoreListSourceEntryPup `json:"pups"`
 }
 
@@ -32,42 +32,17 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]StoreListSourceEntry{}
 
-	for k, source := range available {
+	for k, entry := range available {
 		pups := map[string]StoreListSourceEntryPup{}
 
-		// TODO: Ideally not have to do this lookup.
-		s, err := t.sources.GetSource(k)
-		if err != nil {
-			sendErrorResponse(w, http.StatusInternalServerError, "Error fetching source")
-			return
-		}
-
-		for _, availablePup := range source.Pups {
+		for _, availablePup := range entry.Pups {
 			// Check if we already have a pup in our list for this version.
 			if _, ok := pups[availablePup.Name]; !ok {
-
-				// Check in our pup manager to see if this pup is installed.
-				// If it is, we set the InstalledVersion.
-				installedPupState := t.dbx.Pups.GetPupFromSource(availablePup.Name, s.Config())
-
-				isInstalled := installedPupState != nil
-
-				var installedVersion string
-				var installedID string
-
-				if isInstalled {
-					installedVersion = installedPupState.Version
-					installedID = installedPupState.ID
-				}
-
 				versions := map[string]pup.PupManifest{}
 
 				pups[availablePup.Name] = StoreListSourceEntryPup{
-					IsInstalled:      isInstalled,
-					InstalledVersion: installedVersion,
-					InstalledID:      installedID,
-					LatestVersion:    availablePup.Version,
-					Versions:         versions,
+					LatestVersion: availablePup.Version,
+					Versions:      versions,
 				}
 			}
 
@@ -86,12 +61,10 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 		// We want to show that is _actually_ installed, rather than what might have been removed or updated underneath us.
 		// nb. We don't let you remove a source if you have a pup installed from it, so this should be safe here.
 		for _, installedPup := range t.dbx.Pups.GetStateMap() {
-			if installedPup.Source.Location == s.Config().Location && installedPup.Source.Name == s.Config().Name {
+			if installedPup.Source.Location == entry.Config.Location && installedPup.Source.Name == entry.Config.Name {
 				if _, ok := pups[installedPup.Manifest.Meta.Name]; !ok {
 					pups[installedPup.Manifest.Meta.Name] = StoreListSourceEntryPup{
-						IsInstalled:      true,
-						InstalledVersion: installedPup.Version,
-						Versions:         map[string]pup.PupManifest{},
+						Versions: map[string]pup.PupManifest{},
 					}
 				}
 
@@ -100,7 +73,10 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 		}
 
 		response[k] = StoreListSourceEntry{
-			LastUpdated: source.LastUpdated.Format(time.RFC3339),
+			Name:        entry.Config.Name,
+			Description: entry.Config.Description,
+			Location:    entry.Config.Location,
+			LastChecked: entry.LastChecked.Format(time.RFC3339),
 			Pups:        pups,
 		}
 	}

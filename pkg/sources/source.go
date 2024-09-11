@@ -2,7 +2,6 @@ package source
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -15,7 +14,7 @@ import (
 
 var REQUIRED_FILES = []string{"pup.nix", "manifest.json"}
 
-func NewSourceManager(sm dogeboxd.StateManager, pm dogeboxd.PupManager) dogeboxd.SourceManager {
+func NewSourceManager(config dogeboxd.ServerConfig, sm dogeboxd.StateManager, pm dogeboxd.PupManager) dogeboxd.SourceManager {
 	state := sm.Get().Sources
 
 	sources := []dogeboxd.ManifestSource{}
@@ -24,7 +23,7 @@ func NewSourceManager(sm dogeboxd.StateManager, pm dogeboxd.PupManager) dogeboxd
 		case "disk":
 			sources = append(sources, ManifestSourceDisk{config: c})
 		case "git":
-			sources = append(sources, &ManifestSourceGit{config: c})
+			sources = append(sources, &ManifestSourceGit{serverConfig: config, config: c})
 		}
 	}
 
@@ -56,9 +55,7 @@ func (sourceManager *sourceManager) GetAll(ignoreCache bool) (map[string]dogebox
 			return nil, err
 		}
 
-		c := r.Config()
-
-		available[c.ID] = l
+		available[l.Config.ID] = l
 	}
 
 	return available, nil
@@ -97,6 +94,7 @@ func (sourceManager *sourceManager) GetSourcePup(sourceId, pupName, pupVersion s
 
 	for _, pup := range l.Pups {
 		if pup.Name == pupName && pup.Version == pupVersion {
+			log.Printf("getSourcePup Location: %+v", pup.Location)
 			return pup, nil
 		}
 	}
@@ -125,6 +123,8 @@ func (sourceManager *sourceManager) DownloadPup(path, sourceId, pupName, pupVers
 	if err != nil {
 		return err
 	}
+
+	log.Printf("got source pup: %+v", sourcePup)
 
 	if err := r.Download(path, sourcePup.Location); err != nil {
 		return err
@@ -217,7 +217,7 @@ func (sourceManager *sourceManager) AddSource(location string) (dogeboxd.Manifes
 	switch sourceType {
 	case "disk":
 		{
-			config, err := ManifestSourceDisk{}.ConfigFromLocation(location)
+			config, err := ManifestSourceDisk{}.ValidateFromLocation(location)
 			if err != nil {
 				return nil, err
 			}
@@ -226,7 +226,7 @@ func (sourceManager *sourceManager) AddSource(location string) (dogeboxd.Manifes
 		}
 	case "git":
 		{
-			config, err := ManifestSourceGit{}.ConfigFromLocation(location)
+			config, err := ManifestSourceGit{}.ValidateFromLocation(location)
 			if err != nil {
 				return nil, err
 			}
@@ -238,17 +238,7 @@ func (sourceManager *sourceManager) AddSource(location string) (dogeboxd.Manifes
 		return nil, fmt.Errorf("unknown source type: %s", sourceType)
 	}
 
-	valid, err := s.Validate()
-
-	if err != nil {
-		log.Println("error while validating source:", err)
-		return nil, err
-	}
-
-	if !valid {
-		log.Println("source failed to validate")
-		return nil, errors.New("source failed to validate")
-	}
+	log.Printf("generated config: %+v", c)
 
 	// Ensure no existing source has the same id
 	for _, _s := range sourceManager.sources {
@@ -256,6 +246,10 @@ func (sourceManager *sourceManager) AddSource(location string) (dogeboxd.Manifes
 		if _c.ID == c.ID {
 			log.Printf("source with id %s already exists", c.ID)
 			return nil, fmt.Errorf("source with id %s already exists", c.ID)
+		}
+		if _c.Location == c.Location {
+			log.Printf("source with location %s already exists", c.Location)
+			return nil, fmt.Errorf("source with location %s already exists", c.Location)
 		}
 	}
 

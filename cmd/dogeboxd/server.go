@@ -33,12 +33,12 @@ func Server(sm dogeboxd.StateManager, config dogeboxd.ServerConfig) server {
 func (t server) Start() {
 	systemMonitor := system.NewSystemMonitor(t.config)
 
-	pups, err := dogeboxd.NewPupManager(t.config.DataDir, systemMonitor)
+	pups, err := dogeboxd.NewPupManager(t.config.DataDir, t.config.TmpDir, systemMonitor)
 	if err != nil {
 		log.Fatalf("Failed to load Pup state: %+v", err)
 	}
 
-	sourceManager := source.NewSourceManager(t.sm, pups)
+	sourceManager := source.NewSourceManager(t.config, t.sm, pups)
 	nixManager := nix.NewNixManager(t.config)
 
 	// Set up our system interfaces so we can talk to the host OS
