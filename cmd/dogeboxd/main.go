@@ -19,6 +19,7 @@ func main() {
 	var nixDir string
 	var uiDir string
 	var uiPort int
+	var internalPort int
 	var verbose bool
 	var help bool
 	var forcedRecovery bool
@@ -30,6 +31,7 @@ func main() {
 	flag.StringVar(&nixDir, "nix", "/etc/nixos/dogebox", "Directory to write dogebox-specific nix configuration to")
 	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
 	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
+	flag.IntVar(&internalPort, "internal-port", 8082, "Internal Router Port")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
 	flag.BoolVar(&dangerousDevMode, "danger-dev", false, "Enable dangerous development mode")
 	flag.BoolVar(&verbose, "v", false, "Be verbose")
@@ -77,16 +79,17 @@ func main() {
 	}
 
 	config := dogeboxd.ServerConfig{
-		Port:     port,
-		Bind:     bind,
-		DataDir:  dataDir,
-		TmpDir:   tmpDir,
-		NixDir:   nixDir,
-		Verbose:  verbose,
-		Recovery: recoveryMode,
-		UiDir:    uiDir,
-		UiPort:   uiPort,
-		DevMode:  dangerousDevMode,
+		Port:         port,
+		Bind:         bind,
+		DataDir:      dataDir,
+		TmpDir:       tmpDir,
+		NixDir:       nixDir,
+		Verbose:      verbose,
+		Recovery:     recoveryMode,
+		UiDir:        uiDir,
+		UiPort:       uiPort,
+		InternalPort: internalPort,
+		DevMode:      dangerousDevMode,
 	}
 
 	srv := Server(stateManager, config)
