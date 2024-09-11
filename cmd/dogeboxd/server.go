@@ -12,6 +12,7 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/system/lifecycle"
 	"github.com/dogeorg/dogeboxd/pkg/system/network"
 	"github.com/dogeorg/dogeboxd/pkg/system/nix"
+	"github.com/dogeorg/dogeboxd/pkg/web"
 )
 
 //go:embed pup.json
@@ -58,13 +59,13 @@ func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
 
-	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, lifecycleManager, sourceManager, nixManager)
+	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, sourceManager)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets
 
-	wsh := dogeboxd.NewWSRelay(t.config, dbx.Changes)
-	rest := dogeboxd.RESTAPI(t.config, dbx, pups, wsh)
+	wsh := web.NewWSRelay(t.config, dbx.Changes)
+	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, wsh)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */

@@ -42,11 +42,12 @@ type PupState struct {
 	Source       ManifestSourceConfiguration `json:"source"`
 	Manifest     pup.PupManifest             `json:"manifest"`
 	Config       map[string]string           `json:"config"`
-	Installation string                      `json:"installation"`
-	Enabled      bool                        `json:"enabled"`
-	NeedsConf    bool                        `json:"needsConf"`
-	NeedsDeps    bool                        `json:"needsDeps"`
-	IP           string                      `json:"ip"`
+	Providers    map[string]string           `json:"providers"`    // providers of interface dependencies
+	Installation string                      `json:"installation"` // see table above and constants
+	Enabled      bool                        `json:"enabled"`      // Is this pup supposed to be running?
+	NeedsConf    bool                        `json:"needsConf"`    // Has all required config been provided?
+	NeedsDeps    bool                        `json:"needsDeps"`    // Have all dependencies been met?
+	IP           string                      `json:"ip"`           // Internal IP for this pup
 	Version      string                      `json:"version"`
 }
 

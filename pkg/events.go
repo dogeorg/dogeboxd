@@ -60,8 +60,14 @@ type DisablePup struct {
 	PupID string
 }
 
-// Updates the config values in a PUPStatus object
+// Updates the config values in a PUPState object
 type UpdatePupConfig struct {
+	PupID   string
+	Payload map[string]string
+}
+
+// Updates the providers of dependant interfaces for this pup
+type UpdatePupProviders struct {
 	PupID   string
 	Payload map[string]string
 }
