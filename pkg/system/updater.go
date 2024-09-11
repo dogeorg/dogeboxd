@@ -134,11 +134,11 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return err
 	}
 
-	log.Printf("Installing pup from %s: %s @ %s", pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
+	log.Printf("Installing pup from %s: %s @ %s", pupSelection.SourceId, pupSelection.PupName, pupSelection.PupVersion)
 	pupPath := filepath.Join(t.config.DataDir, "pups", s.ID)
 
 	log.Printf("Downloading pup to %s", pupPath)
-	err := t.sources.DownloadPup(pupPath, pupSelection.SourceName, pupSelection.PupName, pupSelection.PupVersion)
+	err := t.sources.DownloadPup(pupPath, pupSelection.SourceId, pupSelection.PupName, pupSelection.PupVersion)
 	if err != nil {
 		log.Printf("Failed to download pup: %w", err)
 		return err

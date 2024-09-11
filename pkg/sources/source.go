@@ -2,11 +2,11 @@ package source
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
@@ -14,16 +14,16 @@ import (
 
 var REQUIRED_FILES = []string{"pup.nix", "manifest.json"}
 
-func NewSourceManager(sm dogeboxd.StateManager, pm dogeboxd.PupManager) dogeboxd.SourceManager {
+func NewSourceManager(config dogeboxd.ServerConfig, sm dogeboxd.StateManager, pm dogeboxd.PupManager) dogeboxd.SourceManager {
 	state := sm.Get().Sources
 
 	sources := []dogeboxd.ManifestSource{}
 	for _, c := range state.SourceConfigs {
 		switch c.Type {
-		case "local":
+		case "disk":
 			sources = append(sources, ManifestSourceDisk{config: c})
 		case "git":
-			sources = append(sources, &ManifestSourceGit{config: c})
+			sources = append(sources, &ManifestSourceGit{serverConfig: config, config: c})
 		}
 	}
 
@@ -55,15 +55,16 @@ func (sourceManager *sourceManager) GetAll(ignoreCache bool) (map[string]dogebox
 			return nil, err
 		}
 
-		available[r.Name()] = l
+		available[l.Config.ID] = l
 	}
 
 	return available, nil
 }
 
-func (sourceManager *sourceManager) GetSourceManifest(sourceName, pupName, pupVersion string) (pup.PupManifest, dogeboxd.ManifestSource, error) {
+func (sourceManager *sourceManager) GetSourceManifest(sourceID, pupName, pupVersion string) (pup.PupManifest, dogeboxd.ManifestSource, error) {
 	for _, r := range sourceManager.sources {
-		if r.Name() == sourceName {
+		c := r.Config()
+		if c.ID == sourceID {
 			list, err := r.List(false)
 			if err != nil {
 				return pup.PupManifest{}, nil, err
@@ -77,11 +78,11 @@ func (sourceManager *sourceManager) GetSourceManifest(sourceName, pupName, pupVe
 		}
 	}
 
-	return pup.PupManifest{}, nil, fmt.Errorf("no source found with name %s", sourceName)
+	return pup.PupManifest{}, nil, fmt.Errorf("no source found with id %s", sourceID)
 }
 
-func (sourceManager *sourceManager) GetSourcePup(sourceName, pupName, pupVersion string) (dogeboxd.ManifestSourcePup, error) {
-	r, err := sourceManager.GetSource(sourceName)
+func (sourceManager *sourceManager) GetSourcePup(sourceId, pupName, pupVersion string) (dogeboxd.ManifestSourcePup, error) {
+	r, err := sourceManager.GetSource(sourceId)
 	if err != nil {
 		return dogeboxd.ManifestSourcePup{}, err
 	}
@@ -93,6 +94,7 @@ func (sourceManager *sourceManager) GetSourcePup(sourceName, pupName, pupVersion
 
 	for _, pup := range l.Pups {
 		if pup.Name == pupName && pup.Version == pupVersion {
+			log.Printf("getSourcePup Location: %+v", pup.Location)
 			return pup, nil
 		}
 	}
@@ -100,26 +102,29 @@ func (sourceManager *sourceManager) GetSourcePup(sourceName, pupName, pupVersion
 	return dogeboxd.ManifestSourcePup{}, fmt.Errorf("no pup found with name %s and version %s", pupName, pupVersion)
 }
 
-func (sourceManager *sourceManager) GetSource(name string) (dogeboxd.ManifestSource, error) {
+func (sourceManager *sourceManager) GetSource(id string) (dogeboxd.ManifestSource, error) {
 	for _, r := range sourceManager.sources {
-		if r.Name() == name {
+		c := r.Config()
+		if c.ID == id {
 			return r, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no source found with name %s", name)
+	return nil, fmt.Errorf("no source found with id %s", id)
 }
 
-func (sourceManager *sourceManager) DownloadPup(path, sourceName, pupName, pupVersion string) error {
-	r, err := sourceManager.GetSource(sourceName)
+func (sourceManager *sourceManager) DownloadPup(path, sourceId, pupName, pupVersion string) error {
+	r, err := sourceManager.GetSource(sourceId)
 	if err != nil {
 		return err
 	}
 
-	sourcePup, err := sourceManager.GetSourcePup(sourceName, pupName, pupVersion)
+	sourcePup, err := sourceManager.GetSourcePup(sourceId, pupName, pupVersion)
 	if err != nil {
 		return err
 	}
+
+	log.Printf("got source pup: %+v", sourcePup)
 
 	if err := r.Download(path, sourcePup.Location); err != nil {
 		return err
@@ -180,38 +185,72 @@ func (sourceManager *sourceManager) GetAllSourceConfigurations() []dogeboxd.Mani
 	return configs
 }
 
-func (sourceManager *sourceManager) AddSource(source dogeboxd.ManifestSourceConfiguration) (dogeboxd.ManifestSource, error) {
-	// Ensure no existing source has the same name
-	for _, _s := range sourceManager.sources {
-		if _s.Name() == source.Name {
-			log.Printf("source with name %s already exists", source.Name)
-			return nil, fmt.Errorf("source with name %s already exists", source.Name)
-		}
+func (sourceManager *sourceManager) determineSourceType(location string) (string, error) {
+	if strings.HasPrefix(location, "https://") && strings.HasSuffix(location, ".git") {
+		return "git", nil
 	}
 
+	if strings.HasPrefix(location, "git@") {
+		return "git", nil
+	}
+
+	if strings.HasPrefix(location, "/") {
+		if _, err := os.Stat(location); err != nil {
+			return "", fmt.Errorf("location looks like disk path, but path %s does not exist", location)
+		}
+
+		return "disk", nil
+	}
+
+	return "", fmt.Errorf("unknown source type: %s", location)
+}
+
+func (sourceManager *sourceManager) AddSource(location string) (dogeboxd.ManifestSource, error) {
+	var c dogeboxd.ManifestSourceConfiguration
 	var s dogeboxd.ManifestSource
 
-	switch source.Type {
-	case "local":
-		s = ManifestSourceDisk{config: source}
-	case "git":
-		s = &ManifestSourceGit{config: source}
-
-	default:
-		log.Printf("unknown source type: %s", source.Type)
-		return nil, fmt.Errorf("unknown source type: %s", source.Type)
-	}
-
-	valid, err := s.Validate()
-
-	if err != nil {
-		log.Println("error while validating source:", err)
+	sourceType, err := sourceManager.determineSourceType(location)
+	if err != nil || sourceType == "" {
 		return nil, err
 	}
 
-	if !valid {
-		log.Println("source failed to validate")
-		return nil, errors.New("source failed to validate")
+	switch sourceType {
+	case "disk":
+		{
+			config, err := ManifestSourceDisk{}.ValidateFromLocation(location)
+			if err != nil {
+				return nil, err
+			}
+			c = config
+			s = &ManifestSourceDisk{config: config}
+		}
+	case "git":
+		{
+			config, err := ManifestSourceGit{}.ValidateFromLocation(location)
+			if err != nil {
+				return nil, err
+			}
+			c = config
+			s = &ManifestSourceGit{config: config}
+		}
+
+	default:
+		return nil, fmt.Errorf("unknown source type: %s", sourceType)
+	}
+
+	log.Printf("generated config: %+v", c)
+
+	// Ensure no existing source has the same id
+	for _, _s := range sourceManager.sources {
+		_c := _s.Config()
+		if _c.ID == c.ID {
+			log.Printf("source with id %s already exists", c.ID)
+			return nil, fmt.Errorf("source with id %s already exists", c.ID)
+		}
+		if _c.Location == c.Location {
+			log.Printf("source with location %s already exists", c.Location)
+			return nil, fmt.Errorf("source with location %s already exists", c.Location)
+		}
 	}
 
 	sourceManager.sources = append(sourceManager.sources, s)
@@ -223,19 +262,20 @@ func (sourceManager *sourceManager) AddSource(source dogeboxd.ManifestSourceConf
 	return s, nil
 }
 
-func (sourceManager *sourceManager) RemoveSource(name string) error {
+func (sourceManager *sourceManager) RemoveSource(id string) error {
 	var matched dogeboxd.ManifestSource
 	var matchedIndex int
 
 	for i, r := range sourceManager.sources {
-		if r.Name() == name {
+		c := r.Config()
+		if c.ID == id {
 			matched = r
 			matchedIndex = i
 		}
 	}
 
 	if matched == nil {
-		return fmt.Errorf("no existing source named %s", name)
+		return fmt.Errorf("no existing source id: %s", id)
 	}
 
 	// Check if we have an existing pup that is from

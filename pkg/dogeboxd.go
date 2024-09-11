@@ -183,7 +183,7 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 
 	// System actions
 	case InstallPup:
-		t.createPupFromManifest(j, a.PupName, a.PupVersion, a.SourceName)
+		t.createPupFromManifest(j, a.PupName, a.PupVersion, a.SourceId)
 	case UninstallPup:
 		t.sendSystemJobWithPupDetails(j, a.PupID)
 	case PurgePup:
@@ -216,9 +216,9 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 *
 * Future: support multiple pup instances per manifest
  */
-func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceName string) {
+func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceId string) {
 	// Fetch the correct manifest from the source manager
-	manifest, source, err := t.sources.GetSourceManifest(sourceName, pupName, pupVersion)
+	manifest, source, err := t.sources.GetSourceManifest(sourceId, pupName, pupVersion)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
 		t.sendFinishedJob("action", j)

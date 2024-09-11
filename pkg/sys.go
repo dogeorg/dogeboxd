@@ -137,41 +137,54 @@ type NetworkPersistor interface {
 	Persist(network SelectedNetwork) error
 }
 
+type SourceDetailsPup struct {
+	Location string `json:"location"`
+}
+
+type SourceDetails struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Pups        []SourceDetailsPup `json:"pups"`
+}
+
 type SourceManager interface {
 	GetAll(ignoreCache bool) (map[string]ManifestSourceList, error)
-	GetSourceManifest(sourceName, pupName, pupVersion string) (pup.PupManifest, ManifestSource, error)
-	GetSourcePup(sourceName, pupName, pupVersion string) (ManifestSourcePup, error)
+	GetSourceManifest(sourceId, pupName, pupVersion string) (pup.PupManifest, ManifestSource, error)
+	GetSourcePup(sourceId, pupName, pupVersion string) (ManifestSourcePup, error)
 	GetSource(name string) (ManifestSource, error)
-	AddSource(source ManifestSourceConfiguration) (ManifestSource, error)
-	RemoveSource(name string) error
-	DownloadPup(diskPath, sourceName, pupName, pupVersion string) error
+	AddSource(location string) (ManifestSource, error)
+	RemoveSource(id string) error
+	DownloadPup(diskPath, sourceId, pupName, pupVersion string) error
 	GetAllSourceConfigurations() []ManifestSourceConfiguration
 }
 
 type ManifestSourcePup struct {
 	Name     string
-	Location string
+	Location map[string]string
 	Version  string
 	Manifest pup.PupManifest
 }
 
 type ManifestSourceList struct {
-	LastUpdated time.Time
+	Config      ManifestSourceConfiguration
+	LastChecked time.Time
 	Pups        []ManifestSourcePup
 }
 
 type ManifestSource interface {
-	Name() string
+	ValidateFromLocation(location string) (ManifestSourceConfiguration, error)
 	Config() ManifestSourceConfiguration
-	Validate() (bool, error)
 	List(ignoreCache bool) (ManifestSourceList, error)
-	Download(diskPath string, remoteLocation string) error
+	Download(diskPath string, remoteLocation map[string]string) error
 }
 
 type ManifestSourceConfiguration struct {
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Location string `json:"location"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Location    string `json:"location"`
+	Type        string `json:"type"`
 }
 
 type NixPupContainerServiceValues struct {

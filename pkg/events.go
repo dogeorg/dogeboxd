@@ -36,7 +36,7 @@ type Action any
 type InstallPup struct {
 	PupName    string
 	PupVersion string
-	SourceName string
+	SourceId   string
 }
 
 // Uninstalling a pup will remove container

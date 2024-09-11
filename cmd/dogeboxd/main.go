@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
@@ -46,6 +47,12 @@ func main() {
 		os.MkdirAll(dataDir, 0755)
 	}
 
+	tmpDir := filepath.Join(dataDir, "tmp")
+	if _, err := os.Stat(tmpDir); os.IsNotExist(err) {
+		log.Printf("Tmp directory %s does not exist, creating it", tmpDir)
+		os.MkdirAll(tmpDir, 0755)
+	}
+
 	stateManager := system.NewStateManager(dataDir)
 	err := stateManager.Load()
 	if err != nil {
@@ -73,6 +80,7 @@ func main() {
 		Port:     port,
 		Bind:     bind,
 		DataDir:  dataDir,
+		TmpDir:   tmpDir,
 		NixDir:   nixDir,
 		Verbose:  verbose,
 		Recovery: recoveryMode,

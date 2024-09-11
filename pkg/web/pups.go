@@ -50,7 +50,7 @@ func (t api) updateProviders(w http.ResponseWriter, r *http.Request) {
 type InstallPupRequest struct {
 	PupName    string `json:"pupName"`
 	PupVersion string `json:"pupVersion"`
-	SourceName string `json:"sourceName"`
+	SourceId   string `json:"sourceId"`
 }
 
 func (t api) installPup(w http.ResponseWriter, r *http.Request) {
