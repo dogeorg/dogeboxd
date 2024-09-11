@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-
-	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
+
+type CreateSourceRequest struct {
+	Location string `json:"location"`
+}
 
 func (t api) createSource(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -16,13 +18,13 @@ func (t api) createSource(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	var req dogeboxd.ManifestSourceConfiguration
+	var req CreateSourceRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		sendErrorResponse(w, http.StatusBadRequest, "Error parsing payload")
 		return
 	}
 
-	if _, err := t.sources.AddSource(req); err != nil {
+	if _, err := t.sources.AddSource(req.Location); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error adding source")
 		return
 	}
@@ -33,14 +35,14 @@ func (t api) createSource(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) deleteSource(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+	id := r.PathValue("id")
 
-	if name == "" {
-		sendErrorResponse(w, http.StatusBadRequest, "Missing source name")
+	if id == "" {
+		sendErrorResponse(w, http.StatusBadRequest, "Missing source id")
 		return
 	}
 
-	if err := t.sources.RemoveSource(name); err != nil {
+	if err := t.sources.RemoveSource(id); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error deleting source")
 		return
 	}
