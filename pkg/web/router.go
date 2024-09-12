@@ -27,7 +27,7 @@ type InternalRouter struct {
 
 func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
-		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", t.config.Bind, t.config.InternalPort), Handler: t}
+		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", "10.0.0.1", t.config.InternalPort), Handler: t}
 		go func() {
 			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 				log.Fatalf("HTTP server public ListenAndServe: %v", err)
@@ -63,8 +63,8 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Who is this request going to?
 	path := strings.TrimRight(r.URL.Path, "/") // unsure if we want to trim ...
 	pathSegments := strings.Split(path, "/")
-	iface := pathSegments[0]        // first part of the path is the target interface
-	pathSegments = pathSegments[1:] // trim that out of the request
+	iface := pathSegments[1]        // first part of the path is the target interface
+	pathSegments = pathSegments[2:] // trim that out of the request
 
 	// Handle dbx requests:
 	if iface == "dbx" {
@@ -83,7 +83,7 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// check the pup has a provider for this interface and get the provider pup
 	providerID, ok := originPup.Providers[iface]
 	if !ok {
-		forbidden(w, "Your manifest does not depend on interface: ", iface)
+		forbidden(w, "Your pup has no provider for interface: ", iface)
 		return
 	}
 
@@ -93,9 +93,9 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Does the request match any of their permissionGroup routes?
+	// Does the request match any of their permissionGroup routes the provider provides?
 	routes := []string{}
-	for _, i := range originPup.Manifest.Interfaces {
+	for _, i := range providerPup.Manifest.Interfaces {
 		if i.Name == iface {
 			for _, pg := range i.PermissionGroups {
 				for _, r := range pg.Routes {
@@ -108,8 +108,7 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	matchingRoute := ""
 	for _, route := range routes {
 		// route = strings.Split(route, "/")
-		routeSegments := strings.Split(route, "/")
-
+		routeSegments := strings.Split(route, "/")[1:]
 		// Check if the route and path have the same number of segments or if the route has one less (due to a wildcard)
 		if len(routeSegments) > len(pathSegments) || len(routeSegments) == len(pathSegments)-1 {
 			continue
@@ -171,7 +170,7 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
-	fmt.Printf("Routing from pup %s to pup %s: %s", originPup.IP, providerPup.IP, targetURL)
+	fmt.Printf("Routing from pup '%s' to pup '%s': \nproxy: %s \nto: %s\n", originPup.Manifest.Meta.Name, providerPup.Manifest.Meta.Name, r.URL, targetURL)
 	// Serve the request to the proxy
 	proxy.ServeHTTP(w, proxyReq)
 }
@@ -179,7 +178,7 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func forbidden(w http.ResponseWriter, reasons ...string) {
 	reason := "Access Denied"
 	if len(reasons) > 0 {
-		reason = fmt.Sprint(reasons)
+		reason = strings.Join(reasons, " ")
 	}
 	w.WriteHeader(http.StatusForbidden)
 	w.Write([]byte(reason))
