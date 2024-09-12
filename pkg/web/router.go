@@ -27,7 +27,7 @@ type InternalRouter struct {
 
 func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
-		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", "10.0.0.1", t.config.InternalPort), Handler: t}
+		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", "10.69.0.1", t.config.InternalPort), Handler: t}
 		go func() {
 			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 				log.Fatalf("HTTP server public ListenAndServe: %v", err)
