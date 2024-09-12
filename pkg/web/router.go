@@ -1,20 +1,48 @@
 package web
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/conductor"
 )
 
-type PupRouter struct {
-	pm dogeboxd.PupManager
+func NewInternalRouter(config dogeboxd.ServerConfig, pm dogeboxd.PupManager) conductor.Service {
+	return InternalRouter{
+		config: config,
+		pm:     pm,
+	}
 }
 
-func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
+type InternalRouter struct {
+	config dogeboxd.ServerConfig
+	pm     dogeboxd.PupManager
+}
+
+func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
+	go func() {
+		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", t.config.Bind, t.config.InternalPort), Handler: t}
+		go func() {
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+				log.Fatalf("HTTP server public ListenAndServe: %v", err)
+			}
+		}()
+
+		started <- true
+		ctx := <-stop
+		srv.Shutdown(ctx)
+		stopped <- true
+	}()
+	return nil
+}
+
+func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Who is this request from?
 	var originIsPup bool = false
 	var originIP string
@@ -27,7 +55,6 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 		// otherwise just use the remote address
 		originIP = strings.Split(r.RemoteAddr, ":")[0]
 	}
-
 	originPup, _, err := t.pm.FindPupByIP(originIP)
 	if err == nil {
 		originIsPup = true
@@ -49,7 +76,7 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 	// Handle interface requests:
 	if !originIsPup {
 		// you must be a pup!
-		forbidden(w, "You are not a Pup we know about")
+		forbidden(w, "You are not a Pup we know about", originIP)
 		return
 
 	}
@@ -144,6 +171,7 @@ func (t PupRouter) RouteRequest(w http.ResponseWriter, r *http.Request) {
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
+	fmt.Printf("Routing from pup %s to pup %s: %s", originPup.IP, providerPup.IP, targetURL)
 	// Serve the request to the proxy
 	proxy.ServeHTTP(w, proxyReq)
 }
