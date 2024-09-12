@@ -50,7 +50,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 			pupEntry := pups[availablePup.Name]
 			pupEntry.Versions[availablePup.Version] = availablePup.Manifest
 
-			if semver.Compare(availablePup.Version, pupEntry.LatestVersion) > 0 {
+			if semver.Compare("v"+availablePup.Version, "v"+pupEntry.LatestVersion) > 0 {
 				pupEntry.LatestVersion = availablePup.Version
 			}
 
