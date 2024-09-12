@@ -50,8 +50,8 @@ func (nm nixManager) InitSystem(pups dogeboxd.PupManager) error {
 
 	// TODO: set these values properly
 	sshEnabled := false
-	hostIp := "10.0.0.1"
-	containerCidr := "10.0.0.0/8"
+	hostIp := "10.69.0.1"
+	containerCidr := "10.69.0.0/8"
 	sshKeys := []string{}
 	systemHostname := "dogebox"
 
