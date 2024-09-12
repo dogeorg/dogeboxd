@@ -15,10 +15,10 @@ in
     autoStart = {{.PUP_ENABLED}};
 
     # Set up private networking. This will ensure the pup gets an internal IP
-    # in the range of 10.0.0.0/8, be able to to dogeboxd at 10.0.0.1, but not
+    # in the range of 10.69.0.0/8, be able to to dogeboxd at 10.69.0.1, but not
     # be able to talk to any other pups without proxying through dogeboxd.
     privateNetwork = true;
-    hostAddress = "10.0.0.1";
+    hostAddress = "10.69.0.1";
     localAddress = "{{.INTERNAL_IP}}";
 
     # Mount somewhere that can be used as storage for the pup.
@@ -61,7 +61,7 @@ in
         };
         hosts = {
           # Helper so you can always hit dogebox(d) in DNS.
-          "10.0.0.1" = [ "dogeboxd" "dogeboxd.local" "dogebox" "dogebox.local" ];
+          "10.69.0.1" = [ "dogeboxd" "dogeboxd.local" "dogebox" "dogebox.local" ];
         };
       };
 

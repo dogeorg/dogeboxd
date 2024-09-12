@@ -77,7 +77,7 @@ func NewPupManager(dataDir string, tmpDir string, monitor SystemMonitor) (PupMan
 	}
 
 	// set lastIP for IP Generation
-	ip := net.IP{10, 0, 0, 1} // skip 0.1 (dogeboxd)
+	ip := net.IP{10, 69, 0, 1} // skip 0.1 (dogeboxd)
 	for _, v := range p.state {
 		ip2 := net.ParseIP(v.IP).To4()
 		for i := 0; i < 4; i++ {
@@ -131,8 +131,8 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 	}
 
 	// Check if we have gone off the edge of the world
-	if t.lastIP[0] > 10 || (t.lastIP[0] == 10 && t.lastIP[1] > 0) {
-		return PupID, errors.New("exhausted 65,536 IP addresses, what are you doing??")
+	if t.lastIP[0] > 10 || (t.lastIP[0] == 10 && t.lastIP[1] > 70) {
+		return PupID, errors.New("exhausted 65,534 IP addresses, what are you doing??")
 	}
 
 	// Set up initial PupState and save it to disk
