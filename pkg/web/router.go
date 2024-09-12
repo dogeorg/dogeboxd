@@ -3,11 +3,11 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
@@ -27,10 +27,31 @@ type InternalRouter struct {
 
 func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
+		retry := time.NewTimer(time.Second)
 		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", "10.69.0.1", t.config.InternalPort), Handler: t}
 		go func() {
-			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-				log.Fatalf("HTTP server public ListenAndServe: %v", err)
+		mainloop:
+			for {
+				select {
+				case <-stop:
+					retry.Stop()
+					break mainloop
+				case <-retry.C:
+					// check if we have any installed pups
+					runRouter := false
+					for _, p := range t.pm.GetStateMap() {
+						if p.Installation == dogeboxd.STATE_READY {
+							runRouter = true
+							break
+						}
+					}
+					if runRouter {
+						if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+							//
+						}
+					}
+					retry.Reset(time.Second)
+				}
 			}
 		}()
 
