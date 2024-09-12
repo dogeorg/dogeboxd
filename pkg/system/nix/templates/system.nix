@@ -23,6 +23,8 @@
   services.openssh.enable = {{ .SSH_ENABLED }};
 
   users.users.shibe = {
+    isNormalUser = true;
+    group = "wheel";
     openssh = {
       authorizedKeys = {
         keys = [
