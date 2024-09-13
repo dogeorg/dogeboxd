@@ -17,6 +17,7 @@ type StoreListSourceEntry struct {
 	Name        string                             `json:"name"`
 	Description string                             `json:"description"`
 	Location    string                             `json:"location"`
+	Type        string                             `json:"type"`
 	LastChecked string                             `json:"lastChecked"`
 	Pups        map[string]StoreListSourceEntryPup `json:"pups"`
 }
@@ -76,6 +77,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 			Name:        entry.Config.Name,
 			Description: entry.Config.Description,
 			Location:    entry.Config.Location,
+			Type:        entry.Config.Type,
 			LastChecked: entry.LastChecked.Format(time.RFC3339),
 			Pups:        pups,
 		}
