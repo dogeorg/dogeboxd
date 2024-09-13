@@ -175,10 +175,9 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return err
 	}
 
-	log.Printf("Setting ownership of pup storage directory: %s", storagePath)
-	if err := os.Chown(storagePath, 420, 69); err != nil {
-		log.Printf("Failed to set ownership of pup storage directory: %w", err)
-		return err
+	cmd := exec.Command("chownpupstorage", t.config.DataDir, s.ID)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set ownership of pup storage directory: %w", err)
 	}
 
 	// Now that we're mostly installed, enable it.

@@ -7,7 +7,7 @@ clean:
 mkbuild:
 	mkdir -p build/
 
-build: build/dogeboxd build/enter_recovery_mode build/dbx build/_dbxroot
+build: build/dogeboxd build/enter_recovery_mode build/dbx build/_dbxroot build/chownpupstorage
 
 build/dogeboxd: clean, mkbuild
 	go build -o build/dogeboxd ./cmd/dogeboxd/. 
@@ -20,6 +20,9 @@ build/dbx: clean, mkbuild
 
 build/_dbxroot: clean, mkbuild
 	go build -o build/_dbxroot ./cmd/_dbxroot/.
+
+build/chownpupstorage: clean, mkbuild
+	go build -o build/chownpupstorage ./cmd/chownpupstorage/.
 
 dev:
 	go run ./cmd/dogeboxd -v
