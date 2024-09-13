@@ -39,6 +39,7 @@ func (t server) Start() {
 	}
 
 	sourceManager := source.NewSourceManager(t.config, t.sm, pups)
+	pups.SetSourceManager(sourceManager)
 	nixManager := nix.NewNixManager(t.config, pups)
 
 	// Set up our system interfaces so we can talk to the host OS

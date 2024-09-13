@@ -47,6 +47,7 @@ type PupManager struct {
 	updateSubscribers map[chan Pupdate]bool    // listeners for 'Pupdates'
 	statsSubscribers  map[chan []PupStats]bool // listeners for 'PupStats'
 	monitor           SystemMonitor
+	sourceManager     SourceManager
 }
 
 func NewPupManager(dataDir string, tmpDir string, monitor SystemMonitor) (PupManager, error) {
@@ -93,6 +94,10 @@ func NewPupManager(dataDir string, tmpDir string, monitor SystemMonitor) (PupMan
 	p.lastIP = ip
 	p.updateMonitoredPups()
 	return p, nil
+}
+
+func (t *PupManager) SetSourceManager(sourceManager SourceManager) {
+	t.sourceManager = sourceManager
 }
 
 /* This method is used to add a new pup from a manifest
@@ -404,9 +409,9 @@ type DependencyReport struct {
 
 // This function calculates a DependencyReport for every
 // dep that a given pup requires
-func (t PupManager) calculateDeps(pup *PupState) []DependencyReport {
+func (t PupManager) calculateDeps(pupState *PupState) []DependencyReport {
 	deps := []DependencyReport{}
-	for _, dep := range pup.Manifest.Dependencies {
+	for _, dep := range pupState.Manifest.Dependencies {
 		report := DependencyReport{
 			Interface: dep.InterfaceName,
 			Version:   dep.InterfaceVersion,
@@ -414,15 +419,15 @@ func (t PupManager) calculateDeps(pup *PupState) []DependencyReport {
 
 		constraint, err := semver.NewConstraint(dep.InterfaceVersion)
 		if err != nil {
-			fmt.Printf("Invalid version constraint: %s, %s:%s\n", pup.Manifest.Meta.Name, dep.InterfaceName, dep.InterfaceVersion)
+			fmt.Printf("Invalid version constraint: %s, %s:%s\n", pupState.Manifest.Meta.Name, dep.InterfaceName, dep.InterfaceVersion)
 			deps = append(deps, report)
 			continue
 		}
 
 		// Is there currently a provider set?
-		report.CurrentProvider = pup.Providers[dep.InterfaceName]
+		report.CurrentProvider = pupState.Providers[dep.InterfaceName]
 
-		// What are all installed pups that can provide?
+		// What are all installed pups that can provide the interface?
 		installed := []string{}
 		for id, p := range t.state {
 			// search the interfaces and check against constraint
@@ -437,6 +442,31 @@ func (t PupManager) calculateDeps(pup *PupState) []DependencyReport {
 			}
 		}
 		report.InstalledProviders = installed
+
+		// What are all available pups that can provide the interface?
+		available := []pup.PupManifestDependencySource{}
+		sourceList, err := t.sourceManager.GetAll(false)
+		if err == nil {
+			for _, list := range sourceList {
+				// search the interfaces and check against constraint
+				for _, p := range list.Pups {
+					for _, iface := range p.Manifest.Interfaces {
+						ver, err := semver.NewVersion(iface.Version)
+						if err != nil {
+							continue
+						}
+						if constraint.Check(ver) == true {
+							available = append(available, pup.PupManifestDependencySource{
+								SourceLocation: list.Config.Location,
+								PupName:        p.Name,
+								PupVersion:     p.Version,
+							})
+						}
+					}
+				}
+			}
+			report.InstallableProviders = available
+		}
 
 		// Is there a DefaultSourceProvider
 		report.DefaultSourceProvider = dep.DefaultSource
