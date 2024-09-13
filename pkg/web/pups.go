@@ -28,6 +28,17 @@ func (t api) updateConfig(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, map[string]string{"id": id})
 }
 
+func (t api) getPupProviders(w http.ResponseWriter, r *http.Request) {
+	pupid := r.PathValue("PupID")
+
+	deps, err := t.pups.CalculateDeps(pupid)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Cannof find pup")
+		return
+	}
+	sendResponse(w, deps)
+}
+
 func (t api) updateProviders(w http.ResponseWriter, r *http.Request) {
 	pupid := r.PathValue("PupID")
 	body, err := io.ReadAll(r.Body)

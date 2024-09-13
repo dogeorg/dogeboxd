@@ -156,8 +156,9 @@ type PupManifestDependency struct {
  * can still resolve this dependency tree.
  */
 type PupManifestDependencySource struct {
-	Type     string `json:"type"`
-	Location string `json:"location"`
+	SourceLocation string `json:"sourceLocation"`
+	PupName        string `json:"pupName"`
+	PupVersion     string `json:"pupVersion"`
 }
 
 /* Represents fields that are user settable, which provide the values
