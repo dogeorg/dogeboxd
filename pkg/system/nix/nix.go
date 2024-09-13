@@ -35,16 +35,18 @@ var _ dogeboxd.NixManager = &nixManager{}
 
 type nixManager struct {
 	config dogeboxd.ServerConfig
+	pups   dogeboxd.PupManager
 }
 
-func NewNixManager(config dogeboxd.ServerConfig) dogeboxd.NixManager {
+func NewNixManager(config dogeboxd.ServerConfig, pups dogeboxd.PupManager) dogeboxd.NixManager {
 	return nixManager{
 		config: config,
+		pups:   pups,
 	}
 }
 
-func (nm nixManager) InitSystem(pups dogeboxd.PupManager) error {
-	if err := nm.UpdateIncludeFile(pups); err != nil {
+func (nm nixManager) InitSystem() error {
+	if err := nm.UpdateIncludeFile(nm.pups); err != nil {
 		return err
 	}
 
@@ -63,9 +65,7 @@ func (nm nixManager) InitSystem(pups dogeboxd.PupManager) error {
 		return err
 	}
 
-	if err := nm.UpdateFirewall(dogeboxd.NixFirewallTemplateValues{
-		SSH_ENABLED: sshEnabled,
-	}); err != nil {
+	if err := nm.UpdateFirewallRules(); err != nil {
 		return err
 	}
 
@@ -148,18 +148,41 @@ func (nm nixManager) WritePupFile(
 	}
 
 	values := dogeboxd.NixPupContainerTemplateValues{
-		PUP_ID:       state.ID,
-		PUP_ENABLED:  state.Enabled,
-		INTERNAL_IP:  state.IP,
-		PUP_PORTS:    []int{},
+		PUP_ID:      state.ID,
+		PUP_ENABLED: state.Enabled,
+		INTERNAL_IP: state.IP,
+		PUP_PORTS: []struct {
+			PORT   int
+			PUBLIC bool
+		}{},
 		STORAGE_PATH: filepath.Join(nm.config.DataDir, "pups/storage", state.ID),
 		PUP_PATH:     filepath.Join(nm.config.DataDir, "pups", state.ID),
 		NIX_FILE:     filepath.Join(nm.config.DataDir, "pups", state.ID, state.Manifest.Container.Build.NixFile),
 		SERVICES:     services,
 	}
 
+	hasPublicPorts := false
+
 	for _, ex := range state.Manifest.Container.Exposes {
-		values.PUP_PORTS = append(values.PUP_PORTS, ex.Port)
+		values.PUP_PORTS = append(values.PUP_PORTS, struct {
+			PORT   int
+			PUBLIC bool
+		}{
+			PORT:   ex.Port,
+			PUBLIC: ex.ListenOnHost,
+		})
+
+		if ex.ListenOnHost {
+			hasPublicPorts = true
+		}
+	}
+
+	// If we have any public host ports, we need to
+	// update the host firewall to open those ports.
+	if hasPublicPorts {
+		if err := nm.UpdateFirewallRules(); err != nil {
+			return err
+		}
 	}
 
 	filename := fmt.Sprintf("pup_%s.nix", state.ID)
@@ -177,7 +200,38 @@ func (nm nixManager) UpdateSystemContainerConfiguration(values dogeboxd.NixSyste
 	return nm.writeTemplate("system_container_config.nix", rawSystemContainerConfigTemplate, values)
 }
 
-func (nm nixManager) UpdateFirewall(values dogeboxd.NixFirewallTemplateValues) error {
+func (nm nixManager) UpdateFirewallRules() error {
+	installed := nm.pups.GetStateMap()
+	var pupPorts []struct {
+		PORT   int
+		PUBLIC bool
+		PUP_ID string
+	}
+
+	for pupID, state := range installed {
+		for _, port := range state.Manifest.Container.Exposes {
+			pupPorts = append(pupPorts, struct {
+				PORT   int
+				PUBLIC bool
+				PUP_ID string
+			}{
+				PORT:   port.Port,
+				PUBLIC: port.ListenOnHost,
+				PUP_ID: pupID,
+			})
+		}
+	}
+
+	// TODO: set these values properly
+	sshEnabled := false
+
+	return nm.updateFirewall(dogeboxd.NixFirewallTemplateValues{
+		SSH_ENABLED: sshEnabled,
+		PUP_PORTS:   pupPorts,
+	})
+}
+
+func (nm nixManager) updateFirewall(values dogeboxd.NixFirewallTemplateValues) error {
 	return nm.writeTemplate("firewall.nix", rawFirewallTemplate, values)
 }
 

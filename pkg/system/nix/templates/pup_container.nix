@@ -21,6 +21,14 @@ in
     hostAddress = "10.69.0.1";
     localAddress = "{{.INTERNAL_IP}}";
 
+    forwardPorts = [
+      {{ range .PUP_PORTS }}{{ if .PUBLIC }}{
+        containerPort = {{ .PORT }};
+        hostPort = {{ .PORT }};
+        protocol = "tcp";
+      }{{end}}{{end}}
+    ];
+
     # Mount somewhere that can be used as storage for the pup.
     # The rest of the filesystem is marked as readonly (and ephemeral)
     bindMounts = {
@@ -57,7 +65,7 @@ in
           enable = true;
           # If the pup has marked that is listens on ports
           # explicitly whitelist those in the container fw.
-          allowedTCPPorts = [ {{ range .PUP_PORTS }}{{ . }} {{end}}];
+          allowedTCPPorts = [ {{ range .PUP_PORTS }}{{ .PORT }} {{end}}];
         };
         hosts = {
           # Helper so you can always hit dogebox(d) in DNS.

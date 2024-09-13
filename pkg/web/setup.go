@@ -93,7 +93,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := t.nix.InitSystem(t.dbx.Pups); err != nil {
+	if err := t.nix.InitSystem(); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
 	}

@@ -198,10 +198,13 @@ type NixPupContainerServiceValues struct {
 }
 
 type NixPupContainerTemplateValues struct {
-	PUP_ID       string
-	PUP_ENABLED  bool
-	INTERNAL_IP  string
-	PUP_PORTS    []int
+	PUP_ID      string
+	PUP_ENABLED bool
+	INTERNAL_IP string
+	PUP_PORTS   []struct {
+		PORT   int
+		PUBLIC bool
+	}
 	STORAGE_PATH string
 	PUP_PATH     string
 	NIX_FILE     string
@@ -216,6 +219,11 @@ type NixSystemContainerConfigTemplateValues struct {
 
 type NixFirewallTemplateValues struct {
 	SSH_ENABLED bool
+	PUP_PORTS   []struct {
+		PORT   int
+		PUBLIC bool
+		PUP_ID string
+	}
 }
 
 type NixSystemTemplateValues struct {
@@ -239,7 +247,7 @@ type NixNetworkTemplateValues struct {
 type NixManager interface {
 	Rebuild() error
 	RebuildBoot() error
-	InitSystem(pups PupManager) error
+	InitSystem() error
 	UpdateIncludeFile(pups PupManager) error
 	WriteDogeboxNixFile(filename string, content string) error
 	WritePupFile(pupState PupState) error

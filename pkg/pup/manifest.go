@@ -116,10 +116,11 @@ type PupManifestCommand struct {
 
 /* Allow the user to expose certain ports in their container. */
 type PupManifestExposeConfig struct {
-	Type        string   `json:"type"`        // Freeform field, but we'll handle certain cases of "admin" or "public", "api"
-	TrafficType string   `json:"trafficType"` // HTTP, Raw TCP etc. Used by the frontend in addition to type to understand if something can be iframed.
-	Port        int      `json:"port"`        // The port that is being listened on inside the container.
-	Interfaces  []string `json:"interfaces"`  // Designates that certain interfaces can be accessed on this port
+	Type         string   `json:"type"`         // Freeform field, but we'll handle certain cases of "admin" or "public", "api"
+	TrafficType  string   `json:"trafficType"`  // HTTP, Raw TCP etc. Used by the frontend in addition to type to understand if something can be iframed.
+	Port         int      `json:"port"`         // The port that is being listened on inside the container.
+	Interfaces   []string `json:"interfaces"`   // Designates that certain interfaces can be accessed on this port
+	ListenOnHost bool     `json:"listenOnHost"` // If true, the port will be accessible on the host network, otherwise it will listen on a private internal network interface.
 }
 
 type PupManifestInterface struct {
