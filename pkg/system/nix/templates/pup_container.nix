@@ -83,8 +83,8 @@ in
 
       users.users.pup = {
         uid = 420;
-        isSystemUser = false;
-        isNormalUser = true;
+        isSystemUser = true;
+        isNormalUser = false;
         group =  "pup";
       };
 
