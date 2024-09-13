@@ -80,6 +80,7 @@ func RESTAPI(
 		"PUT /pup":                a.installPup,
 		"POST /config/{PupID}":    a.updateConfig,
 		"POST /providers/{PupID}": a.updateProviders,
+		"GET /providers/{PupID}":  a.getPupProviders,
 		"GET /sources":            a.getSources,
 		"PUT /source":             a.createSource,
 		"GET /sources/store":      a.getStoreList,

@@ -56,10 +56,17 @@ type PupState struct {
 type PupStats struct {
 	ID          string      `json:"id"`
 	Status      string      `json:"status"`
-	StatCPU     FloatBuffer `json:"status_cpu_percent"`
-	StatMEM     FloatBuffer `json:"status_mem_total"`
-	StatMEMPERC FloatBuffer `json:"status_mem_percent"`
-	StatDISK    FloatBuffer `json:"status_disk"`
+	Issues      *PupIssues  `json:"issues"`
+	StatCPU     FloatBuffer `json:"statusCpuPercent"`
+	StatMEM     FloatBuffer `json:"statusMemTotal"`
+	StatMEMPERC FloatBuffer `json:"statusMemPercent"`
+	StatDISK    FloatBuffer `json:"statusDisk"`
+}
+
+type PupIssues struct {
+	DepsNotRunning   []string `json:"depsNotRunning"`
+	HealthWarnings   []string `json:"healthWarnings"`
+	UpgradeAvaialble bool     `json:"upgradeAvailable"`
 }
 
 type FloatBuffer struct {

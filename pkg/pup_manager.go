@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Masterminds/semver"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
@@ -382,6 +383,75 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 		stopped <- true
 	}()
 	return nil
+}
+
+// Modify provided pup to update warning flags
+func (t PupManager) healthCheckPupState(pup *PupState) {
+	// are our required config fields set?
+
+	// are our deps met?
+	// deps := t.calculateDeps(pup)
+}
+
+type DependencyReport struct {
+	Interface             string                            `json:"interface"`
+	Version               string                            `json:"version"`
+	CurrentProvider       string                            `json:"currentProvider"`
+	InstalledProviders    []string                          `json:"installedProviders"`
+	InstallableProviders  []pup.PupManifestDependencySource `json:"InstallableProviders"`
+	DefaultSourceProvider pup.PupManifestDependencySource   `json:"DefaultProvider"`
+}
+
+// This function calculates a DependencyReport for every
+// dep that a given pup requires
+func (t PupManager) calculateDeps(pup *PupState) []DependencyReport {
+	deps := []DependencyReport{}
+	for _, dep := range pup.Manifest.Dependencies {
+		report := DependencyReport{
+			Interface: dep.InterfaceName,
+			Version:   dep.InterfaceVersion,
+		}
+
+		constraint, err := semver.NewConstraint(dep.InterfaceVersion)
+		if err != nil {
+			fmt.Printf("Invalid version constraint: %s, %s:%s\n", pup.Manifest.Meta.Name, dep.InterfaceName, dep.InterfaceVersion)
+			deps = append(deps, report)
+			continue
+		}
+
+		// Is there currently a provider set?
+		report.CurrentProvider = pup.Providers[dep.InterfaceName]
+
+		// What are all installed pups that can provide?
+		installed := []string{}
+		for id, p := range t.state {
+			// search the interfaces and check against constraint
+			for _, iface := range p.Manifest.Interfaces {
+				ver, err := semver.NewVersion(iface.Version)
+				if err != nil {
+					continue
+				}
+				if constraint.Check(ver) == true {
+					installed = append(installed, id)
+				}
+			}
+		}
+		report.InstalledProviders = installed
+
+		// Is there a DefaultSourceProvider
+		report.DefaultSourceProvider = dep.DefaultSource
+
+		deps = append(deps, report)
+	}
+	return deps
+}
+
+func (t PupManager) CalculateDeps(pupID string) ([]DependencyReport, error) {
+	pup, ok := t.state[pupID]
+	if !ok {
+		return []DependencyReport{}, errors.New("no such pup")
+	}
+	return t.calculateDeps(pup), nil
 }
 
 /* Gets the list of previously managed pupIDs and loads their
