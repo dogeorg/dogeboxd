@@ -170,7 +170,7 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	storagePath := filepath.Join(t.config.DataDir, "pups/storage", s.ID)
 
 	log.Printf("Creating pup storage directory: %s", storagePath)
-	if err := os.MkdirAll(storagePath, 0640); err != nil {
+	if err := os.MkdirAll(storagePath, 0750); err != nil {
 		log.Printf("Failed to create pup storage directory: %w", err)
 		return err
 	}
