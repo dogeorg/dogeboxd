@@ -18,7 +18,7 @@ Example:
   pup stop --pupId mypup123`,
 	Run: func(cmd *cobra.Command, args []string) {
 		pupId, _ := cmd.Flags().GetString("pupId")
-		if !isAlphanumeric(pupId) {
+		if !IsAlphanumeric(pupId) {
 			fmt.Println("Error: pupId must contain only alphanumeric characters")
 			return
 		}
@@ -45,13 +45,4 @@ func init() {
 
 	stopCmd.Flags().StringP("pupId", "p", "", "ID of the pup to stop (required, alphanumeric only)")
 	stopCmd.MarkFlagRequired("pupId")
-}
-
-func isAlphanumeric(s string) bool {
-	for _, r := range s {
-		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
-			return false
-		}
-	}
-	return true
 }

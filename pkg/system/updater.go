@@ -167,17 +167,10 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return fmt.Errorf("Nix file hash mismatch")
 	}
 
-	storagePath := filepath.Join(t.config.DataDir, "pups/storage", s.ID)
-
-	log.Printf("Creating pup storage directory: %s", storagePath)
-	if err := os.MkdirAll(storagePath, 0750); err != nil {
-		log.Printf("Failed to create pup storage directory: %w", err)
-		return err
-	}
-
-	cmd := exec.Command("chownpupstorage", t.config.DataDir, s.ID)
+	cmd := exec.Command("_dbxroot", "pup", "create-storage", "--data-dir", t.config.DataDir, "--pup-id", s.ID)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set ownership of pup storage directory: %w", err)
+		log.Printf("Failed to create pup storage: %v", err)
+		return fmt.Errorf("failed to create pup storage: %w", err)
 	}
 
 	// Now that we're mostly installed, enable it.
