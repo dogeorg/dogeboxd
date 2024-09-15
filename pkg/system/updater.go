@@ -302,12 +302,12 @@ func (t SystemUpdater) disablePup(s dogeboxd.PupState) error {
 		return err
 	}
 
-	cmd := exec.Command("sudo", "machinectlstop", s.ID)
+	cmd := exec.Command("_dbxroot", "pup", "stop", "--pupId", s.ID)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error executing machinectlstop:", err)
+		fmt.Fprintln(os.Stderr, "Error executing _dbxroot pup stop:", err)
 		return err
 	}
 
