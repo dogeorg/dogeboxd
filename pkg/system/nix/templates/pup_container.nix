@@ -15,11 +15,14 @@ in
     autoStart = {{.PUP_ENABLED}};
 
     # Set up private networking. This will ensure the pup gets an internal IP
-    # in the range of 10.69.0.0/8, be able to to dogeboxd at 10.69.0.1, but not
+    # in the range of 10.69.0.0/16, be able to to dogeboxd at 10.69.0.1, but not
     # be able to talk to any other pups without proxying through dogeboxd.
     privateNetwork = true;
     hostAddress = "10.69.0.1";
     localAddress = "{{.INTERNAL_IP}}";
+
+    # Drop root inside the container to force running as non-privileged.
+    extraFlags = [ "-U" ];
 
     forwardPorts = [
       {{ range .PUP_PORTS }}{{ if .PUBLIC }}{
@@ -104,10 +107,27 @@ in
             {{range .ENV}}"{{.KEY}}={{.VAL}}"{{end}}
           ];
 
+          # Harden the service.
+          CapabilityBoundingSet = [ "" ];
+          DevicePolicy = "closed";
+          LockPersonality = true;
           PrivateTmp = true;
-          ProtectSystem = "full";
-          ProtectHome = "yes";
-          NoNewPrivileges = true;
+          PrivateDevices = true;
+          PrivateMounts = true;
+          ProcSubset = "pid";
+          ProtectClock = true;
+          ProtectControlGroups = true;
+          ProtectHome = true;
+          ProtectHostname = true;
+          ProtectKernelLogs = true;
+          ProtectKernelModules = true;
+          ProtectKernelTunables = true;
+          ProtectProc = "invisible";
+          ProtectSystem = "strict";
+          RestrictNamespaces = true;
+          RestrictRealtime = true;
+          RestrictSUIDSGID = true;
+          SystemCallArchitectures = "native";
         };
       };
       {{end}}
