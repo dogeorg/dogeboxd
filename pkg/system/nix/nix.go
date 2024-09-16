@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 //go:embed templates/pup_container.nix
@@ -214,10 +215,82 @@ func (nm nixManager) UpdateSystemContainerConfiguration() error {
 	}
 
 	var pupsTcpConnections []dogeboxd.NixSystemContainerConfigTemplatePupTcpConnection
+
+	pupsById := map[string]dogeboxd.PupState{}
 	for _, state := range pupState {
+		pupsById[state.ID] = state
+	}
+
+	for _, state := range pupState {
+		// For each pup, we build up a list of _other_ pups that it needs to
+		// talk TCP to. This could be zero, it could be many, or all of its
+		// dependencies could actually point to the same remote pup.
+		otherPupsById := map[string]dogeboxd.NixSystemContainerConfigTemplatePupTcpConnectionOtherPup{}
+
 		for _, dependency := range state.Manifest.Dependencies {
-			// TODO: Do this.
+			provider := state.Providers[dependency.InterfaceName]
+
+			if provider == "" {
+				// Do nothing here.
+				continue
+			}
+
+			providerPup, ok := pupsById[provider]
+			if !ok {
+				// Probably log an error here?
+				continue
+			}
+
+			// Find our interface in the provider's manifest
+			var providerExposes *pup.PupManifestExposeConfig
+			for _, providerExpose := range providerPup.Manifest.Container.Exposes {
+				if providerExpose.Type != "tcp" {
+					// Ignore anything not TCP, as those are supported elsewhere.
+					continue
+				}
+
+				for _, providerExposeInterface := range providerExpose.Interfaces {
+					if providerExposeInterface == dependency.InterfaceName {
+						providerExposes = &providerExpose
+						break
+					}
+				}
+
+				if providerExposes == nil {
+					// Probably log an error here?
+					continue
+				}
+
+			}
+
+			if _, ok := otherPupsById[providerPup.ID]; !ok {
+				otherPupsById[providerPup.ID] = dogeboxd.NixSystemContainerConfigTemplatePupTcpConnectionOtherPup{
+					NAME: providerPup.ID,
+					ID:   providerPup.ID,
+					IP:   providerPup.IP,
+					PORTS: []struct {
+						PORT int
+					}{},
+				}
+			}
+
+			existing := otherPupsById[providerPup.ID]
+			existing.PORTS = append(existing.PORTS, struct{ PORT int }{PORT: providerExposes.Port})
+			otherPupsById[providerPup.ID] = existing
 		}
+
+		otherPups := []dogeboxd.NixSystemContainerConfigTemplatePupTcpConnectionOtherPup{}
+
+		for _, otherPup := range otherPupsById {
+			otherPups = append(otherPups, otherPup)
+		}
+
+		pupsTcpConnections = append(pupsTcpConnections, dogeboxd.NixSystemContainerConfigTemplatePupTcpConnection{
+			NAME:       state.ID,
+			ID:         state.ID,
+			IP:         state.IP,
+			OTHER_PUPS: otherPups,
+		})
 	}
 
 	values := dogeboxd.NixSystemContainerConfigTemplateValues{
