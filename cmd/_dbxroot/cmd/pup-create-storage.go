@@ -32,7 +32,7 @@ Example:
 			os.Exit(1)
 		}
 
-		if !isAbsolutePath(dataDir) {
+		if !IsAbsolutePath(dataDir) {
 			fmt.Println("Error: data-dir must be an absolute path")
 			os.Exit(1)
 		}
@@ -63,8 +63,4 @@ func init() {
 
 	createStorageCmd.Flags().StringP("data-dir", "d", "", "Absolute path to the data directory (required)")
 	createStorageCmd.MarkFlagRequired("data-dir")
-}
-
-func isAbsolutePath(path string) bool {
-	return len(path) > 0 && path[0] == '/'
 }

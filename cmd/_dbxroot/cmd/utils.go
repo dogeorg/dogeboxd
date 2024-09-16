@@ -8,3 +8,7 @@ func IsAlphanumeric(s string) bool {
 	}
 	return true
 }
+
+func IsAbsolutePath(path string) bool {
+	return len(path) > 0 && path[0] == '/'
+}
