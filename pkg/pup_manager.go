@@ -339,7 +339,7 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 						s.StatCPU.Add(v.CPUPercent)
 						s.StatMEM.Add(v.MEMMb)
 						s.StatMEMPERC.Add(v.MEMPercent)
-						s.StatDISK.Add(float64(0.0))
+						s.StatDISK.Add(float64(0.0)) // TODO
 						// Calculate our status
 						p := t.state[id]
 						if v.Running && p.Enabled {
@@ -388,6 +388,53 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 		stopped <- true
 	}()
 	return nil
+}
+
+// Updates the stats.Metrics field with data from the pup router
+func (t PupManager) UpdateMetrics(u UpdateMetrics) {
+	s, ok := t.stats[u.PupID]
+	if !ok {
+		fmt.Println("skipping metrics for unfound pup", u.PupID)
+		return
+	}
+	p := t.state[u.PupID]
+
+	for _, m := range p.Manifest.Metrics {
+		val, ok := u.Payload[m.Name]
+		if !ok {
+			// no value for metric
+			continue
+		}
+
+		switch m.Type {
+		case "string":
+			v, ok := val.Value.(string)
+			if !ok {
+				fmt.Printf("metric value for %s is not string", m.Name)
+				continue
+			}
+			b := s.Metrics[m.Name].(*Buffer[string])
+			b.Add(v)
+		case "int":
+			v, ok := val.Value.(int)
+			if !ok {
+				fmt.Printf("metric value for %s is not int", m.Name)
+				continue
+			}
+			b := s.Metrics[m.Name].(*Buffer[int])
+			b.Add(v)
+		case "float":
+			v, ok := val.Value.(float64)
+			if !ok {
+				fmt.Printf("metric value for %s is not float", m.Name)
+				continue
+			}
+			b := s.Metrics[m.Name].(*Buffer[float64])
+			b.Add(v)
+		default:
+			fmt.Println("Manifest metric unknown field type", m.Type)
+		}
+	}
 }
 
 // Modify provided pup to update warning flags
@@ -560,6 +607,24 @@ func (t PupManager) indexPup(p *PupState) {
 		StatMEM:     NewFloatBuffer(30),
 		StatMEMPERC: NewFloatBuffer(30),
 		StatDISK:    NewFloatBuffer(30),
+		Metrics:     map[string]interface{}{},
+	}
+	// handle custom metrics defined in manifest
+	for _, m := range p.Manifest.Metrics {
+		if m.Name == "" || m.HistorySize <= 0 {
+			fmt.Println("Manifest metric has invalid fields", m)
+			continue
+		}
+		switch m.Type {
+		case "string":
+			s.Metrics[m.Name] = NewBuffer[string](m.HistorySize)
+		case "int":
+			s.Metrics[m.Name] = NewBuffer[int](m.HistorySize)
+		case "float":
+			s.Metrics[m.Name] = NewBuffer[float64](m.HistorySize)
+		default:
+			fmt.Println("Manifest metric unknown field type", m.Type)
+		}
 	}
 
 	t.state[p.ID] = p

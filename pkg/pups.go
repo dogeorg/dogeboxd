@@ -54,13 +54,14 @@ type PupState struct {
 // PupStats is not persisted to disk, and holds the running
 // stats for the pup process, ie: disk, CPU, etc.
 type PupStats struct {
-	ID          string      `json:"id"`
-	Status      string      `json:"status"`
-	Issues      *PupIssues  `json:"issues"`
-	StatCPU     FloatBuffer `json:"statusCpuPercent"`
-	StatMEM     FloatBuffer `json:"statusMemTotal"`
-	StatMEMPERC FloatBuffer `json:"statusMemPercent"`
-	StatDISK    FloatBuffer `json:"statusDisk"`
+	ID          string                 `json:"id"`
+	Status      string                 `json:"status"`
+	Issues      *PupIssues             `json:"issues"`
+	StatCPU     FloatBuffer            `json:"statusCpuPercent"`
+	StatMEM     FloatBuffer            `json:"statusMemTotal"`
+	StatMEMPERC FloatBuffer            `json:"statusMemPercent"`
+	StatDISK    FloatBuffer            `json:"statusDisk"`
+	Metrics     map[string]interface{} `json:"metrics"`
 }
 
 type PupIssues struct {
@@ -95,5 +96,34 @@ func (b *FloatBuffer) GetValues() []float64 {
 }
 
 func (b *FloatBuffer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.GetValues())
+}
+
+type Buffer[T any] struct {
+	Values []T
+	Head   int
+}
+
+func NewBuffer[T any](size int) *Buffer[T] {
+	return &Buffer[T]{
+		Values: make([]T, size),
+		Head:   0,
+	}
+}
+
+func (b *Buffer[T]) Add(value T) {
+	b.Values[b.Head] = value
+	b.Head = (b.Head + 1) % len(b.Values)
+}
+
+func (b *Buffer[T]) GetValues() []T {
+	lastN := make([]T, len(b.Values))
+	for i := 0; i < len(b.Values); i++ {
+		lastN[i] = b.Values[(b.Head-i-1+len(b.Values))%len(b.Values)]
+	}
+	return lastN
+}
+
+func (b *Buffer[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(b.GetValues())
 }

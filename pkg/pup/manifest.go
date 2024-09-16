@@ -178,6 +178,6 @@ type PupManifestConfigFields struct {
 type PupManifestMetric struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
-	Type        string `json:"type"` // string, number, float
-	HistorySize int    `json:"history_size"`
+	Type        string `json:"type"` // string, int, float
+	HistorySize int    `json:"history"`
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func sendResponse(w http.ResponseWriter, payload any) {
@@ -28,4 +29,19 @@ func sendErrorResponse(w http.ResponseWriter, code int, message string) {
 	w.Header().Set("Cache-Control", "no-store") // do not cache (Browsers cache GET forever by default)
 	w.WriteHeader(code)
 	w.Write([]byte(payload))
+}
+
+func getOriginIP(r *http.Request) string {
+	var originIP string
+
+	// handle proxies
+	if r.Header.Get("X-Forwarded-For") != "" {
+		// If there are multiple IPs in X-Forwarded-For, take the first one
+		originIP = strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]
+	} else {
+		// otherwise just use the remote address
+		originIP = strings.Split(r.RemoteAddr, ":")[0]
+	}
+
+	return originIP
 }
