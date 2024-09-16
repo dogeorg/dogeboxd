@@ -52,8 +52,6 @@ func (nm nixManager) InitSystem() error {
 
 	// TODO: set these values properly
 	sshEnabled := false
-	hostIp := "10.69.0.1"
-	containerCidr := "10.69.0.0/8"
 	sshKeys := []string{}
 	systemHostname := "dogebox"
 
@@ -69,11 +67,7 @@ func (nm nixManager) InitSystem() error {
 		return err
 	}
 
-	if err := nm.UpdateSystemContainerConfiguration(dogeboxd.NixSystemContainerConfigTemplateValues{
-		// NETWORK_INTERFACE:      networkInterface,
-		DOGEBOX_HOST_IP:        hostIp,
-		DOGEBOX_CONTAINER_CIDR: containerCidr,
-	}); err != nil {
+	if err := nm.UpdateSystemContainerConfiguration(); err != nil {
 		return err
 	}
 
@@ -185,6 +179,13 @@ func (nm nixManager) WritePupFile(
 		}
 	}
 
+	// If we need access to the internet, update the system container config.
+	if state.Manifest.Container.RequiresInternet {
+		if err := nm.UpdateSystemContainerConfiguration(); err != nil {
+			return err
+		}
+	}
+
 	filename := fmt.Sprintf("pup_%s.nix", state.ID)
 
 	return nm.writeTemplate(filename, rawPupContainerTemplate, values)
@@ -196,7 +197,32 @@ func (nm nixManager) RemovePupFile(pupId string) error {
 	return os.Remove(filepath.Join(nm.config.NixDir, filename))
 }
 
-func (nm nixManager) UpdateSystemContainerConfiguration(values dogeboxd.NixSystemContainerConfigTemplateValues) error {
+func (nm nixManager) UpdateSystemContainerConfiguration() error {
+	// TODO: Move away from hardcoding these values. Should be pulled from pupmanager?
+	hostIp := "10.69.0.1"
+	containerCidr := "10.69.0.0/8"
+
+	pupState := nm.pups.GetStateMap()
+	var pupsRequiringInternet []dogeboxd.NixSystemContainerConfigTemplatePupRequiresInternet
+	for _, state := range pupState {
+		if state.Manifest.Container.RequiresInternet {
+			pupsRequiringInternet = append(pupsRequiringInternet, dogeboxd.NixSystemContainerConfigTemplatePupRequiresInternet{
+				PUP_ID: state.ID,
+				PUP_IP: state.IP,
+			})
+		}
+	}
+
+	values := dogeboxd.NixSystemContainerConfigTemplateValues{
+		DOGEBOX_HOST_IP:         hostIp,
+		DOGEBOX_CONTAINER_CIDR:  containerCidr,
+		PUPS_REQUIRING_INTERNET: pupsRequiringInternet,
+	}
+
+	return nm.updateSystemContainerConfiguration(values)
+}
+
+func (nm nixManager) updateSystemContainerConfiguration(values dogeboxd.NixSystemContainerConfigTemplateValues) error {
 	return nm.writeTemplate("system_container_config.nix", rawSystemContainerConfigTemplate, values)
 }
 

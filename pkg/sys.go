@@ -211,10 +211,15 @@ type NixPupContainerTemplateValues struct {
 	SERVICES     []NixPupContainerServiceValues
 }
 
+type NixSystemContainerConfigTemplatePupRequiresInternet struct {
+	PUP_ID string
+	PUP_IP string
+}
+
 type NixSystemContainerConfigTemplateValues struct {
-	// NETWORK_INTERFACE      string
-	DOGEBOX_HOST_IP        string
-	DOGEBOX_CONTAINER_CIDR string
+	DOGEBOX_HOST_IP         string
+	DOGEBOX_CONTAINER_CIDR  string
+	PUPS_REQUIRING_INTERNET []NixSystemContainerConfigTemplatePupRequiresInternet
 }
 
 type NixFirewallTemplateValues struct {
@@ -253,6 +258,6 @@ type NixManager interface {
 	WritePupFile(pupState PupState) error
 	RemovePupFile(pupId string) error
 	UpdateSystem(values NixSystemTemplateValues) error
-	UpdateSystemContainerConfiguration(values NixSystemContainerConfigTemplateValues) error
+	UpdateSystemContainerConfiguration() error
 	UpdateNetwork(values NixNetworkTemplateValues) error
 }

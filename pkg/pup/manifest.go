@@ -85,6 +85,8 @@ type PupManifestContainer struct {
 	// as an artifact here with the correct execution configuration.
 	Services []PupManifestService      `json:"services"`
 	Exposes  []PupManifestExposeConfig `json:"exposes"`
+	// This pup requires internet access to function.
+	RequiresInternet bool `json:"requiresInternet"`
 }
 
 /* PupManifestBuild holds information about the target nix
