@@ -213,10 +213,18 @@ func (nm nixManager) UpdateSystemContainerConfiguration() error {
 		}
 	}
 
+	var pupsTcpConnections []dogeboxd.NixSystemContainerConfigTemplatePupTcpConnection
+	for _, state := range pupState {
+		for _, dependency := range state.Manifest.Dependencies {
+			// TODO: Do this.
+		}
+	}
+
 	values := dogeboxd.NixSystemContainerConfigTemplateValues{
 		DOGEBOX_HOST_IP:         hostIp,
 		DOGEBOX_CONTAINER_CIDR:  containerCidr,
 		PUPS_REQUIRING_INTERNET: pupsRequiringInternet,
+		PUPS_TCP_CONNECTIONS:    pupsTcpConnections,
 	}
 
 	return nm.updateSystemContainerConfiguration(values)

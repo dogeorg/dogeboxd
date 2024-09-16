@@ -1,6 +1,7 @@
 package web
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -27,6 +28,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 
 	available, err := t.sources.GetAll(forceRefresh)
 	if err != nil {
+		log.Println("Error fetching sources:", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching sources")
 		return
 	}
