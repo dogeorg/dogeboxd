@@ -76,10 +76,15 @@ in
       services.resolved.enable = true;
 
       # Create a group & user for running the pup executable as.
-      users.groups.pup = {};
+      # Explicitly set IDs so that bind mounts can be chown'd on the host.
+      users.groups.pup = {
+        gid = 69;
+      };
+
       users.users.pup = {
-        isSystemUser = false;
-        isNormalUser = true;
+        uid = 420;
+        isSystemUser = true;
+        isNormalUser = false;
         group =  "pup";
       };
 

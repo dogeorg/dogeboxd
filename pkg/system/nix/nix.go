@@ -244,7 +244,7 @@ func (nm nixManager) UpdateNetwork(values dogeboxd.NixNetworkTemplateValues) err
 }
 
 func (nm nixManager) RebuildBoot() error {
-	md := exec.Command("_dbxroot", "nix", "rb")
+	md := exec.Command("sudo", "_dbxroot", "nix", "rb")
 
 	output, err := md.CombinedOutput()
 	if err != nil {
@@ -258,7 +258,7 @@ func (nm nixManager) RebuildBoot() error {
 }
 
 func (nm nixManager) Rebuild() error {
-	md := exec.Command("_dbxroot", "nix", "rs")
+	md := exec.Command("sudo", "_dbxroot", "nix", "rs")
 
 	output, err := md.CombinedOutput()
 	if err != nil {
