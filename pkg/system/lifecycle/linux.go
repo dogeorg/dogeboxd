@@ -12,14 +12,14 @@ var _ dogeboxd.LifecycleManager = &LifecycleManagerLinux{}
 type LifecycleManagerLinux struct{}
 
 func (t LifecycleManagerLinux) Reboot() {
-	cmd := exec.Command("reboot")
+	cmd := exec.Command("sudo", "_dbxroot", "reboot")
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Failed to execute reboot command: %v\n", err)
 	}
 }
 
 func (t LifecycleManagerLinux) Shutdown() {
-	cmd := exec.Command("poweroff")
+	cmd := exec.Command("sudo", "_dbxroot", "shutdown")
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Failed to execute reboot command: %v\n", err)
 	}

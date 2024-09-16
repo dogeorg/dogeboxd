@@ -167,12 +167,11 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return fmt.Errorf("Nix file hash mismatch")
 	}
 
-	storagePath := filepath.Join(t.config.DataDir, "pups/storage", s.ID)
-
-	log.Printf("Creating pup storage directory: %s", storagePath)
-	if err := os.MkdirAll(storagePath, 0755); err != nil {
-		log.Printf("Failed to create pup storage directory: %w", err)
-		return err
+	cmd := exec.Command("sudo", "_dbxroot", "pup", "create-storage", "--data-dir", t.config.DataDir, "--pupId", s.ID)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("Failed to create pup storage: %v. Command output: %s", err, output)
+		return fmt.Errorf("failed to create pup storage: %w", err)
 	}
 
 	// Now that we're mostly installed, enable it.
@@ -261,9 +260,12 @@ func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
 	}
 
 	// Delete pup storage directory
-	err := os.RemoveAll(filepath.Join(pupDir, "storage", s.ID))
-	if err != nil {
-		fmt.Println("Failed to remove pup storage", err)
+	cmd := exec.Command("sudo", "_dbxroot", "pup", "delete-storage", "--pupId", s.ID, "--data-dir", t.config.DataDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println("Failed to remove pup storage:", err)
 		return err
 	}
 
@@ -302,12 +304,12 @@ func (t SystemUpdater) disablePup(s dogeboxd.PupState) error {
 		return err
 	}
 
-	cmd := exec.Command("sudo", "machinectlstop", s.ID)
+	cmd := exec.Command("sudo", "_dbxroot", "pup", "stop", "--pupId", s.ID)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error executing machinectlstop:", err)
+		fmt.Fprintln(os.Stderr, "Error executing _dbxroot pup stop:", err)
 		return err
 	}
 
