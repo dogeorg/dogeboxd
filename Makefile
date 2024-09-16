@@ -7,13 +7,10 @@ clean:
 mkbuild:
 	mkdir -p build/
 
-build: build/dogeboxd build/enter_recovery_mode build/dbx build/_dbxroot
+build: build/dogeboxd build/dbx build/_dbxroot
 
 build/dogeboxd: clean, mkbuild
 	go build -o build/dogeboxd ./cmd/dogeboxd/. 
-
-build/enter_recovery_mode: clean, mkbuild
-	go build -o build/enter_recovery_mode ./cmd/enter_recovery_mode/.
 
 build/dbx: clean, mkbuild
 	go build -o build/dbx ./cmd/dbx/.
