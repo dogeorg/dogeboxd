@@ -391,6 +391,30 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 	return nil
 }
 
+func (t PupManager) GetMetrics(pupId string) map[string]interface{} {
+	s, ok := t.stats[pupId]
+	if !ok {
+		fmt.Printf("Error: Unable to find stats for pup %s\n", pupId)
+		return map[string]interface{}{}
+	}
+
+	metrics := make(map[string]interface{})
+	for name, buffer := range s.Metrics {
+		switch b := buffer.(type) {
+		case *Buffer[string]:
+			metrics[name] = b.GetValues()
+		case *Buffer[int]:
+			metrics[name] = b.GetValues()
+		case *Buffer[float64]:
+			metrics[name] = b.GetValues()
+		default:
+			fmt.Printf("Warning: Unknown buffer type for metric %s\n", name)
+		}
+	}
+
+	return metrics
+}
+
 // Updates the stats.Metrics field with data from the pup router
 func (t PupManager) UpdateMetrics(u UpdateMetrics) {
 	s, ok := t.stats[u.PupID]

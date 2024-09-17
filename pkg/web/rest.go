@@ -76,6 +76,7 @@ func RESTAPI(
 	// Normal routes are used when we are not in recovery mode.
 	// nb. These are used in _addition_ to recovery routes.
 	normalRoutes := map[string]http.HandlerFunc{
+		"GET /pup/{ID}/metrics":   a.getPupMetrics,
 		"POST /pup/{ID}/{action}": a.pupAction,
 		"PUT /pup":                a.installPup,
 		"POST /config/{PupID}":    a.updateConfig,
