@@ -54,6 +54,20 @@ func (m *PupManifest) Validate() error {
 		}
 	}
 
+	for _, expose := range m.Container.Exposes {
+		if expose.Name == "" {
+			return fmt.Errorf("expose name is required")
+		}
+
+		if expose.Port <= 0 || expose.Port > 65535 {
+			return fmt.Errorf("expose port must be between 1 and 65535")
+		}
+
+		if expose.Type != "http" && expose.Type != "tcp" {
+			return fmt.Errorf("expose type must be one of: http, tcp")
+		}
+	}
+
 	return nil
 }
 
@@ -119,8 +133,8 @@ type PupManifestCommand struct {
 
 /* Allow the user to expose certain ports in their container. */
 type PupManifestExposeConfig struct {
-	Type         string   `json:"type"`         // Freeform field, but we'll handle certain cases of "admin" or "public", "api"
-	TrafficType  string   `json:"trafficType"`  // HTTP, Raw TCP etc. Used by the frontend in addition to type to understand if something can be iframed.
+	Name         string   `json:"name"`         // Freeform field used to refer to this port in the frontend.
+	Type         string   `json:"type"`         // Must be one of: http, tcp
 	Port         int      `json:"port"`         // The port that is being listened on inside the container.
 	Interfaces   []string `json:"interfaces"`   // Designates that certain interfaces can be accessed on this port
 	ListenOnHost bool     `json:"listenOnHost"` // If true, the port will be accessible on the host network, otherwise it will listen on a private internal network interface.
@@ -141,6 +155,7 @@ type PupManifestPermissionGroup struct {
 	Description string   `json:"description"` // What does this permission group do (shown to user)
 	Severity    int      `json:"severity"`    // 1-3, 1: critical/danger, 2: makes changes, 3: read only stuff
 	Routes      []string `json:"routes"`      // http routes accessible for this group
+	Port        int      `json:"port"`        // port accessible for this group
 }
 
 /* Dependency specifies that this pup requires

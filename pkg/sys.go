@@ -216,10 +216,27 @@ type NixSystemContainerConfigTemplatePupRequiresInternet struct {
 	PUP_IP string
 }
 
+type NixSystemContainerConfigTemplatePupTcpConnectionOtherPup struct {
+	NAME  string
+	ID    string
+	IP    string
+	PORTS []struct {
+		PORT int
+	}
+}
+
+type NixSystemContainerConfigTemplatePupTcpConnection struct {
+	NAME       string
+	ID         string
+	IP         string
+	OTHER_PUPS []NixSystemContainerConfigTemplatePupTcpConnectionOtherPup
+}
+
 type NixSystemContainerConfigTemplateValues struct {
 	DOGEBOX_HOST_IP         string
 	DOGEBOX_CONTAINER_CIDR  string
 	PUPS_REQUIRING_INTERNET []NixSystemContainerConfigTemplatePupRequiresInternet
+	PUPS_TCP_CONNECTIONS    []NixSystemContainerConfigTemplatePupTcpConnection
 }
 
 type NixFirewallTemplateValues struct {

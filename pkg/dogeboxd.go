@@ -53,6 +53,7 @@ type Dogeboxd struct {
 	NetworkManager NetworkManager
 	sm             StateManager
 	sources        SourceManager
+	nix            NixManager
 	jobs           chan Job
 	Changes        chan Change
 }
@@ -65,6 +66,7 @@ func NewDogeboxd(
 	journal JournalReader,
 	networkManager NetworkManager,
 	sourceManager SourceManager,
+	nixManager NixManager,
 ) Dogeboxd {
 	s := Dogeboxd{
 		Pups:           pups,
@@ -74,6 +76,7 @@ func NewDogeboxd(
 		NetworkManager: networkManager,
 		sm:             stateManager,
 		sources:        sourceManager,
+		nix:            nixManager,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
 	}
@@ -280,6 +283,23 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 		t.sendFinishedJob("action", j)
 		return
 	}
+
+	// Once we've updated our providers, we might need to rebuild
+	// some of our container configurations to fix up firewall rules.
+	if err := t.nix.UpdateSystemContainerConfiguration(); err != nil {
+		fmt.Println("Failed to update container configuration:", err)
+		j.Err = err.Error()
+		t.sendFinishedJob("action", j)
+		return
+	}
+
+	if err := t.nix.Rebuild(); err != nil {
+		fmt.Println("Failed to rebuild:", err)
+		j.Err = err.Error()
+		t.sendFinishedJob("action", j)
+		return
+	}
+
 	t.sendFinishedJob("action", j)
 }
 
