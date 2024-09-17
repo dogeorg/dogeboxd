@@ -30,7 +30,7 @@ type InternalRouter struct {
 }
 
 func (t InternalRouter) routes() {
-	t.dbxmux.HandleFunc("/dbx/metrics", t.recordMetrics)
+	t.dbxmux.HandleFunc("POST /dbx/metrics", t.recordMetrics)
 }
 
 func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
