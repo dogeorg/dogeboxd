@@ -31,7 +31,7 @@ func main() {
 	flag.StringVar(&nixDir, "nix", "/etc/nixos/dogebox", "Directory to write dogebox-specific nix configuration to")
 	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
 	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
-	flag.IntVar(&internalPort, "internal-port", 8082, "Internal Router Port")
+	flag.IntVar(&internalPort, "internal-port", 80, "Internal Router Port")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
 	flag.BoolVar(&dangerousDevMode, "danger-dev", false, "Enable dangerous development mode")
 	flag.BoolVar(&verbose, "v", false, "Be verbose")
