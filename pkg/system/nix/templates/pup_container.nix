@@ -9,6 +9,20 @@ in
   # Maybe don't need this here at the top-level, only inside the container block?
   nixpkgs.overlays = [ pupOverlay ];
 
+  systemd.services."container-log-forwarder@pup-{{.PUP_ID}}" = {
+    description = "Container Log Forwarder for pup-{{.PUP_ID}}";
+    after = [ "container@pup-{{.PUP_ID}}.service" ];
+    requires = [ "container@pup-{{.PUP_ID}}.service" ];
+    serviceConfig = {
+      ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.systemd}/bin/journalctl -M pup-{{.PUP_ID}} -f -o short-iso >> /var/log/containers/pup-{{.PUP_ID}}'";
+      Restart = "always";
+      User = "root";
+      StandardOutput = "null";
+      StandardError = "journal";
+    };
+    wantedBy = [ "multi-user.target" ];
+  };
+
   containers.pup-{{.PUP_ID}} = {
 
     # If our pup is enabled, we set it to autostart on boot.
