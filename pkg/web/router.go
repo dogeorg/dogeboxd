@@ -13,19 +13,28 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
 )
 
-func NewInternalRouter(config dogeboxd.ServerConfig, pm dogeboxd.PupManager) conductor.Service {
+func NewInternalRouter(config dogeboxd.ServerConfig, dbx dogeboxd.Dogeboxd, pm dogeboxd.PupManager) conductor.Service {
 	return InternalRouter{
 		config: config,
 		pm:     pm,
+		dbx:    dbx,
+		dbxmux: http.NewServeMux(),
 	}
 }
 
 type InternalRouter struct {
 	config dogeboxd.ServerConfig
+	dbx    dogeboxd.Dogeboxd
 	pm     dogeboxd.PupManager
+	dbxmux *http.ServeMux
+}
+
+func (t InternalRouter) routes() {
+	t.dbxmux.HandleFunc("POST /dbx/metrics", t.recordMetrics)
 }
 
 func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
+	t.routes()
 	go func() {
 		retry := time.NewTimer(time.Second)
 		srv := &http.Server{Addr: fmt.Sprintf("%s:%d", "10.69.0.1", t.config.InternalPort), Handler: t}
@@ -46,6 +55,7 @@ func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Contex
 						}
 					}
 					if runRouter {
+						fmt.Println("connecting internal router")
 						if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 							//
 						}
@@ -64,23 +74,6 @@ func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Contex
 }
 
 func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Who is this request from?
-	var originIsPup bool = false
-	var originIP string
-
-	// handle proxies
-	if r.Header.Get("X-Forwarded-For") != "" {
-		// If there are multiple IPs in X-Forwarded-For, take the first one
-		originIP = strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]
-	} else {
-		// otherwise just use the remote address
-		originIP = strings.Split(r.RemoteAddr, ":")[0]
-	}
-	originPup, _, err := t.pm.FindPupByIP(originIP)
-	if err == nil {
-		originIsPup = true
-	}
-
 	// Who is this request going to?
 	path := strings.TrimRight(r.URL.Path, "/") // unsure if we want to trim ...
 	pathSegments := strings.Split(path, "/")
@@ -89,9 +82,17 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Handle dbx requests:
 	if iface == "dbx" {
-		// TODO
-		forbidden(w, "dbx apis currently unavailable")
+		t.dbxmux.ServeHTTP(w, r)
 		return
+	}
+
+	// Who is this request from?
+	var originIsPup bool = false
+
+	originIP := getOriginIP(r)
+	originPup, _, err := t.pm.FindPupByIP(originIP)
+	if err == nil {
+		originIsPup = true
 	}
 
 	// Handle interface requests:
@@ -191,7 +192,7 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
-	fmt.Printf("Routing from pup '%s' to pup '%s': \nproxy: %s \nto: %s\n", originPup.Manifest.Meta.Name, providerPup.Manifest.Meta.Name, r.URL, targetURL)
+	fmt.Printf("[router: %s -> %s] %s\n", originPup.Manifest.Meta.Name, providerPup.Manifest.Meta.Name, targetURL.Path)
 	// Serve the request to the proxy
 	proxy.ServeHTTP(w, proxyReq)
 }

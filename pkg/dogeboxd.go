@@ -204,6 +204,10 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	case UpdatePendingSystemNetwork:
 		t.SystemUpdater.AddJob(j)
 
+	// Pup router actions
+	case UpdateMetrics:
+		t.Pups.UpdateMetrics(a)
+
 	default:
 		fmt.Printf("Unknown action type: %v\n", a)
 	}

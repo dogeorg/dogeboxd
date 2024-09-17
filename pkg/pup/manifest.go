@@ -16,6 +16,7 @@ type PupManifest struct {
 	Container       PupManifestContainer    `json:"container"`
 	Interfaces      []PupManifestInterface  `json:"interfaces"`
 	Dependencies    []PupManifestDependency `json:"dependencies"`
+	Metrics         []PupManifestMetric     `json:"metrics"`
 }
 
 func (m *PupManifest) Validate() error {
@@ -174,4 +175,11 @@ type PupManifestConfigFields struct {
 		// TODO: we probably need a list of valid field types
 		Fields []map[string]interface{} `json:"fields"`
 	} `json:"sections"`
+}
+
+type PupManifestMetric struct {
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Type        string `json:"type"` // string, int, float
+	HistorySize int    `json:"history"`
 }

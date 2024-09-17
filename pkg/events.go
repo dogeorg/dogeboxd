@@ -72,6 +72,16 @@ type UpdatePupProviders struct {
 	Payload map[string]string
 }
 
+// updates the custom metrics for a pup
+type UpdateMetrics struct {
+	PupID   string
+	Payload map[string]PupMetric
+}
+
+type PupMetric struct {
+	Value any `json:"value"`
+}
+
 type UpdatePendingSystemNetwork struct {
 	Network SelectedNetwork
 }

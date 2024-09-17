@@ -67,7 +67,7 @@ func (t server) Start() {
 
 	wsh := web.NewWSRelay(t.config, dbx.Changes)
 	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, wsh)
-	internalRouter := web.NewInternalRouter(t.config, pups)
+	internalRouter := web.NewInternalRouter(t.config, dbx, pups)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */
