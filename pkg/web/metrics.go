@@ -25,15 +25,15 @@ func (t api) getPupMetrics(w http.ResponseWriter, r *http.Request) {
 		switch bufferSlice := buffer.(type) {
 		case []string:
 			if len(bufferSlice) > 0 {
-				lastMetrics[name] = bufferSlice[len(bufferSlice)-1]
+				lastMetrics[name] = bufferSlice[0]
 			}
 		case []int:
 			if len(bufferSlice) > 0 {
-				lastMetrics[name] = bufferSlice[len(bufferSlice)-1]
+				lastMetrics[name] = bufferSlice[0]
 			}
 		case []float64:
 			if len(bufferSlice) > 0 {
-				lastMetrics[name] = bufferSlice[len(bufferSlice)-1]
+				lastMetrics[name] = bufferSlice[0]
 			}
 		default:
 			log.Printf("Unexpected buffer type for metric %s", name)
