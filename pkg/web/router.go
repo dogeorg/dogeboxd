@@ -192,7 +192,7 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
-	fmt.Printf("Routing from pup '%s' to pup '%s': \nproxy: %s \nto: %s\n", originPup.Manifest.Meta.Name, providerPup.Manifest.Meta.Name, r.URL, targetURL)
+	fmt.Printf("[router: %s -> %s] %s\n", originPup.Manifest.Meta.Name, providerPup.Manifest.Meta.Name, targetURL.Path)
 	// Serve the request to the proxy
 	proxy.ServeHTTP(w, proxyReq)
 }

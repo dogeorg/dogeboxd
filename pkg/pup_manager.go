@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -416,13 +417,21 @@ func (t PupManager) UpdateMetrics(u UpdateMetrics) {
 			b := s.Metrics[m.Name].(*Buffer[string])
 			b.Add(v)
 		case "int":
-			v, ok := val.Value.(int)
-			if !ok {
-				fmt.Printf("metric value for %s is not int", m.Name)
+			// convert various things to int..
+			var vi int
+			switch v := val.Value.(type) {
+			case float32:
+				vi = int(v)
+			case float64:
+				vi = int(v)
+			case int:
+				vi = v
+			default:
+				fmt.Printf("metric value for %s is not int", m.Name, reflect.TypeOf(val.Value))
 				continue
 			}
 			b := s.Metrics[m.Name].(*Buffer[int])
-			b.Add(v)
+			b.Add(vi)
 		case "float":
 			v, ok := val.Value.(float64)
 			if !ok {
