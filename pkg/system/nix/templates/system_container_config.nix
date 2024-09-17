@@ -12,9 +12,19 @@
   networking.firewall = {
     enable = true;
     extraCommands = ''
+      # Block commands must live at the start of this template, as they're inserted (`-I`) at
+      # the FRONT of the chain. As rules are evaluated 0-->..N for an ACCEPT, we insert
+      # everything allowed at the front of the chain (before blocks) so it all works.
+
+      # Block all other traffic within {{ .DOGEBOX_CONTAINER_CIDR }}
+      iptables -I FORWARD -s {{ .DOGEBOX_CONTAINER_CIDR }} -d {{ .DOGEBOX_CONTAINER_CIDR }} -j REJECT
+
+      # Block everything else.
+      iptables -I FORWARD -s {{ .DOGEBOX_CONTAINER_CIDR }} ! -d {{ .DOGEBOX_CONTAINER_CIDR }} -j REJECT
+
       # Allow traffic to {{ .DOGEBOX_HOST_IP }} (host)
-      iptables -A FORWARD -s {{ .DOGEBOX_CONTAINER_CIDR }} -d {{ .DOGEBOX_HOST_IP }} -j ACCEPT
-      iptables -A FORWARD -s {{ .DOGEBOX_HOST_IP }} -d {{ .DOGEBOX_CONTAINER_CIDR }} -j ACCEPT
+      iptables -I FORWARD -s {{ .DOGEBOX_CONTAINER_CIDR }} -d {{ .DOGEBOX_HOST_IP }} -j ACCEPT
+      iptables -I FORWARD -s {{ .DOGEBOX_HOST_IP }} -d {{ .DOGEBOX_CONTAINER_CIDR }} -j ACCEPT
 
       {{- range .PUPS_TCP_CONNECTIONS }}
         {{- $PUP := . }}
@@ -22,26 +32,20 @@
           {{- $OTHER_PUP := . }}
           {{- range .PORTS }}
       # Connection FROM {{$PUP.ID}} ({{$PUP.NAME}}) to {{$OTHER_PUP.ID}} ({{$OTHER_PUP.NAME}})
-      iptables -A FORWARD -p tcp -s {{$PUP.IP}} -d {{$OTHER_PUP.IP}} --dport {{.PORT}} -j ACCEPT
+      iptables -I FORWARD -p tcp -s {{$PUP.IP}} -d {{$OTHER_PUP.IP}} --dport {{.PORT}} -j ACCEPT
 
       # Connection BACK TO {{$PUP.ID}} ({{$PUP.NAME}}) from {{$OTHER_PUP.ID}} ({{$OTHER_PUP.NAME}})
-      iptables -A FORWARD -p tcp -s {{$OTHER_PUP.IP}} -d {{$PUP.IP}} --sport {{.PORT}} -j ACCEPT
+      iptables -I FORWARD -p tcp -s {{$OTHER_PUP.IP}} -d {{$PUP.IP}} --sport {{.PORT}} -j ACCEPT
           {{- end}}
         {{- end}}
       {{- end}}
 
       {{ range .PUPS_REQUIRING_INTERNET }}
       # Explicitly block everything from {{.PUP_ID}} to all other pups.
-      iptables -A FORWARD -s {{ .PUP_IP }} -d {{ $.DOGEBOX_CONTAINER_CIDR }} -j REJECT
+      iptables -I FORWARD -s {{ .PUP_IP }} -d {{ $.DOGEBOX_CONTAINER_CIDR }} -j REJECT
       # But allow {{.PUP_ID}} to talk to everything else (ie. the internet)
-      iptables -A FORWARD -s {{ .PUP_IP }} -j ACCEPT
+      iptables -I FORWARD -s {{ .PUP_IP }} -j ACCEPT
       {{end}}
-
-      # Block all other traffic within {{ .DOGEBOX_CONTAINER_CIDR }}
-      iptables -A FORWARD -s {{ .DOGEBOX_CONTAINER_CIDR }} -d {{ .DOGEBOX_CONTAINER_CIDR }} -j REJECT
-
-      # Block everything else.
-      iptables -A FORWARD -s {{ .DOGEBOX_CONTAINER_CIDR }} ! -d {{ .DOGEBOX_CONTAINER_CIDR }} -j REJECT
     '';
   };
 }
