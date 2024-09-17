@@ -12,13 +12,14 @@ import (
 )
 
 func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
-	pupid := r.PathValue("PupID")
-	cancel, logChan, err := t.dbx.GetLogChannel(pupid)
+	unit := r.PathValue("unit")
+	cancel, logChan, err := t.dbx.GetLogChannel(unit)
 	if err != nil {
 		fmt.Println("ERR", err)
 		sendErrorResponse(w, http.StatusBadRequest, "Error establishing log channel")
 	}
-	t.ws.GetWSChannelHandler(fmt.Sprintf("%s-log", pupid), logChan, cancel).ServeHTTP(w, r)
+
+	t.ws.GetWSChannelHandler(fmt.Sprintf("%s-log", unit), logChan, cancel).ServeHTTP(w, r)
 }
 
 func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +86,6 @@ func (t *WSRelay) Broadcast(channel string, v any) {
 		if ws.channel != channel {
 			continue
 		}
-		fmt.Println("sending to sock", i)
 		err := websocket.JSON.Send(ws.WS, v)
 		if err != nil {
 			fmt.Println("ERR WS", err)
