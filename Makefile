@@ -22,7 +22,7 @@ multipassdev:
 	go run ./cmd/dogeboxd -v -addr 0.0.0.0 -pups ~/
 
 dev:
-	make && /run/wrappers/bin/dogeboxd -v --addr 0.0.0.0 --danger-dev --data ~/data --nix ~/data/nix --port 3000 --uiport 8080
+	make && /run/wrappers/bin/dogeboxd -v --addr 0.0.0.0 --danger-dev --data ~/data --nix ~/data/nix --containerlogdir ~/data/containerlogs --port 3000 --uiport 8080
 
 test:
 	go test -v ./test
