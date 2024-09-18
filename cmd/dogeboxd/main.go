@@ -19,6 +19,7 @@ func main() {
 	var nixDir string
 	var uiDir string
 	var uiPort int
+	var containerLogDir string
 	var internalPort int
 	var verbose bool
 	var help bool
@@ -30,6 +31,7 @@ func main() {
 	flag.StringVar(&dataDir, "data", "/opt/dogebox", "Directory to write configuration files to")
 	flag.StringVar(&nixDir, "nix", "/etc/nixos/dogebox", "Directory to write dogebox-specific nix configuration to")
 	flag.StringVar(&uiDir, "uidir", "../dpanel/src", "Directory to find admin UI (dpanel)")
+	flag.StringVar(&containerLogDir, "containerlogdir", "/var/log/containers", "Directory to write container logs to")
 	flag.IntVar(&uiPort, "uiport", 8081, "Port for serving admin UI (dpanel)")
 	flag.IntVar(&internalPort, "internal-port", 80, "Internal Router Port")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
@@ -53,6 +55,14 @@ func main() {
 	if _, err := os.Stat(tmpDir); os.IsNotExist(err) {
 		log.Printf("Tmp directory %s does not exist, creating it", tmpDir)
 		os.MkdirAll(tmpDir, 0755)
+	}
+
+	if _, err := os.Stat(containerLogDir); os.IsNotExist(err) {
+		log.Printf("Container log directory %s does not exist, creating it", containerLogDir)
+		err := os.MkdirAll(containerLogDir, 0750)
+		if err != nil {
+			log.Fatalf("Failed to create container log directory: %v", err)
+		}
 	}
 
 	stateManager := system.NewStateManager(dataDir)
@@ -87,17 +97,18 @@ func main() {
 	}
 
 	config := dogeboxd.ServerConfig{
-		Port:         port,
-		Bind:         bind,
-		DataDir:      dataDir,
-		TmpDir:       tmpDir,
-		NixDir:       nixDir,
-		Verbose:      verbose,
-		Recovery:     recoveryMode,
-		UiDir:        uiDir,
-		UiPort:       uiPort,
-		InternalPort: internalPort,
-		DevMode:      dangerousDevMode,
+		Port:            port,
+		Bind:            bind,
+		DataDir:         dataDir,
+		TmpDir:          tmpDir,
+		NixDir:          nixDir,
+		ContainerLogDir: containerLogDir,
+		Verbose:         verbose,
+		Recovery:        recoveryMode,
+		UiDir:           uiDir,
+		UiPort:          uiPort,
+		InternalPort:    internalPort,
+		DevMode:         dangerousDevMode,
 	}
 
 	srv := Server(stateManager, config)

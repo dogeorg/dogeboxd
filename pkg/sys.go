@@ -31,6 +31,10 @@ type JournalReader interface {
 	GetJournalChan(string) (context.CancelFunc, chan string, error)
 }
 
+type LogTailer interface {
+	GetChan(string) (context.CancelFunc, chan string, error)
+}
+
 // SystemMonitor issues these for monitored PUPs
 type ProcStatus struct {
 	CPUPercent float64
@@ -198,12 +202,12 @@ type NixPupContainerServiceValues struct {
 }
 
 type NixPupContainerTemplateValues struct {
-	DATA_DIR string
-
-	PUP_ID      string
-	PUP_ENABLED bool
-	INTERNAL_IP string
-	PUP_PORTS   []struct {
+	DATA_DIR          string
+	CONTAINER_LOG_DIR string
+	PUP_ID            string
+	PUP_ENABLED       bool
+	INTERNAL_IP       string
+	PUP_PORTS         []struct {
 		PORT   int
 		PUBLIC bool
 	}

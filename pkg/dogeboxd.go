@@ -54,6 +54,7 @@ type Dogeboxd struct {
 	sm             StateManager
 	sources        SourceManager
 	nix            NixManager
+	logtailer      LogTailer
 	jobs           chan Job
 	Changes        chan Change
 }
@@ -67,6 +68,7 @@ func NewDogeboxd(
 	networkManager NetworkManager,
 	sourceManager SourceManager,
 	nixManager NixManager,
+	logtailer LogTailer,
 ) Dogeboxd {
 	s := Dogeboxd{
 		Pups:           pups,
@@ -77,6 +79,7 @@ func NewDogeboxd(
 		sm:             stateManager,
 		sources:        sourceManager,
 		nix:            nixManager,
+		logtailer:      logtailer,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
 	}
@@ -323,21 +326,24 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	t.SystemUpdater.AddJob(j)
 }
 
-// TODO: Shound not be on Dogeboxd, needs moving
+var allowedJournalServices = map[string]string{
+	"dbx": "dogeboxd.service",
+	"dkm": "dkm.service",
+}
 
-// Get a log channel for a specific pup for the websocket API
-func (t Dogeboxd) GetLogChannel(pupID string) (context.CancelFunc, chan string, error) {
-	// find the manifest, get the systemd service-name,
-	// subscribe to the JournalReader for that service:
-	state, _, err := t.Pups.GetPup(pupID)
+func (t Dogeboxd) GetLogChannel(PupID string) (context.CancelFunc, chan string, error) {
+	// We read dogeboxd and dkm from the host systemd journal,
+	// and read everything else (pups) from the container logs we export.
+	service, ok := allowedJournalServices[PupID]
+	if ok {
+		return t.JournalReader.GetJournalChan(service)
+	}
+
+	// Check that we've actually got a valid pup id.
+	_, _, err := t.Pups.GetPup(PupID)
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO this should possibly be the responsibility off
-	// journal reader so systemd concepts dont bleed into
-	// dogecoind..
-	service := fmt.Sprintf("%s.service", state.ID)
-	fmt.Println("conencting to systemd journal: ", service)
-	service = "dbus.service" // TODO HAX REMOVE
-	return t.JournalReader.GetJournalChan(service)
+
+	return t.logtailer.GetChan(PupID)
 }

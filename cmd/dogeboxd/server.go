@@ -48,6 +48,7 @@ func (t server) Start() {
 
 	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups)
 	journalReader := system.NewJournalReader(t.config)
+	logtailer := system.NewLogTailer(t.config)
 
 	/* ----------------------------------------------------------------------- */
 	// Set up PupManager and load the state for all installed pups
@@ -60,7 +61,7 @@ func (t server) Start() {
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
 
-	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, sourceManager, nixManager)
+	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, sourceManager, nixManager, logtailer)
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets
