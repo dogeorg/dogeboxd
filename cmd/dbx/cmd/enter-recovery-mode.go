@@ -40,6 +40,6 @@ var enterRecoveryModeCmd = &cobra.Command{
 }
 
 func init() {
-	enterRecoveryModeCmd.Flags().StringP("dataDir", "d", "", "dogebox data dir")
+	enterRecoveryModeCmd.Flags().StringP("dataDir", "d", "/opt/dogebox", "dogebox data dir")
 	rootCmd.AddCommand(enterRecoveryModeCmd)
 }

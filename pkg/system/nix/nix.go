@@ -143,6 +143,7 @@ func (nm nixManager) WritePupFile(
 	}
 
 	values := dogeboxd.NixPupContainerTemplateValues{
+		DATA_DIR:    nm.config.DataDir,
 		PUP_ID:      state.ID,
 		PUP_ENABLED: state.Enabled,
 		INTERNAL_IP: state.IP,

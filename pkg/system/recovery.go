@@ -14,9 +14,40 @@ import (
 var VALID_RECOVERY_FILES = []string{"RECOVERY", "RECOVERY.TXT"}
 
 // This function should do detection on whether or not we should enter our "Recovery Mode".
-// This can always be overriden by a CLI flag if necessary.
+// This can always be overriden by a CLI flag if necessary. This will not return true if the
+// current instance of dogeboxd has booted in recovery. Use `IsRecoveryMode()` for that.
 func ShouldEnterRecovery(dogeboxDataDir string, sm dogeboxd.StateManager) bool {
 	return hasExternalRecoveryTXT() || isInitialConfiguration(sm) || HasForceRecoveryFile(dogeboxDataDir)
+}
+
+func IsRecoveryMode(dogeboxDataDir string, sm dogeboxd.StateManager) bool {
+	if ShouldEnterRecovery(dogeboxDataDir, sm) {
+		return true
+	}
+
+	bootedRecoveryPath := filepath.Join(dogeboxDataDir, "booted_recovery")
+	if _, err := os.Stat(bootedRecoveryPath); err == nil {
+		return true
+	}
+	return false
+}
+
+func DidEnterRecovery(dogeboxDataDir string) error {
+	forceRecoveryPath := filepath.Join(dogeboxDataDir, "force_recovery_next_boot")
+	if _, err := os.Stat(forceRecoveryPath); err == nil {
+		if err := os.Remove(forceRecoveryPath); err != nil {
+			return fmt.Errorf("failed to remove force_recovery_next_boot file: %w", err)
+		}
+	}
+
+	bootedRecoveryPath := filepath.Join(dogeboxDataDir, "booted_recovery")
+	file, err := os.Create(bootedRecoveryPath)
+	if err != nil {
+		return fmt.Errorf("failed to create booted_recovery file: %w", err)
+	}
+	defer file.Close()
+
+	return nil
 }
 
 func ForceRecoveryNextBoot(dataDir string) error {
@@ -31,19 +62,25 @@ func ForceRecoveryNextBoot(dataDir string) error {
 
 func UnforceRecoveryNextBoot(dataDir string) error {
 	filePath := filepath.Join(dataDir, "force_recovery_next_boot")
-	if err := os.Remove(filePath); err != nil {
-		return fmt.Errorf("failed to remove force recovery file: %w", err)
+	if _, err := os.Stat(filePath); err == nil {
+		if err := os.Remove(filePath); err != nil {
+			return fmt.Errorf("failed to remove force recovery file: %w", err)
+		}
 	}
+
+	bootedRecoveryPath := filepath.Join(dataDir, "booted_recovery")
+	if _, err := os.Stat(bootedRecoveryPath); err == nil {
+		if err := os.Remove(bootedRecoveryPath); err != nil {
+			return fmt.Errorf("failed to remove booted_recovery file: %w", err)
+		}
+	}
+
 	return nil
 }
 
 func HasForceRecoveryFile(dataDir string) bool {
 	filePath := filepath.Join(dataDir, "force_recovery_next_boot")
 	if _, err := os.Stat(filePath); err == nil {
-		// We want to remove it as soon as we've read it.
-		if err := os.Remove(filePath); err != nil {
-			fmt.Printf("Failed to remove force recovery file: %v\n", err)
-		}
 		return true
 	}
 	return false

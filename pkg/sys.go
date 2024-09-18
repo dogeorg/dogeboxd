@@ -198,6 +198,8 @@ type NixPupContainerServiceValues struct {
 }
 
 type NixPupContainerTemplateValues struct {
+	DATA_DIR string
+
 	PUP_ID      string
 	PUP_ENABLED bool
 	INTERNAL_IP string
