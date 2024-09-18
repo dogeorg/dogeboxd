@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
@@ -131,12 +130,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Dogebox successfully bootstrapped, rebooting so we can boot into normal mode.")
-
-	if t.config.DevMode {
-		log.Printf("In dev mode: Not rebooting, but killing service to make it obvious.")
-		os.Exit(0)
-		return
-	}
 
 	t.lifecycle.Reboot()
 }

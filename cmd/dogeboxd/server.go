@@ -44,7 +44,7 @@ func (t server) Start() {
 
 	// Set up our system interfaces so we can talk to the host OS
 	networkManager := network.NewNetworkManager(nixManager, t.sm)
-	lifecycleManager := lifecycle.NewLifecycleManager()
+	lifecycleManager := lifecycle.NewLifecycleManager(t.config)
 
 	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups)
 	journalReader := system.NewJournalReader(t.config)

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/dogeorg/dogeboxd/pkg/system/lifecycle"
 	"github.com/spf13/cobra"
@@ -34,7 +35,7 @@ var enterRecoveryModeCmd = &cobra.Command{
 
 		log.Println("Wrote flag, rebooting..")
 
-		lifecycleManager := lifecycle.NewLifecycleManager()
+		lifecycleManager := lifecycle.NewLifecycleManager(dogeboxd.ServerConfig{})
 		lifecycleManager.Reboot()
 	},
 }

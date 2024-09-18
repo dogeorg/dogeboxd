@@ -4,7 +4,7 @@ import (
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
-func NewLifecycleManager() dogeboxd.LifecycleManager {
+func NewLifecycleManager(config dogeboxd.ServerConfig) dogeboxd.LifecycleManager {
 	// TODO: Do some discovery
-	return LifecycleManagerLinux{}
+	return LifecycleManagerLinux{config: config}
 }
