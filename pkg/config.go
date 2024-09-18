@@ -14,3 +14,10 @@ type ServerConfig struct {
 	UiPort          int
 	DevMode         bool
 }
+
+func GetSystemEnvironmentVariablesForContainer() map[string]string {
+	return map[string]string{
+		"DBX_HOST": "10.69.0.1",
+		"DBX_PORT": "80",
+	}
+}

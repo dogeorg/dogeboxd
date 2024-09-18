@@ -191,14 +191,16 @@ type ManifestSourceConfiguration struct {
 	Type        string `json:"type"`
 }
 
+type EnvEntry struct {
+	KEY string
+	VAL string
+}
+
 type NixPupContainerServiceValues struct {
 	NAME string
 	EXEC string
 	CWD  string
-	ENV  []struct {
-		KEY string
-		VAL string
-	}
+	ENV  []EnvEntry
 }
 
 type NixPupContainerTemplateValues struct {
@@ -215,6 +217,8 @@ type NixPupContainerTemplateValues struct {
 	PUP_PATH     string
 	NIX_FILE     string
 	SERVICES     []NixPupContainerServiceValues
+	PUP_ENV      []EnvEntry
+	GLOBAL_ENV   []EnvEntry
 }
 
 type NixSystemContainerConfigTemplatePupRequiresInternet struct {

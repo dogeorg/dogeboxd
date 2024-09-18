@@ -138,9 +138,12 @@ func (nm nixManager) WritePupFile(
 			NAME: service.Name,
 			EXEC: service.Command.Exec,
 			CWD:  cwd,
-			ENV:  convertEnvMapToSlice(service.Command.ENV),
+			ENV:  toEnv(service.Command.ENV),
 		})
 	}
+
+	pupSpecificEnv := nm.pups.GetPupSpecificEnvironmentVariablesForContainer(state.ID)
+	globalEnv := dogeboxd.GetSystemEnvironmentVariablesForContainer()
 
 	values := dogeboxd.NixPupContainerTemplateValues{
 		DATA_DIR:          nm.config.DataDir,
@@ -156,6 +159,8 @@ func (nm nixManager) WritePupFile(
 		PUP_PATH:     filepath.Join(nm.config.DataDir, "pups", state.ID),
 		NIX_FILE:     filepath.Join(nm.config.DataDir, "pups", state.ID, state.Manifest.Container.Build.NixFile),
 		SERVICES:     services,
+		PUP_ENV:      toEnv(pupSpecificEnv),
+		GLOBAL_ENV:   toEnv(globalEnv),
 	}
 
 	hasPublicPorts := false
@@ -380,10 +385,11 @@ func (nm nixManager) Rebuild() error {
 	return nil
 }
 
-func convertEnvMapToSlice(envMap map[string]string) []struct{ KEY, VAL string } {
-	envSlice := make([]struct{ KEY, VAL string }, 0, len(envMap))
-	for k, v := range envMap {
-		envSlice = append(envSlice, struct{ KEY, VAL string }{KEY: k, VAL: v})
+func toEnv(entries map[string]string) []dogeboxd.EnvEntry {
+	envSlice := make([]dogeboxd.EnvEntry, 0, len(entries))
+	for key, value := range entries {
+		strValue := fmt.Sprintf("%v", value)
+		envSlice = append(envSlice, dogeboxd.EnvEntry{KEY: key, VAL: strValue})
 	}
 	return envSlice
 }

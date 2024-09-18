@@ -279,7 +279,8 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 		return
 	}
 
-	j.Success, _, err = t.Pups.GetPup(u.PupID)
+	pupState, _, err := t.Pups.GetPup(u.PupID)
+	j.Success = pupState
 	if err != nil {
 		fmt.Println("Couldnt get pup", u.PupID)
 		j.Err = err.Error()
@@ -291,6 +292,13 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 	// some of our container configurations to fix up firewall rules.
 	if err := t.nix.UpdateSystemContainerConfiguration(); err != nil {
 		fmt.Println("Failed to update container configuration:", err)
+		j.Err = err.Error()
+		t.sendFinishedJob("action", j)
+		return
+	}
+
+	if err := t.nix.WritePupFile(pupState); err != nil {
+		fmt.Println("Failed to write pup file:", err)
 		j.Err = err.Error()
 		t.sendFinishedJob("action", j)
 		return
