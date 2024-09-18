@@ -31,6 +31,9 @@ func ForceRecoveryNextBoot(dataDir string) error {
 
 func UnforceRecoveryNextBoot(dataDir string) error {
 	filePath := filepath.Join(dataDir, "force_recovery_next_boot")
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil
+	}
 	if err := os.Remove(filePath); err != nil {
 		return fmt.Errorf("failed to remove force recovery file: %w", err)
 	}
@@ -40,10 +43,6 @@ func UnforceRecoveryNextBoot(dataDir string) error {
 func HasForceRecoveryFile(dataDir string) bool {
 	filePath := filepath.Join(dataDir, "force_recovery_next_boot")
 	if _, err := os.Stat(filePath); err == nil {
-		// We want to remove it as soon as we've read it.
-		if err := os.Remove(filePath); err != nil {
-			fmt.Printf("Failed to remove force recovery file: %v\n", err)
-		}
 		return true
 	}
 	return false

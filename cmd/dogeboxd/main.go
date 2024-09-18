@@ -67,6 +67,12 @@ func main() {
 	}
 
 	if recoveryMode {
+		if err := system.UnforceRecoveryNextBoot(dataDir); err != nil {
+			log.Printf("Failed to unset recovery next boot: %+v", err)
+		}
+	}
+
+	if recoveryMode {
 		log.Println("********************************************************************************")
 		log.Println("************************ ENTERING DOGEBOX RECOVERY MODE ************************")
 		log.Println("********************************************************************************")
