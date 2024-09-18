@@ -327,24 +327,23 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 }
 
 var allowedJournalServices = map[string]string{
-	"dbx":  "dogeboxd.service",
-	"dkm":  "dkm.service",
-	"dbus": "dbus.service",
+	"dbx": "dogeboxd.service",
+	"dkm": "dkm.service",
 }
 
-func (t Dogeboxd) GetLogChannel(unit string) (context.CancelFunc, chan string, error) {
+func (t Dogeboxd) GetLogChannel(PupID string) (context.CancelFunc, chan string, error) {
 	// We read dogeboxd and dkm from the host systemd journal,
 	// and read everything else (pups) from the container logs we export.
-	service, ok := allowedJournalServices[unit]
+	service, ok := allowedJournalServices[PupID]
 	if ok {
 		return t.JournalReader.GetJournalChan(service)
 	}
 
 	// Check that we've actually got a valid pup id.
-	_, _, err := t.Pups.GetPup(unit)
+	_, _, err := t.Pups.GetPup(PupID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return t.logtailer.GetChan(unit)
+	return t.logtailer.GetChan(PupID)
 }

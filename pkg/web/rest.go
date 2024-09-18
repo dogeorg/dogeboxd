@@ -86,7 +86,7 @@ func RESTAPI(
 		"PUT /source":             a.createSource,
 		"GET /sources/store":      a.getStoreList,
 		"DELETE /source/{id}":     a.deleteSource,
-		"/ws/log/{unit}":          a.getLogSocket,
+		"/ws/log/{PupID}":         a.getLogSocket,
 		"/ws/state/":              a.getUpdateSocket,
 	}
 
