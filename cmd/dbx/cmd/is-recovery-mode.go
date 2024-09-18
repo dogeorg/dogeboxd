@@ -44,7 +44,7 @@ var isRecoveryModeCmd = &cobra.Command{
 			return
 		}
 
-		isInRecoveryMode := system.ShouldEnterRecovery(dataDir, sm)
+		isInRecoveryMode := system.IsRecoveryMode(dataDir, sm)
 
 		log.Println("Is in recovery mode:", isInRecoveryMode)
 
