@@ -22,15 +22,13 @@ type LogTailer struct {
 	config dogeboxd.ServerConfig
 }
 
-var dir = "/var/log/containers"
-
 func (t LogTailer) GetChan(pupId string) (context.CancelFunc, chan string, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	out := make(chan string, 10)
 
 	go func() {
-		file, err := os.Open(filepath.Join(dir, "pup-"+pupId))
+		file, err := os.Open(filepath.Join(t.config.ContainerLogDir, "pup-"+pupId))
 		if err != nil {
 			close(out)
 			log.Printf("Error opening log file: %+v", err)

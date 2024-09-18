@@ -3,10 +3,6 @@
 {
   boot.enableContainers = true;
 
-  systemd.tmpfiles.rules = [
-    "d /var/log/containers 0750 root dogebox -"
-  ];
-
   networking.nat = {
     enable = true;
     internalInterfaces = [ "ve-pup-+" ];

@@ -14,7 +14,7 @@ in
     after = [ "container@pup-{{.PUP_ID}}.service" ];
     requires = [ "container@pup-{{.PUP_ID}}.service" ];
     serviceConfig = {
-      ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.systemd}/bin/journalctl -M pup-{{.PUP_ID}} -f --no-hostname -o short-iso >> /var/log/containers/pup-{{.PUP_ID}}'";
+      ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.systemd}/bin/journalctl -M pup-{{.PUP_ID}} -f --no-hostname -o short-iso >> {{.CONTAINER_LOG_DIR}}/pup-{{.PUP_ID}}'";
       Restart = "always";
       User = "root";
       StandardOutput = "null";

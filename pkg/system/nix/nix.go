@@ -143,10 +143,11 @@ func (nm nixManager) WritePupFile(
 	}
 
 	values := dogeboxd.NixPupContainerTemplateValues{
-		DATA_DIR:    nm.config.DataDir,
-		PUP_ID:      state.ID,
-		PUP_ENABLED: state.Enabled,
-		INTERNAL_IP: state.IP,
+		DATA_DIR:          nm.config.DataDir,
+		CONTAINER_LOG_DIR: nm.config.ContainerLogDir,
+		PUP_ID:            state.ID,
+		PUP_ENABLED:       state.Enabled,
+		INTERNAL_IP:       state.IP,
 		PUP_PORTS: []struct {
 			PORT   int
 			PUBLIC bool
