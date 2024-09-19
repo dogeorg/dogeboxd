@@ -257,12 +257,11 @@ func (nm nixManager) UpdateSystemContainerConfiguration() error {
 						break
 					}
 				}
+			}
 
-				if providerExposes == nil {
-					// Probably log an error here?
-					continue
-				}
-
+			if providerExposes == nil {
+				// No provider configured for this interface, ignore.
+				continue
 			}
 
 			if _, ok := otherPupsById[providerPup.ID]; !ok {
