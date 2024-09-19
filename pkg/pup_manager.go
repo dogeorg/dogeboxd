@@ -554,7 +554,7 @@ func (t PupManager) calculateDeps(pupState *PupState) []PupDependencyReport {
 				if err != nil {
 					continue
 				}
-				if constraint.Check(ver) == true {
+				if iface.Name == dep.InterfaceName && constraint.Check(ver) == true {
 					installed = append(installed, id)
 				}
 			}
@@ -573,7 +573,7 @@ func (t PupManager) calculateDeps(pupState *PupState) []PupDependencyReport {
 						if err != nil {
 							continue
 						}
-						if constraint.Check(ver) == true {
+						if iface.Name == dep.InterfaceName && constraint.Check(ver) == true {
 							available = append(available, pup.PupManifestDependencySource{
 								SourceLocation: list.Config.Location,
 								PupName:        p.Name,
