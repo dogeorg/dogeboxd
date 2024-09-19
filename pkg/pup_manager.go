@@ -359,6 +359,7 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 						} else {
 							s.Status = STATE_STOPPED
 						}
+						t.healthCheckPupState(p)
 					}
 					t.sendStats()
 
@@ -385,6 +386,7 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 						} else {
 							s.Status = STATE_STOPPED
 						}
+						t.healthCheckPupState(p)
 					}
 					t.sendStats()
 				}
