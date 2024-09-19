@@ -120,7 +120,15 @@ in
           WorkingDirectory = "{{.CWD}}";
 
           Environment = [
-            {{range .ENV}}"{{.KEY}}={{.VAL}}"{{end}}
+            {{range .ENV}}
+            "{{.KEY}}={{.VAL}}"
+            {{end}}
+            {{range $.PUP_ENV}}
+            "{{.KEY}}={{.VAL}}"
+            {{end}}
+            {{range $.GLOBAL_ENV}}
+            "{{.KEY}}={{.VAL}}"
+            {{end}}
           ];
 
           PrivateTmp = true;

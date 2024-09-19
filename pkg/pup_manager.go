@@ -12,8 +12,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/Masterminds/semver"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
@@ -736,6 +738,53 @@ func (t PupManager) updateMonitoredPups() {
 // the frontend with status.
 func (t PupManager) FastPollPup(id string) {
 	t.monitor.GetFastMonChannel() <- fmt.Sprintf("container@pup-%s.service", id)
+}
+
+func (t PupManager) GetPupSpecificEnvironmentVariablesForContainer(pupID string) map[string]string {
+	env := map[string]string{
+		"DBX_PUP_ID": pupID,
+		"DBX_PUP_IP": t.state[pupID].IP,
+	}
+
+	// Iterate over each of our configured interfaces, and expose the host and port of each
+	for _, iface := range t.state[pupID].Manifest.Dependencies {
+		providerPup, ok := t.state[t.state[pupID].Providers[iface.InterfaceName]]
+		if !ok {
+			continue
+		}
+
+		interfaceName := toValidEnvKey(iface.InterfaceName)
+
+		var providerPupExposes pup.PupManifestExposeConfig
+
+	outer:
+		for _, expose := range providerPup.Manifest.Container.Exposes {
+			for _, exposeInterface := range expose.Interfaces {
+				if exposeInterface == iface.InterfaceName {
+					providerPupExposes = expose
+					break outer
+				}
+			}
+		}
+
+		env["DBX_IFACE_"+interfaceName+"_NAME"] = providerPupExposes.Name
+		env["DBX_IFACE_"+interfaceName+"_HOST"] = providerPup.IP
+		env["DBX_IFACE_"+interfaceName+"_PORT"] = strconv.Itoa(providerPupExposes.Port)
+	}
+
+	return env
+}
+
+func toValidEnvKey(s string) string {
+	s = strings.ReplaceAll(s, "-", "_")
+	s = strings.ReplaceAll(s, " ", "_")
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			return r
+		}
+		return -1
+	}, s)
+	return strings.ToUpper(s)
 }
 
 /*****************************************************************************/
