@@ -188,7 +188,20 @@ type PupManifestConfigFields struct {
 		Name  string `json:"name"`
 		Label string `json:"label"`
 		// TODO: we probably need a list of valid field types
-		Fields []map[string]interface{} `json:"fields"`
+		// Fields []map[string]interface{} `json:"fields"`
+		Fields []struct {
+			Label    string `json:"label"`
+			Name     string `json:"name"`
+			Type     string `json:"type"`
+			Required bool   `json:"required"`
+			Options  []struct {
+				Label string `json:"label"`
+				Value string `json:"value"`
+			} `json:"options,omitempty"`
+			Min  int `json:"min,omitempty"`
+			Max  int `json:"max,omitempty"`
+			Step int `json:"step,omitempty"`
+		} `json:"fields"`
 	} `json:"sections"`
 }
 

@@ -162,6 +162,10 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 
 	// If we've successfully saved to disk, set up in-memory.
 	t.indexPup(&p)
+
+	// update health details
+	t.healthCheckPupState(&p)
+
 	// Send a Pupdate announcing 'adopted'
 	t.sendPupdate(Pupdate{
 		ID:    PupID,
@@ -307,6 +311,9 @@ func (t PupManager) UpdatePup(id string, updates ...func(*PupState, *[]Pupdate))
 	for _, updateFn := range updates {
 		updateFn(p, &pupdates)
 	}
+
+	// update pup healthcheck details before saving
+	t.healthCheckPupState(p)
 
 	// send any pupdates
 	for _, pu := range pupdates {
@@ -473,26 +480,57 @@ func (t PupManager) UpdateMetrics(u UpdateMetrics) {
 // Modify provided pup to update warning flags
 func (t PupManager) healthCheckPupState(pup *PupState) {
 	// are our required config fields set?
+	configSet := true
+loop:
+	for _, section := range pup.Manifest.Config.Sections {
+		for _, field := range section.Fields {
+			if field.Required {
+				_, ok := pup.Config[field.Name]
+				if !ok {
+					configSet = false
+					break loop
+				}
+			}
+		}
+	}
 
 	// are our deps met?
-	// deps := t.calculateDeps(pup)
-}
+	depsMet := true
+	depsNotRunning := []string{}
+	for _, d := range t.calculateDeps(pup) {
+		depMet := false
+		for iface, pupID := range pup.Providers {
+			if d.Interface == iface {
+				depMet = true
+				if t.stats[pupID].Status != STATE_RUNNING {
+					depsNotRunning = append(depsNotRunning, iface)
+				}
+			}
+		}
+		if !depMet {
+			depsMet = false
+		}
+	}
 
-type DependencyReport struct {
-	Interface             string                            `json:"interface"`
-	Version               string                            `json:"version"`
-	CurrentProvider       string                            `json:"currentProvider"`
-	InstalledProviders    []string                          `json:"installedProviders"`
-	InstallableProviders  []pup.PupManifestDependencySource `json:"InstallableProviders"`
-	DefaultSourceProvider pup.PupManifestDependencySource   `json:"DefaultProvider"`
+	// Update pupState
+	pup.NeedsConf = !configSet
+	pup.NeedsDeps = !depsMet
+
+	// Update pupStats
+	issues := PupIssues{
+		DepsNotRunning: depsNotRunning,
+		// TODO: HealthWarnings
+		// TODO: UpdateAvailable
+	}
+	t.stats[pup.ID].Issues = issues
 }
 
 // This function calculates a DependencyReport for every
 // dep that a given pup requires
-func (t PupManager) calculateDeps(pupState *PupState) []DependencyReport {
-	deps := []DependencyReport{}
+func (t PupManager) calculateDeps(pupState *PupState) []PupDependencyReport {
+	deps := []PupDependencyReport{}
 	for _, dep := range pupState.Manifest.Dependencies {
-		report := DependencyReport{
+		report := PupDependencyReport{
 			Interface: dep.InterfaceName,
 			Version:   dep.InterfaceVersion,
 		}
@@ -556,10 +594,10 @@ func (t PupManager) calculateDeps(pupState *PupState) []DependencyReport {
 	return deps
 }
 
-func (t PupManager) CalculateDeps(pupID string) ([]DependencyReport, error) {
+func (t PupManager) CalculateDeps(pupID string) ([]PupDependencyReport, error) {
 	pup, ok := t.state[pupID]
 	if !ok {
-		return []DependencyReport{}, errors.New("no such pup")
+		return []PupDependencyReport{}, errors.New("no such pup")
 	}
 	return t.calculateDeps(pup), nil
 }
@@ -714,17 +752,5 @@ func SetPupProviders(newProviders map[string]string) func(*PupState, *[]Pupdate)
 func PupEnabled(b bool) func(*PupState, *[]Pupdate) {
 	return func(p *PupState, pu *[]Pupdate) {
 		p.Enabled = b
-	}
-}
-
-func PupNeedsConf(b bool) func(*PupState, *[]Pupdate) {
-	return func(p *PupState, pu *[]Pupdate) {
-		p.NeedsConf = b
-	}
-}
-
-func PupNeedsDeps(b bool) func(*PupState, *[]Pupdate) {
-	return func(p *PupState, pu *[]Pupdate) {
-		p.NeedsDeps = b
 	}
 }
