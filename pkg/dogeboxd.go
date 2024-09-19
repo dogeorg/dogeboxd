@@ -141,6 +141,12 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						t.Pups.FastPollPup(j.State.ID)
 					case DisablePup:
 						t.Pups.FastPollPup(j.State.ID)
+					case UpdatePupProviders:
+						t.Pups.FastPollPup(j.State.ID)
+					case UninstallPup:
+						t.Pups.FastPollPup(j.State.ID)
+					case PurgePup:
+						t.Pups.FastPollPup(j.State.ID)
 					}
 
 					// TODO: explain why we I this
