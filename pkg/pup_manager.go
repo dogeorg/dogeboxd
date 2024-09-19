@@ -574,11 +574,27 @@ func (t PupManager) calculateDeps(pupState *PupState) []PupDependencyReport {
 							continue
 						}
 						if iface.Name == dep.InterfaceName && constraint.Check(ver) == true {
-							available = append(available, pup.PupManifestDependencySource{
-								SourceLocation: list.Config.Location,
-								PupName:        p.Name,
-								PupVersion:     p.Version,
-							})
+							// check if this isnt alread installed..
+							alreadyInstalled := false
+							for _, installedPupID := range installed {
+								iPup, _, err := t.GetPup(installedPupID)
+								if err != nil {
+									continue
+								}
+								if iPup.Source.Location == list.Config.Location && iPup.Manifest.Meta.Name == p.Name {
+									// matching location and name, assume already installed
+									alreadyInstalled = true
+									break
+								}
+							}
+
+							if !alreadyInstalled {
+								available = append(available, pup.PupManifestDependencySource{
+									SourceLocation: list.Config.Location,
+									PupName:        p.Name,
+									PupVersion:     p.Version,
+								})
+							}
 						}
 					}
 				}
