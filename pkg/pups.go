@@ -81,27 +81,30 @@ type PupDependencyReport struct {
 
 type FloatBuffer struct {
 	Values []float64
-	Head   int
+	Tail   int
 }
 
 func NewFloatBuffer(size int) FloatBuffer {
 	return FloatBuffer{
 		Values: make([]float64, size),
-		Head:   0,
+		Tail:   0,
 	}
 }
 
 func (b *FloatBuffer) Add(value float64) {
-	b.Values[b.Head] = value
-	b.Head = (b.Head + 1) % len(b.Values)
+	b.Values[b.Tail] = value
+	b.Tail = (b.Tail + 1) % len(b.Values)
 }
 
 func (b *FloatBuffer) GetValues() []float64 {
-	lastN := make([]float64, len(b.Values))
-	for i := 0; i < len(b.Values); i++ {
-		lastN[i] = b.Values[(b.Head-i-1+len(b.Values))%len(b.Values)]
+	firstN := make([]float64, len(b.Values))
+	if b.Tail > 0 {
+		copy(firstN, b.Values[b.Tail:])
+		copy(firstN[len(b.Values)-b.Tail:], b.Values[:b.Tail])
+	} else {
+		copy(firstN, b.Values)
 	}
-	return lastN
+	return firstN
 }
 
 func (b *FloatBuffer) MarshalJSON() ([]byte, error) {
@@ -110,27 +113,30 @@ func (b *FloatBuffer) MarshalJSON() ([]byte, error) {
 
 type Buffer[T any] struct {
 	Values []T
-	Head   int
+	Tail   int
 }
 
 func NewBuffer[T any](size int) *Buffer[T] {
 	return &Buffer[T]{
 		Values: make([]T, size),
-		Head:   0,
+		Tail:   0,
 	}
 }
 
 func (b *Buffer[T]) Add(value T) {
-	b.Values[b.Head] = value
-	b.Head = (b.Head + 1) % len(b.Values)
+	b.Values[b.Tail] = value
+	b.Tail = (b.Tail + 1) % len(b.Values)
 }
 
 func (b *Buffer[T]) GetValues() []T {
-	lastN := make([]T, len(b.Values))
-	for i := 0; i < len(b.Values); i++ {
-		lastN[i] = b.Values[(b.Head-i-1+len(b.Values))%len(b.Values)]
+	firstN := make([]T, len(b.Values))
+	if b.Tail > 0 {
+		copy(firstN, b.Values[b.Tail:])
+		copy(firstN[len(b.Values)-b.Tail:], b.Values[:b.Tail])
+	} else {
+		copy(firstN, b.Values)
 	}
-	return lastN
+	return firstN
 }
 
 func (b *Buffer[T]) MarshalJSON() ([]byte, error) {
