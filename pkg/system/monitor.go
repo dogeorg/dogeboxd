@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MONITOR_INTERVAL time.Duration = 60 * time.Second
+	MONITOR_INTERVAL time.Duration = 10 * time.Second
 )
 
 func NewSystemMonitor(config dogeboxd.ServerConfig) SystemMonitor {
