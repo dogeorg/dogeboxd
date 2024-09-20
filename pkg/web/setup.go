@@ -105,6 +105,13 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	dbxs.InitialState.HasFullyConfigured = true
 	t.sm.SetDogebox(dbxs)
 
+	// Add our DogeOrg source in by default, for people to test things with.
+	if _, err := t.sources.AddSource("https://github.com/dogeorg/pups.git"); err != nil {
+		log.Printf("Error adding initial dogeorg source: %v", err)
+		sendErrorResponse(w, http.StatusInternalServerError, "Error adding dogeorg source")
+		return
+	}
+
 	if err := t.sm.Save(); err != nil {
 		// What should we do here? We've already turned off AP mode so any errors
 		// won't get send back to the client. I guess we just reboot?
