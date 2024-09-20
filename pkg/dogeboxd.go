@@ -43,7 +43,16 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"sync"
+	"time"
 )
+
+type syncQueue struct {
+	jobQueue      []Job
+	jobQLock      sync.Mutex
+	jobInProgress sync.Mutex
+	jobTimer      time.Time
+}
 
 type Dogeboxd struct {
 	Pups           PupManager
@@ -55,6 +64,7 @@ type Dogeboxd struct {
 	sources        SourceManager
 	nix            NixManager
 	logtailer      LogTailer
+	queue          *syncQueue
 	jobs           chan Job
 	Changes        chan Change
 }
@@ -70,6 +80,11 @@ func NewDogeboxd(
 	nixManager NixManager,
 	logtailer LogTailer,
 ) Dogeboxd {
+	q := syncQueue{
+		jobQueue:      []Job{},
+		jobQLock:      sync.Mutex{},
+		jobInProgress: sync.Mutex{},
+	}
 	s := Dogeboxd{
 		Pups:           pups,
 		SystemUpdater:  updater,
@@ -80,6 +95,7 @@ func NewDogeboxd(
 		sources:        sourceManager,
 		nix:            nixManager,
 		logtailer:      logtailer,
+		queue:          &q,
 		jobs:           make(chan Job),
 		Changes:        make(chan Change),
 	}
@@ -110,6 +126,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
+					j.Start = time.Now() // start the job timer
 					t.jobDispatcher(j)
 
 				// Handle pupdates from PupManager
@@ -131,6 +148,10 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
+					// job is finished, unlock the queue for the next job
+					t.queue.jobInProgress.Unlock()
+					fmt.Printf("JOB  [%s] finished: exec time %s, time since queued %s\n", j.ID, time.Since(t.queue.jobTimer), time.Since(j.Start))
+
 					// if this job was successful, AND it was a
 					// job that results in the stop/start of a pup,
 					// tell the PupManager to poll for state changes
@@ -158,6 +179,8 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					t.sendFinishedJob("action", j)
 
+				case <-time.After(time.Millisecond * 100): // Periodic check
+					t.pumpQueue()
 				}
 			}
 		}()
@@ -169,6 +192,37 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 		stopped <- true
 	}()
 	return nil
+}
+
+// pumpQueue runs every 100ms and attempts to push another job to the SystemUpdater
+// which has been queued with enqueue. Only one job can be running at a time.
+// jobInProgress is unlocked int he main loop in Run when a job is finished.
+func (t *Dogeboxd) pumpQueue() {
+	if t.queue.jobInProgress.TryLock() {
+		t.queue.jobQLock.Lock()
+		if len(t.queue.jobQueue) > 0 {
+			fmt.Println("have jobs to queue..", len(t.queue.jobQueue))
+			job := t.queue.jobQueue[0]
+			t.queue.jobQueue = t.queue.jobQueue[1:]
+			t.queue.jobQLock.Unlock()
+
+			fmt.Printf("added %s to the queue, queue size now: %d\n", job.ID, len(t.queue.jobQueue))
+			t.SystemUpdater.AddJob(job)
+			t.queue.jobTimer = time.Now()
+		} else {
+			t.queue.jobQLock.Unlock()
+			t.queue.jobInProgress.Unlock()
+		}
+	}
+}
+
+// Add the new job to the queue
+func (t *Dogeboxd) enqueue(j Job) {
+	t.queue.jobQLock.Lock()
+	defer t.queue.jobQLock.Unlock()
+
+	t.queue.jobQueue = append(t.queue.jobQueue, j)
+	fmt.Printf("JOB [%s] queued.", j.ID)
 }
 
 // Add an Action to the Action queue, returns a unique ID
@@ -214,7 +268,7 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 
 	// Host Actions
 	case UpdatePendingSystemNetwork:
-		t.SystemUpdater.AddJob(j)
+		t.enqueue(j)
 
 	// Pup router actions
 	case UpdateMetrics:
@@ -337,7 +391,7 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	j.State = &p
 
 	// Send job to the system updater for handling
-	t.SystemUpdater.AddJob(j)
+	t.enqueue(j)
 }
 
 var allowedJournalServices = map[string]string{
