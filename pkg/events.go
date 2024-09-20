@@ -1,5 +1,7 @@
 package dogeboxd
 
+import "time"
+
 // A Job is created when an Action is recieved by the system.
 // Jobs are passed through the Dogeboxd service and result in
 // a Change being send to the client via websockets.
@@ -8,6 +10,7 @@ type Job struct {
 	ID      string
 	Err     string
 	Success any
+	Start   time.Time // set when the job is first created, for calculating duration
 	State   *PupState // nilable, check before use!
 }
 
