@@ -3,6 +3,7 @@ module github.com/dogeorg/dogeboxd
 go 1.22.2
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/fsnotify/fsnotify v1.7.0
@@ -13,13 +14,13 @@ require (
 	github.com/mdlayher/wifi v0.2.0
 	github.com/rs/cors v1.10.1
 	github.com/shirou/gopsutil/v4 v4.24.6
+	github.com/spf13/cobra v1.8.1
 	golang.org/x/mod v0.17.0
 	golang.org/x/net v0.28.0
 )
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
@@ -43,7 +44,6 @@ require (
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
-	github.com/spf13/cobra v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
