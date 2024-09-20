@@ -506,8 +506,14 @@ loop:
 		for iface, pupID := range pup.Providers {
 			if d.Interface == iface {
 				depMet = true
-				if t.stats[pupID].Status != STATE_RUNNING {
-					depsNotRunning = append(depsNotRunning, iface)
+				provPup, ok := t.stats[pupID]
+				if !ok {
+					depMet = false
+					fmt.Printf("pup %s missing, but provides %s to %s", pupID, iface, pup.ID)
+				} else {
+					if provPup.Status != STATE_RUNNING {
+						depsNotRunning = append(depsNotRunning, iface)
+					}
 				}
 			}
 		}
