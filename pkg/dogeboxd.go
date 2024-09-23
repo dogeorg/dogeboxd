@@ -348,27 +348,36 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 		return
 	}
 
-	// Once we've updated our providers, we might need to rebuild
-	// some of our container configurations to fix up firewall rules.
-	if err := t.nix.UpdateSystemContainerConfiguration(); err != nil {
-		fmt.Println("Failed to update container configuration:", err)
+	canPupStart, err := t.Pups.CanPupStart(u.PupID)
+	if err != nil {
+		fmt.Println("Couldn't check if pup can start", err)
 		j.Err = err.Error()
 		t.sendFinishedJob("action", j)
 		return
 	}
 
-	if err := t.nix.WritePupFile(pupState); err != nil {
-		fmt.Println("Failed to write pup file:", err)
-		j.Err = err.Error()
-		t.sendFinishedJob("action", j)
-		return
-	}
+	// If the pup may now start, update all of our nix files and rebuild.
+	if canPupStart {
+		if err := t.nix.UpdateSystemContainerConfiguration(); err != nil {
+			fmt.Println("Failed to update container configuration:", err)
+			j.Err = err.Error()
+			t.sendFinishedJob("action", j)
+			return
+		}
 
-	if err := t.nix.Rebuild(); err != nil {
-		fmt.Println("Failed to rebuild:", err)
-		j.Err = err.Error()
-		t.sendFinishedJob("action", j)
-		return
+		if err := t.nix.WritePupFile(pupState); err != nil {
+			fmt.Println("Failed to write pup file:", err)
+			j.Err = err.Error()
+			t.sendFinishedJob("action", j)
+			return
+		}
+
+		if err := t.nix.Rebuild(); err != nil {
+			fmt.Println("Failed to rebuild:", err)
+			j.Err = err.Error()
+			t.sendFinishedJob("action", j)
+			return
+		}
 	}
 
 	t.sendFinishedJob("action", j)
