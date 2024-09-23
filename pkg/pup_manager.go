@@ -818,6 +818,10 @@ func SetPupConfig(newFields map[string]string) func(*PupState, *[]Pupdate) {
 
 func SetPupProviders(newProviders map[string]string) func(*PupState, *[]Pupdate) {
 	return func(p *PupState, pu *[]Pupdate) {
+		if p.Providers == nil {
+			p.Providers = make(map[string]string)
+		}
+
 		for k, v := range newProviders {
 			p.Providers[k] = v
 		}
