@@ -35,7 +35,7 @@ type dkmManager struct {
 	client *resty.Client
 }
 
-func NewDKMManager(pupManager PupManager) DKMManager {
+func NewDKMManager() DKMManager {
 	client := resty.New()
 	client.SetBaseURL("http://127.0.0.1:8089")
 	client.SetHeader("Accept", "application/json")
@@ -53,7 +53,6 @@ func (t dkmManager) CreateKey(password string) ([]string, error) {
 	_, err := t.client.R().SetBody(map[string]string{
 		"password": password,
 	}).SetResult(&result).SetError(&errorResponse).Post("/create")
-
 	if err != nil {
 		log.Printf("Error calling DKM %+v", err)
 		return []string{}, nil
@@ -72,7 +71,6 @@ func (t dkmManager) Authenticate(password string) (string, error, error) {
 	var errorResponse DKMErrorResponse
 
 	_, err := t.client.R().SetBody(map[string]string{"password": password}).SetResult(&result).SetError(&errorResponse).Post("/login")
-
 	if err != nil {
 		log.Println("Failed to contact DKM:", err)
 		return "", nil, err
@@ -91,7 +89,6 @@ func (t dkmManager) RefreshToken(oldToken string) (string, bool, error) {
 	var errorResponse DKMErrorResponse
 
 	_, err := t.client.R().SetBody(map[string]string{"token": oldToken}).SetResult(&result).SetError(&errorResponse).Post("/roll-token")
-
 	if err != nil {
 		log.Println("Failed to contact DKM:", err)
 		return "", false, err
@@ -110,7 +107,6 @@ func (t dkmManager) InvalidateToken(token string) (bool, error) {
 	var errorResponse DKMErrorResponse
 
 	_, err := t.client.R().SetBody(map[string]string{"token": token}).SetResult(&result).SetError(&errorResponse).Post("/logout")
-
 	if err != nil {
 		log.Println("Failed to contact DKM:", err)
 		return false, err

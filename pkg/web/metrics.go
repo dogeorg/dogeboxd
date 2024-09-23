@@ -44,16 +44,10 @@ func (t api) getPupMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t InternalRouter) recordMetrics(w http.ResponseWriter, r *http.Request) {
-	var originIsPup bool = false
-	originIP := getOriginIP(r)
-	originPup, _, err := t.pm.FindPupByIP(originIP)
-	if err == nil {
-		originIsPup = true
-	}
-
-	if !originIsPup {
+	originPup, ok := t.getOriginPup(r)
+	if !ok {
 		// you must be a pup!
-		forbidden(w, "You are not a Pup we know about", originIP)
+		forbidden(w, "You are not a Pup we know about")
 		return
 	}
 

@@ -63,13 +63,16 @@ func (t server) Start() {
 
 	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, sourceManager, nixManager, logtailer)
 
+	// Set up a doge key manager connection
+	dkm := dogeboxd.NewDKMManager()
+
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets
 
 	wsh := web.NewWSRelay(t.config, dbx.Changes)
-	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, wsh)
-	internalRouter := web.NewInternalRouter(t.config, dbx, pups)
 	adminRouter := web.NewAdminRouter(t.config, pups)
+	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, dkm, wsh)
+	internalRouter := web.NewInternalRouter(t.config, dbx, pups, dkm)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */

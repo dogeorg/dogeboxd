@@ -101,3 +101,16 @@ func (t api) listKeys(w http.ResponseWriter, r *http.Request) {
 		"keys": keyResponse,
 	})
 }
+
+// Delegate keys to pups based on their pupID
+func (t InternalRouter) getDelegatedPupKeys(w http.ResponseWriter, r *http.Request) {
+	originPup, ok := t.getOriginPup(r)
+	if !ok {
+		// you must be a pup!
+		forbidden(w, "You are not a Pup we know about")
+		return
+	}
+	sendResponse(w, map[string]any{
+		"keys": originPup.ID, // TODO
+	})
+}
