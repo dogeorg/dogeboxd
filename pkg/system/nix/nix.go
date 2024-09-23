@@ -79,7 +79,7 @@ func (nm nixManager) UpdateIncludeFile(pups dogeboxd.PupManager) error {
 	installed := pups.GetStateMap()
 	var pupIDs []string
 	for id, state := range installed {
-		if state.Installation == dogeboxd.STATE_READY || state.Installation == dogeboxd.STATE_RUNNING {
+		if state.Installation == dogeboxd.STATE_INSTALLING || state.Installation == dogeboxd.STATE_READY || state.Installation == dogeboxd.STATE_RUNNING {
 			pupIDs = append(pupIDs, id)
 		}
 	}
