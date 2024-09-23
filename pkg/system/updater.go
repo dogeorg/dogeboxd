@@ -187,19 +187,27 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return err
 	}
 
-	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_READY)); err != nil {
-		log.Printf("Failed to update pup installation state: %w", err)
-		return err
-	}
-
 	// Update our core nix include file
 	if err := t.nix.UpdateIncludeFile(t.pupManager); err != nil {
 		log.Printf("Failed to update nix include file: %w", err)
 		return err
 	}
 
+	// Do a nix rebuild before we mark the pup as installed, this way
+	// the frontend will get a much longer "Installing.." state, as opposed
+	// to a much longer "Starting.." state, which might confuse the user.
 	log.Printf("Rebuilding nix")
-	return t.nix.Rebuild()
+	if err := t.nix.Rebuild(); err != nil {
+		log.Printf("Failed to rebuild nix: %w", err)
+		return err
+	}
+
+	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_READY)); err != nil {
+		log.Printf("Failed to update pup installation state: %w", err)
+		return err
+	}
+
+	return nil
 }
 
 func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
