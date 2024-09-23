@@ -271,7 +271,7 @@ func (nm nixManager) UpdateSystemContainerConfiguration() error {
 
 			if _, ok := otherPupsById[providerPup.ID]; !ok {
 				otherPupsById[providerPup.ID] = dogeboxd.NixSystemContainerConfigTemplatePupTcpConnectionOtherPup{
-					NAME: providerPup.ID,
+					NAME: providerPup.Manifest.Meta.Name,
 					ID:   providerPup.ID,
 					IP:   providerPup.IP,
 					PORTS: []struct {
@@ -292,7 +292,7 @@ func (nm nixManager) UpdateSystemContainerConfiguration() error {
 		}
 
 		pupsTcpConnections = append(pupsTcpConnections, dogeboxd.NixSystemContainerConfigTemplatePupTcpConnection{
-			NAME:       state.ID,
+			NAME:       state.Manifest.Meta.Name,
 			ID:         state.ID,
 			IP:         state.IP,
 			OTHER_PUPS: otherPups,
