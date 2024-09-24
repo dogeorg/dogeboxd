@@ -13,6 +13,7 @@ type DKMManager interface {
 	Authenticate(password string) (string, error, error)
 	RefreshToken(old string) (string, bool, error)
 	InvalidateToken(token string) (bool, error)
+	MakeDelegate(id string, token string) (DKMResponseMakeDelegate, error)
 }
 
 type DKMResponseCreateKey struct {
@@ -25,6 +26,22 @@ type DKMResponseAuthenticate struct {
 }
 
 type DKMErrorResponse struct {
+	Error  string `json:"error"`
+	Reason string `json:"reason"`
+}
+
+type DKMRequestMakeDelegate struct {
+	ID    string `json:"id"`
+	Token string `json:"token"`
+}
+
+type DKMResponseMakeDelegate struct {
+	Pub  string `json:"pub"`
+	Priv string `json:"priv"`
+	Wif  string `json:"wif"`
+}
+
+type DKMErrorResponseMakeDelegate struct {
 	Error  string `json:"error"`
 	Reason string `json:"reason"`
 }
@@ -118,4 +135,27 @@ func (t dkmManager) InvalidateToken(token string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (t dkmManager) MakeDelegate(id string, token string) (DKMResponseMakeDelegate, error) {
+	var result DKMResponseMakeDelegate
+	var errorResponse DKMErrorResponseMakeDelegate
+
+	body := DKMRequestMakeDelegate{
+		ID:    id,
+		Token: token,
+	}
+
+	_, err := t.client.R().SetBody(body).SetResult(&result).SetError(&errorResponse).Post("/make-delegate")
+	if err != nil {
+		log.Printf("Failed to contact DKM making delegate: %v", err)
+		return result, err
+	}
+
+	if errorResponse.Error != "" {
+		log.Printf("Error from DKM MakeDelegate: [%s] %s", errorResponse.Error, errorResponse.Reason)
+		return result, errors.New(errorResponse.Reason)
+	}
+
+	return result, nil
 }
