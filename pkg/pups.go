@@ -39,6 +39,7 @@ const (
 // PupState is persisted to disk
 type PupState struct {
 	ID           string                      `json:"id"`
+	LogoBase64   string                      `json:"logoBase64"`
 	Source       ManifestSourceConfiguration `json:"source"`
 	Manifest     pup.PupManifest             `json:"manifest"`
 	Config       map[string]string           `json:"config"`
@@ -62,6 +63,14 @@ type PupStats struct {
 	StatDISK    FloatBuffer            `json:"statusDisk"`
 	Metrics     map[string]interface{} `json:"metrics"`
 	Issues      PupIssues              `json:"issues"`
+}
+
+type PupLogos struct {
+	MainLogoBase64 string `json:"mainLogoBase64"`
+}
+
+type PupAsset struct {
+	Logos PupLogos `json:"logos"`
 }
 
 type PupIssues struct {

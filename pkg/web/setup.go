@@ -20,6 +20,7 @@ type BootstrapFacts struct {
 }
 
 type BootstrapResponse struct {
+	Assets     map[string]dogeboxd.PupAsset `json:"assets"`
 	States     map[string]dogeboxd.PupState `json:"states"`
 	Stats      map[string]dogeboxd.PupStats `json:"stats"`
 	SetupFacts BootstrapFacts               `json:"setupFacts"`
@@ -29,6 +30,7 @@ func (t api) getRawBS() BootstrapResponse {
 	dbxState := t.sm.Get().Dogebox
 
 	return BootstrapResponse{
+		Assets: t.pups.GetAssetsMap(),
 		States: t.pups.GetStateMap(),
 		Stats:  t.pups.GetStatsMap(),
 		SetupFacts: BootstrapFacts{

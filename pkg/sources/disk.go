@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 )
 
 var _ dogeboxd.ManifestSource = &ManifestSourceDisk{}
@@ -107,13 +109,30 @@ outer:
 			return dogeboxd.ManifestSourceList{}, fmt.Errorf("manifest validation failed: %w", err)
 		}
 
+		logoBase64 := ""
+
+		if manifest.Meta.LogoPath != "" {
+			logoPath := filepath.Join(pupLocation, manifest.Meta.LogoPath)
+			if _, err := os.Stat(logoPath); err == nil {
+				logoData, err := os.ReadFile(logoPath)
+				if err == nil {
+					logoBase64, err = utils.ImageBytesToWebBase64(logoData, manifest.Meta.LogoPath)
+					if err != nil {
+						// Don't fail if we can't read/convert the logo for whatever reason.
+						log.Printf("failed to read/convert logo for %s: %s", manifest.Meta.Name, err)
+					}
+				}
+			}
+		}
+
 		pup := dogeboxd.ManifestSourcePup{
 			Name: manifest.Meta.Name,
 			Location: map[string]string{
 				"path": pupLocation,
 			},
-			Version:  manifest.Meta.Version,
-			Manifest: manifest,
+			Version:    manifest.Meta.Version,
+			Manifest:   manifest,
+			LogoBase64: logoBase64,
 		}
 
 		pups = append(pups, pup)

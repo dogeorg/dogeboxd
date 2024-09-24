@@ -19,6 +19,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 )
 
 const (
@@ -253,6 +254,29 @@ func (t PupManager) GetStatsMap() map[string]PupStats {
 	out := map[string]PupStats{}
 	for k, v := range t.stats {
 		out[k] = *v
+	}
+	return out
+}
+
+func (t PupManager) GetAssetsMap() map[string]PupAsset {
+	out := map[string]PupAsset{}
+	for k, v := range t.state {
+		logos := PupLogos{}
+
+		if v.Manifest.Meta.LogoPath != "" {
+			logoPath := filepath.Join(t.pupDir, k, v.Manifest.Meta.LogoPath)
+			logoBytes, err := os.ReadFile(logoPath)
+			if err == nil {
+				logoBase64, err := utils.ImageBytesToWebBase64(logoBytes, v.Manifest.Meta.LogoPath)
+				if err == nil {
+					logos.MainLogoBase64 = logoBase64
+				}
+			}
+		}
+
+		out[k] = PupAsset{
+			Logos: logos,
+		}
 	}
 	return out
 }
@@ -643,6 +667,7 @@ func (t PupManager) calculateDeps(pupState *PupState) []PupDependencyReport {
 									SourceLocation: list.Config.Location,
 									PupName:        p.Name,
 									PupVersion:     p.Version,
+									PupLogoBase64:  p.LogoBase64,
 								})
 							}
 						}

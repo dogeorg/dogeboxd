@@ -11,6 +11,7 @@ import (
 
 type StoreListSourceEntryPup struct {
 	LatestVersion string                     `json:"latestVersion"`
+	LogoBase64    string                     `json:"logoBase64"`
 	Versions      map[string]pup.PupManifest `json:"versions"`
 }
 
@@ -45,6 +46,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 
 				pups[availablePup.Name] = StoreListSourceEntryPup{
 					LatestVersion: availablePup.Version,
+					LogoBase64:    availablePup.LogoBase64,
 					Versions:      versions,
 				}
 			}
@@ -55,6 +57,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 
 			if semver.Compare("v"+availablePup.Version, "v"+pupEntry.LatestVersion) > 0 {
 				pupEntry.LatestVersion = availablePup.Version
+				pupEntry.LogoBase64 = availablePup.LogoBase64
 			}
 
 			pups[availablePup.Name] = pupEntry

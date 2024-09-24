@@ -164,10 +164,11 @@ type SourceManager interface {
 }
 
 type ManifestSourcePup struct {
-	Name     string
-	Location map[string]string
-	Version  string
-	Manifest pup.PupManifest
+	Name       string
+	Location   map[string]string
+	Version    string
+	Manifest   pup.PupManifest
+	LogoBase64 string
 }
 
 type ManifestSourceList struct {
