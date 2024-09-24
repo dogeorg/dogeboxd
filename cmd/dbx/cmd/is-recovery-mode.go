@@ -5,18 +5,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/dogeorg/dogeboxd/cmd/dbx/utils"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/spf13/cobra"
 )
-
-func exitBad(isSystemd bool) {
-	if isSystemd {
-		os.Exit(255)
-		return
-	}
-
-	os.Exit(1)
-}
 
 var isRecoveryModeCmd = &cobra.Command{
 	Use:   "is-recovery-mode",
@@ -25,14 +17,14 @@ var isRecoveryModeCmd = &cobra.Command{
 		dataDir, err := cmd.Flags().GetString("data-dir")
 		if err != nil {
 			log.Println("Failed to get dataDir flag.")
-			exitBad(true)
+			utils.ExitBad(true)
 			return
 		}
 
 		systemd, err := cmd.Flags().GetBool("systemd")
 		if err != nil {
 			log.Println("Failed to get systemd flag.")
-			exitBad((true))
+			utils.ExitBad(true)
 			return
 		}
 
@@ -40,7 +32,7 @@ var isRecoveryModeCmd = &cobra.Command{
 		err = sm.Load()
 		if err != nil {
 			log.Println("Failed to load state manager: ", err)
-			exitBad(systemd)
+			utils.ExitBad(systemd)
 			return
 		}
 
@@ -49,7 +41,7 @@ var isRecoveryModeCmd = &cobra.Command{
 		log.Println("Is in recovery mode:", isInRecoveryMode)
 
 		if isInRecoveryMode {
-			exitBad(systemd)
+			utils.ExitBad(systemd)
 			return
 		}
 

@@ -142,5 +142,5 @@ in
   };
 
   # Add a start condition to this container so it will only start in non-recovery mode.
-  systemd.services."container@pup-{{.PUP_ID}}".serviceConfig.ExecCondition = "/run/wrappers/bin/dbx is-recovery-mode --data-dir {{.DATA_DIR}} --systemd";
+  systemd.services."container@pup-{{.PUP_ID}}".serviceConfig.ExecCondition = "/run/wrappers/bin/dbx can-pup-start --data-dir {{.DATA_DIR}} --systemd --pup-id {{.PUP_ID}}";
 }

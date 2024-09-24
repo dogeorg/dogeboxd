@@ -481,8 +481,39 @@ func (t PupManager) UpdateMetrics(u UpdateMetrics) {
 	}
 }
 
-// Modify provided pup to update warning flags
-func (t PupManager) healthCheckPupState(pup *PupState) {
+// This function only checks pup-specific conditions, it does not check
+// the rest of the system is ready for a pup to start.
+func (t PupManager) CanPupStart(pupId string) (bool, error) {
+	pup, ok := t.state[pupId]
+	if !ok {
+		return false, errors.New("no such pup")
+	}
+
+	report := t.GetPupHealthState(pup)
+
+	// If we still need config or deps, don't start.
+	if report.NeedsConf || report.NeedsDeps {
+		return false, nil
+	}
+
+	// TODO: This doesn't work when being called from our dbx CLI
+	//       as our system updates aren't running.
+
+	// If a dep isn't running, don't start.
+	// if len(report.Issues.DepsNotRunning) > 0 {
+	// 	return false, nil
+	// }
+
+	return true, nil
+}
+
+type PupHealthStateReport struct {
+	Issues    PupIssues
+	NeedsConf bool
+	NeedsDeps bool
+}
+
+func (t PupManager) GetPupHealthState(pup *PupState) PupHealthStateReport {
 	// are our required config fields set?
 	configSet := true
 loop:
@@ -522,17 +553,26 @@ loop:
 		}
 	}
 
-	// Update pupState
-	pup.NeedsConf = !configSet
-	pup.NeedsDeps = !depsMet
-
-	// Update pupStats
-	issues := PupIssues{
-		DepsNotRunning: depsNotRunning,
-		// TODO: HealthWarnings
-		// TODO: UpdateAvailable
+	report := PupHealthStateReport{
+		Issues: PupIssues{
+			DepsNotRunning: depsNotRunning,
+			// TODO: HealthWarnings
+			// TODO: UpdateAvailable
+		},
+		NeedsConf: !configSet,
+		NeedsDeps: !depsMet,
 	}
-	t.stats[pup.ID].Issues = issues
+
+	return report
+}
+
+// Modify provided pup to update warning flags
+func (t PupManager) healthCheckPupState(pup *PupState) {
+	report := t.GetPupHealthState(pup)
+
+	pup.NeedsConf = report.NeedsConf
+	pup.NeedsDeps = report.NeedsDeps
+	t.stats[pup.ID].Issues = report.Issues
 }
 
 // This function calculates a DependencyReport for every
