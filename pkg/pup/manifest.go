@@ -178,6 +178,7 @@ type PupManifestDependencySource struct {
 	SourceLocation string `json:"sourceLocation"`
 	PupName        string `json:"pupName"`
 	PupVersion     string `json:"pupVersion"`
+	PupLogoBase64  string `json:"pupLogoBase64"`
 }
 
 /* Represents fields that are user settable, which provide the values
