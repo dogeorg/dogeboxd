@@ -52,17 +52,21 @@ type PupState struct {
 	Version      string                      `json:"version"`
 }
 
+type PupMetrics[T any] struct {
+	Name   string     `json:"name"`
+	Label  string     `json:"label"`
+	Type   string     `json:"type"`
+	Values *Buffer[T] `json:"values"`
+}
+
 // PupStats is not persisted to disk, and holds the running
 // stats for the pup process, ie: disk, CPU, etc.
 type PupStats struct {
-	ID          string                 `json:"id"`
-	Status      string                 `json:"status"`
-	StatCPU     FloatBuffer            `json:"statusCpuPercent"`
-	StatMEM     FloatBuffer            `json:"statusMemTotal"`
-	StatMEMPERC FloatBuffer            `json:"statusMemPercent"`
-	StatDISK    FloatBuffer            `json:"statusDisk"`
-	Metrics     map[string]interface{} `json:"metrics"`
-	Issues      PupIssues              `json:"issues"`
+	ID            string            `json:"id"`
+	Status        string            `json:"status"`
+	SystemMetrics []PupMetrics[any] `json:"systemMetrics"`
+	Metrics       []PupMetrics[any] `json:"metrics"`
+	Issues        PupIssues         `json:"issues"`
 }
 
 type PupLogos struct {
@@ -86,38 +90,6 @@ type PupDependencyReport struct {
 	InstalledProviders    []string                          `json:"installedProviders"`
 	InstallableProviders  []pup.PupManifestDependencySource `json:"InstallableProviders"`
 	DefaultSourceProvider pup.PupManifestDependencySource   `json:"DefaultProvider"`
-}
-
-type FloatBuffer struct {
-	Values []float64
-	Tail   int
-}
-
-func NewFloatBuffer(size int) FloatBuffer {
-	return FloatBuffer{
-		Values: make([]float64, size),
-		Tail:   0,
-	}
-}
-
-func (b *FloatBuffer) Add(value float64) {
-	b.Values[b.Tail] = value
-	b.Tail = (b.Tail + 1) % len(b.Values)
-}
-
-func (b *FloatBuffer) GetValues() []float64 {
-	firstN := make([]float64, len(b.Values))
-	if b.Tail > 0 {
-		copy(firstN, b.Values[b.Tail:])
-		copy(firstN[len(b.Values)-b.Tail:], b.Values[:b.Tail])
-	} else {
-		copy(firstN, b.Values)
-	}
-	return firstN
-}
-
-func (b *FloatBuffer) MarshalJSON() ([]byte, error) {
-	return json.Marshal(b.GetValues())
 }
 
 type Buffer[T any] struct {
