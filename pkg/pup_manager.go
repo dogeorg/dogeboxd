@@ -346,10 +346,20 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 							fmt.Println("skipping stats for unfound pup", id)
 							continue
 						}
-						s.StatCPU.Add(v.CPUPercent)
-						s.StatMEM.Add(v.MEMMb)
-						s.StatMEMPERC.Add(v.MEMPercent)
-						s.StatDISK.Add(float64(0.0)) // TODO
+
+						for _, m := range s.SystemMetrics {
+							switch m.Name {
+							case "CPU":
+								m.Values.Add(v.CPUPercent)
+							case "Memory":
+								m.Values.Add(v.MEMMb)
+							case "MemoryPercent":
+								m.Values.Add(v.MEMPercent)
+							case "DiskUsage":
+								m.Values.Add(float64(0.0)) // TODO
+							}
+						}
+
 						// Calculate our status
 						p := t.state[id]
 						if v.Running && p.Enabled {
@@ -410,20 +420,19 @@ func (t PupManager) GetMetrics(pupId string) map[string]interface{} {
 	}
 
 	metrics := make(map[string]interface{})
-	for name, buffer := range s.Metrics {
-		switch b := buffer.(type) {
-		case *Buffer[string]:
-			metrics[name] = b.GetValues()
-		case *Buffer[int]:
-			metrics[name] = b.GetValues()
-		case *Buffer[float64]:
-			metrics[name] = b.GetValues()
-		default:
-			fmt.Printf("Warning: Unknown buffer type for metric %s\n", name)
-		}
+	for _, metric := range s.Metrics {
+		metrics[metric.Name] = metric.Values.GetValues()
 	}
 
 	return metrics
+}
+
+func (t PupManager) addMetricValue(stats *PupStats, name string, value any) {
+	for _, m := range stats.Metrics {
+		if m.Name == name {
+			m.Values.Add(value)
+		}
+	}
 }
 
 // Updates the stats.Metrics field with data from the pup router
@@ -449,8 +458,7 @@ func (t PupManager) UpdateMetrics(u UpdateMetrics) {
 				fmt.Printf("metric value for %s is not string", m.Name)
 				continue
 			}
-			b := s.Metrics[m.Name].(*Buffer[string])
-			b.Add(v)
+			t.addMetricValue(s, m.Name, v)
 		case "int":
 			// convert various things to int..
 			var vi int
@@ -462,19 +470,17 @@ func (t PupManager) UpdateMetrics(u UpdateMetrics) {
 			case int:
 				vi = v
 			default:
-				fmt.Printf("metric value for %s is not int", m.Name, reflect.TypeOf(val.Value))
+				fmt.Printf("metric value for %s is not int: %s", m.Name, reflect.TypeOf(val.Value))
 				continue
 			}
-			b := s.Metrics[m.Name].(*Buffer[int])
-			b.Add(vi)
+			t.addMetricValue(s, m.Name, vi)
 		case "float":
 			v, ok := val.Value.(float64)
 			if !ok {
 				fmt.Printf("metric value for %s is not float", m.Name)
 				continue
 			}
-			b := s.Metrics[m.Name].(*Buffer[float64])
-			b.Add(v)
+			t.addMetricValue(s, m.Name, v)
 		default:
 			fmt.Println("Manifest metric unknown field type", m.Type)
 		}
@@ -737,31 +743,57 @@ func (t PupManager) savePup(p *PupState) error {
 }
 
 func (t PupManager) indexPup(p *PupState) {
-	s := PupStats{
-		ID:          p.ID,
-		Status:      STATE_STOPPED,
-		StatCPU:     NewFloatBuffer(30),
-		StatMEM:     NewFloatBuffer(30),
-		StatMEMPERC: NewFloatBuffer(30),
-		StatDISK:    NewFloatBuffer(30),
-		Metrics:     map[string]interface{}{},
+	systemMetrics := []PupMetrics[any]{
+		{
+			Name:   "CPU",
+			Label:  "CPU",
+			Type:   "float",
+			Values: NewBuffer[any](30),
+		},
+		{
+			Name:   "Memory",
+			Label:  "Memory",
+			Type:   "float",
+			Values: NewBuffer[any](30),
+		},
+		{
+			Name:   "Memory Percent",
+			Label:  "Memory Percent",
+			Type:   "float",
+			Values: NewBuffer[any](30),
+		},
+		{
+			Name:   "Disk Usage",
+			Label:  "Disk Usage",
+			Type:   "float",
+			Values: NewBuffer[any](30),
+		},
 	}
+
+	metrics := []PupMetrics[any]{}
+
 	// handle custom metrics defined in manifest
 	for _, m := range p.Manifest.Metrics {
 		if m.Name == "" || m.HistorySize <= 0 {
 			fmt.Println("Manifest metric has invalid fields", m)
 			continue
 		}
-		switch m.Type {
-		case "string":
-			s.Metrics[m.Name] = NewBuffer[string](m.HistorySize)
-		case "int":
-			s.Metrics[m.Name] = NewBuffer[int](m.HistorySize)
-		case "float":
-			s.Metrics[m.Name] = NewBuffer[float64](m.HistorySize)
-		default:
-			fmt.Println("Manifest metric unknown field type", m.Type)
+
+		metric := PupMetrics[any]{
+			Name:   m.Name,
+			Label:  m.Label,
+			Type:   m.Type,
+			Values: NewBuffer[any](m.HistorySize),
 		}
+
+		metrics = append(metrics, metric)
+	}
+
+	s := PupStats{
+		ID:            p.ID,
+		Status:        STATE_STOPPED,
+		SystemMetrics: systemMetrics,
+		Metrics:       metrics,
 	}
 
 	t.state[p.ID] = p
