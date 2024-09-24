@@ -14,24 +14,6 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
-//go:embed templates/pup_container.nix
-var rawPupContainerTemplate []byte
-
-//go:embed templates/system_container_config.nix
-var rawSystemContainerConfigTemplate []byte
-
-//go:embed templates/firewall.nix
-var rawFirewallTemplate []byte
-
-//go:embed templates/system.nix
-var rawSystemTemplate []byte
-
-//go:embed templates/dogebox.nix
-var rawIncludesFileTemplate []byte
-
-//go:embed templates/network.nix
-var rawNetworkTemplate []byte
-
 var _ dogeboxd.NixManager = &nixManager{}
 
 type nixManager struct {
@@ -382,6 +364,13 @@ func (nm nixManager) Rebuild() error {
 		log.Printf("nix output: %s\n", string(output))
 	}
 	return nil
+}
+
+func (nm nixManager) NewPatch() NixPatch {
+	return NixPatch{
+		nm:    nm,
+		state: NixPatchStatePending,
+	}
 }
 
 func toEnv(entries map[string]string) []dogeboxd.EnvEntry {
