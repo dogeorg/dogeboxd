@@ -481,6 +481,8 @@ func (t PupManager) UpdateMetrics(u UpdateMetrics) {
 	}
 }
 
+// This function only checks pup-specific conditions, it does not check
+// the rest of the system is ready for a pup to start.
 func (t PupManager) CanPupStart(pupId string) (bool, error) {
 	pup, ok := t.state[pupId]
 	if !ok {
@@ -494,10 +496,13 @@ func (t PupManager) CanPupStart(pupId string) (bool, error) {
 		return false, nil
 	}
 
+	// TODO: This doesn't work when being called from our dbx CLI
+	//       as our system updates aren't running.
+
 	// If a dep isn't running, don't start.
-	if len(report.Issues.DepsNotRunning) > 0 {
-		return false, nil
-	}
+	// if len(report.Issues.DepsNotRunning) > 0 {
+	// 	return false, nil
+	// }
 
 	return true, nil
 }
