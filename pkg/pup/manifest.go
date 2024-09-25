@@ -87,6 +87,8 @@ type PupManifestMeta struct {
 	ShortDescription string `json:"shortDescription"`
 	// Optional, longer description. Used for store listings.
 	LongDescription string `json:"longDescription"`
+	// A key value pair of upstream versions that this pup ships with.
+	UpstreamVersions map[string]string `json:"upstreamVersions"`
 }
 
 /* PupManfiestV1Container contains information about the
