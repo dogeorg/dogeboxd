@@ -98,7 +98,9 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	t.nix.InitSystem(nixPatch)
 
-	if err := nixPatch.Apply(); err != nil {
+	if err := nixPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
+		RebuildBoot: true,
+	}); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
 	}
@@ -135,12 +137,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	flusher.Flush()
-
-	if err := t.nix.RebuildBoot(); err != nil {
-		log.Printf("Error rebuilding nix: %v", err)
-		log.Println("Unfortunately we're going to have to reboot now, and there's no way we can report this to the client.")
-		// TODO: Maybe we write a file that gets shown to the user on next boot in dpanel?
-	}
 
 	log.Println("Dogebox successfully bootstrapped, rebooting so we can boot into normal mode.")
 

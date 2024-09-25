@@ -277,9 +277,15 @@ type NixNetworkTemplateValues struct {
 	WIFI_PASSWORD string
 }
 
+type NixPatchApplyOptions struct {
+	RebuildBoot bool
+}
+
 type NixPatch interface {
 	State() string
 	Apply() error
+	ApplyCustom(options NixPatchApplyOptions) error
+
 	Cancel() error
 
 	UpdateSystemContainerConfiguration(values NixSystemContainerConfigTemplateValues)

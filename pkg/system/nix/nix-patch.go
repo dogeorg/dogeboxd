@@ -92,6 +92,10 @@ func (np *nixPatch) add(name string, op func() error) error {
 }
 
 func (np *nixPatch) Apply() error {
+	return np.ApplyCustom(dogeboxd.NixPatchApplyOptions{})
+}
+
+func (np *nixPatch) ApplyCustom(options dogeboxd.NixPatchApplyOptions) error {
 	if np.state != NixPatchStatePending {
 		return errors.New("patch already applied or cancelled")
 	}
@@ -117,7 +121,15 @@ func (np *nixPatch) Apply() error {
 
 	log.Printf("[patch-%s] Applied all patch operations, rebuilding..", np.id)
 
-	if err := np.nm.Rebuild(); err != nil {
+	var rebuildFn func() error
+
+	if options.RebuildBoot {
+		rebuildFn = np.nm.RebuildBoot
+	} else {
+		rebuildFn = np.nm.Rebuild
+	}
+
+	if err := rebuildFn(); err != nil {
 		// We failed.
 		// Roll back our changes.
 		log.Printf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
