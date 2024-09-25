@@ -85,7 +85,7 @@ type LifecycleManager interface {
 type NetworkManager interface {
 	GetAvailableNetworks() []NetworkConnection
 	SetPendingNetwork(selectedNetwork SelectedNetwork) error
-	TryConnect() error
+	TryConnect(nixPatch NixPatch) error
 }
 
 type NetworkConnection interface {
@@ -138,7 +138,7 @@ type NetworkConnector interface {
 }
 
 type NetworkPersistor interface {
-	Persist(network SelectedNetwork) error
+	Persist(nixPatch NixPatch, network SelectedNetwork)
 }
 
 type SourceDetailsPup struct {
@@ -277,15 +277,32 @@ type NixNetworkTemplateValues struct {
 	WIFI_PASSWORD string
 }
 
+type NixPatch interface {
+	State() string
+	Apply() error
+	Cancel() error
+
+	UpdateSystemContainerConfiguration(values NixSystemContainerConfigTemplateValues)
+	UpdateFirewall(values NixFirewallTemplateValues)
+	UpdateSystem(values NixSystemTemplateValues)
+	UpdateNetwork(values NixNetworkTemplateValues)
+	UpdateIncludesFile(values NixIncludesFileTemplateValues)
+	WritePupFile(pupId string, values NixPupContainerTemplateValues)
+	RemovePupFile(pupId string)
+}
+
 type NixManager interface {
-	Rebuild() error
+	// NixPatch passthrough helpers.
+	InitSystem(patch NixPatch)
+	UpdateIncludesFile(patch NixPatch, pups PupManager)
+	WritePupFile(patch NixPatch, state PupState)
+	RemovePupFile(patch NixPatch, pupId string)
+	UpdateSystemContainerConfiguration(patch NixPatch)
+	UpdateFirewallRules(patch NixPatch)
+	UpdateNetwork(patch NixPatch, values NixNetworkTemplateValues)
+
 	RebuildBoot() error
-	InitSystem() error
-	UpdateIncludeFile(pups PupManager) error
-	WriteDogeboxNixFile(filename string, content string) error
-	WritePupFile(pupState PupState) error
-	RemovePupFile(pupId string) error
-	UpdateSystem(values NixSystemTemplateValues) error
-	UpdateSystemContainerConfiguration() error
-	UpdateNetwork(values NixNetworkTemplateValues) error
+	Rebuild() error
+
+	NewPatch() NixPatch
 }

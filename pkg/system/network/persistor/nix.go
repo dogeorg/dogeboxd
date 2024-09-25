@@ -12,7 +12,7 @@ type NetworkPersistorNix struct {
 	nix dogeboxd.NixManager
 }
 
-func (t NetworkPersistorNix) Persist(network dogeboxd.SelectedNetwork) error {
+func (t NetworkPersistorNix) Persist(nixPatch dogeboxd.NixPatch, network dogeboxd.SelectedNetwork) {
 	values := dogeboxd.NixNetworkTemplateValues{}
 
 	switch network := network.(type) {
@@ -32,5 +32,5 @@ func (t NetworkPersistorNix) Persist(network dogeboxd.SelectedNetwork) error {
 		}
 	}
 
-	return t.nix.UpdateNetwork(values)
+	t.nix.UpdateNetwork(nixPatch, values)
 }

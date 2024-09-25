@@ -127,8 +127,9 @@ func (t SystemUpdater) GetUpdateChannel() chan dogeboxd.Job {
  * be started.
  */
 func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.PupState) error {
-	// TODO: Install deps!
+	nixPatch := t.nix.NewPatch()
 
+	// TODO: Install deps!
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_INSTALLING)); err != nil {
 		log.Printf("Failed to update pup installation state: %w", err)
 		return err
@@ -181,24 +182,14 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return err
 	}
 
-	log.Printf("Writing nix pup container config")
-	if err := t.nix.WritePupFile(newState); err != nil {
-		log.Printf("Failed to write nix pup file: %w", err)
-		return err
-	}
-
-	// Update our core nix include file
-	if err := t.nix.UpdateIncludeFile(t.pupManager); err != nil {
-		log.Printf("Failed to update nix include file: %w", err)
-		return err
-	}
+	t.nix.WritePupFile(nixPatch, newState)
+	t.nix.UpdateIncludesFile(nixPatch, t.pupManager)
 
 	// Do a nix rebuild before we mark the pup as installed, this way
 	// the frontend will get a much longer "Installing.." state, as opposed
 	// to a much longer "Starting.." state, which might confuse the user.
-	log.Printf("Rebuilding nix")
-	if err := t.nix.Rebuild(); err != nil {
-		log.Printf("Failed to rebuild nix: %w", err)
+	if err := nixPatch.Apply(); err != nil {
+		log.Printf("Failed to apply nix patch: %w", err)
 		return err
 	}
 
@@ -213,6 +204,8 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 	// TODO: uninstall deps if they're not needed by another pup.
 
+	nixPatch := t.nix.NewPatch()
+
 	log.Printf("Uninstalling pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLING)); err != nil {
@@ -220,15 +213,11 @@ func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 		return err
 	}
 
-	// Remove nix container configuration
-	if err := t.nix.RemovePupFile(s.ID); err != nil {
-		log.Printf("Failed to remove nix include file: %w", err)
-		return err
-	}
+	t.nix.RemovePupFile(nixPatch, s.ID)
+	t.nix.UpdateIncludesFile(nixPatch, t.pupManager)
 
-	// Update our core nix include file
-	if err := t.nix.UpdateIncludeFile(t.pupManager); err != nil {
-		log.Printf("Failed to update nix include file: %w", err)
+	if err := nixPatch.Apply(); err != nil {
+		log.Printf("Failed to apply nix patch: %w", err)
 		return err
 	}
 
@@ -237,7 +226,7 @@ func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 		return err
 	}
 
-	return t.nix.Rebuild()
+	return nil
 }
 
 func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
@@ -293,11 +282,11 @@ func (t SystemUpdater) enablePup(s dogeboxd.PupState) error {
 		return err
 	}
 
-	if err := t.nix.WritePupFile(newState); err != nil {
-		return err
-	}
+	nixPatch := t.nix.NewPatch()
+	t.nix.WritePupFile(nixPatch, newState)
 
-	if err := t.nix.Rebuild(); err != nil {
+	if err := nixPatch.Apply(); err != nil {
+		log.Printf("Failed to apply nix patch: %w", err)
 		return err
 	}
 
@@ -321,5 +310,13 @@ func (t SystemUpdater) disablePup(s dogeboxd.PupState) error {
 		return err
 	}
 
-	return t.nix.WritePupFile(newState)
+	nixPatch := t.nix.NewPatch()
+	t.nix.WritePupFile(nixPatch, newState)
+
+	if err := nixPatch.Apply(); err != nil {
+		log.Printf("Failed to apply nix patch: %w", err)
+		return err
+	}
+
+	return nil
 }

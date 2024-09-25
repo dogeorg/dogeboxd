@@ -65,6 +65,15 @@ func main() {
 		}
 	}
 
+	// Check if nixdir exists and create if not
+	if _, err := os.Stat(nixDir); os.IsNotExist(err) {
+		log.Printf("Specified nixdir %s does not exist, creating it", nixDir)
+		err := os.MkdirAll(nixDir, 0755)
+		if err != nil {
+			log.Fatalf("Failed to create nixdir: %v", err)
+		}
+	}
+
 	stateManager := system.NewStateManager(dataDir)
 	err := stateManager.Load()
 	if err != nil {

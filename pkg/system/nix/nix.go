@@ -1,14 +1,11 @@
 package nix
 
 import (
-	"bytes"
-	_ "embed"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"text/template"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
@@ -28,36 +25,25 @@ func NewNixManager(config dogeboxd.ServerConfig, pups dogeboxd.PupManager) dogeb
 	}
 }
 
-func (nm nixManager) InitSystem() error {
-	if err := nm.UpdateIncludeFile(nm.pups); err != nil {
-		return err
-	}
+func (nm nixManager) InitSystem(patch dogeboxd.NixPatch) {
+	nm.UpdateIncludesFile(patch, nm.pups)
 
 	// TODO: set these values properly
 	sshEnabled := false
 	sshKeys := []string{}
 	systemHostname := "dogebox"
 
-	if err := nm.UpdateSystem(dogeboxd.NixSystemTemplateValues{
+	patch.UpdateSystem(dogeboxd.NixSystemTemplateValues{
 		SSH_ENABLED:     sshEnabled,
 		SSH_KEYS:        sshKeys,
 		SYSTEM_HOSTNAME: systemHostname,
-	}); err != nil {
-		return err
-	}
+	})
 
-	if err := nm.UpdateFirewallRules(); err != nil {
-		return err
-	}
-
-	if err := nm.UpdateSystemContainerConfiguration(); err != nil {
-		return err
-	}
-
-	return nil
+	nm.UpdateFirewallRules(patch)
+	nm.UpdateSystemContainerConfiguration(patch)
 }
 
-func (nm nixManager) UpdateIncludeFile(pups dogeboxd.PupManager) error {
+func (nm nixManager) UpdateIncludesFile(patch dogeboxd.NixPatch, pups dogeboxd.PupManager) {
 	installed := pups.GetStateMap()
 	var pupIDs []string
 	for id, state := range installed {
@@ -70,47 +56,13 @@ func (nm nixManager) UpdateIncludeFile(pups dogeboxd.PupManager) error {
 		PUP_IDS: pupIDs,
 	}
 
-	return nm.writeTemplate("dogebox.nix", rawIncludesFileTemplate, values)
-}
-
-func (nm nixManager) WriteDogeboxNixFile(filename string, content string) error {
-	fullPath := filepath.Join(nm.config.NixDir, filename)
-
-	err := os.MkdirAll(filepath.Dir(fullPath), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create directories for %s: %w", fullPath, err)
-	}
-	err = os.WriteFile(fullPath, []byte(content), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write file %s: %w", fullPath, err)
-	}
-
-	return nil
-}
-
-func (nm nixManager) writeTemplate(filename string, _template []byte, values interface{}) error {
-	template, err := template.New(filename).Parse(string(_template))
-	if err != nil {
-		return err
-	}
-
-	var contents bytes.Buffer
-	err = template.Execute(&contents, values)
-	if err != nil {
-		return err
-	}
-
-	err = nm.WriteDogeboxNixFile(filename, contents.String())
-	if err != nil {
-		return err
-	}
-
-	return nil
+	patch.UpdateIncludesFile(values)
 }
 
 func (nm nixManager) WritePupFile(
+	nixPatch dogeboxd.NixPatch,
 	state dogeboxd.PupState,
-) error {
+) {
 	services := []dogeboxd.NixPupContainerServiceValues{}
 
 	for _, service := range state.Manifest.Container.Services {
@@ -164,30 +116,22 @@ func (nm nixManager) WritePupFile(
 	// If we have any public host ports, we need to
 	// update the host firewall to open those ports.
 	if hasPublicPorts {
-		if err := nm.UpdateFirewallRules(); err != nil {
-			return err
-		}
+		nm.UpdateFirewallRules(nixPatch)
 	}
 
 	// If we need access to the internet, update the system container config.
 	if state.Manifest.Container.RequiresInternet {
-		if err := nm.UpdateSystemContainerConfiguration(); err != nil {
-			return err
-		}
+		nm.UpdateSystemContainerConfiguration(nixPatch)
 	}
 
-	filename := fmt.Sprintf("pup_%s.nix", state.ID)
-
-	return nm.writeTemplate(filename, rawPupContainerTemplate, values)
+	nixPatch.WritePupFile(state.ID, values)
 }
 
-func (nm nixManager) RemovePupFile(pupId string) error {
-	// Remove pup nix file
-	filename := fmt.Sprintf("pup_%s.nix", pupId)
-	return os.Remove(filepath.Join(nm.config.NixDir, filename))
+func (nm nixManager) RemovePupFile(nixPatch dogeboxd.NixPatch, pupId string) {
+	nixPatch.RemovePupFile(pupId)
 }
 
-func (nm nixManager) UpdateSystemContainerConfiguration() error {
+func (nm nixManager) UpdateSystemContainerConfiguration(nixPatch dogeboxd.NixPatch) {
 	// TODO: Move away from hardcoding these values. Should be pulled from pupmanager?
 	hostIp := "10.69.0.1"
 	containerCidr := "10.69.0.0/8"
@@ -288,14 +232,10 @@ func (nm nixManager) UpdateSystemContainerConfiguration() error {
 		PUPS_TCP_CONNECTIONS:    pupsTcpConnections,
 	}
 
-	return nm.updateSystemContainerConfiguration(values)
+	nixPatch.UpdateSystemContainerConfiguration(values)
 }
 
-func (nm nixManager) updateSystemContainerConfiguration(values dogeboxd.NixSystemContainerConfigTemplateValues) error {
-	return nm.writeTemplate("system_container_config.nix", rawSystemContainerConfigTemplate, values)
-}
-
-func (nm nixManager) UpdateFirewallRules() error {
+func (nm nixManager) UpdateFirewallRules(nixPatch dogeboxd.NixPatch) {
 	installed := nm.pups.GetStateMap()
 	var pupPorts []struct {
 		PORT   int
@@ -320,22 +260,15 @@ func (nm nixManager) UpdateFirewallRules() error {
 	// TODO: set these values properly
 	sshEnabled := false
 
-	return nm.updateFirewall(dogeboxd.NixFirewallTemplateValues{
+	nixPatch.UpdateFirewall(dogeboxd.NixFirewallTemplateValues{
 		SSH_ENABLED: sshEnabled,
 		PUP_PORTS:   pupPorts,
 	})
 }
 
-func (nm nixManager) updateFirewall(values dogeboxd.NixFirewallTemplateValues) error {
-	return nm.writeTemplate("firewall.nix", rawFirewallTemplate, values)
-}
-
-func (nm nixManager) UpdateSystem(values dogeboxd.NixSystemTemplateValues) error {
-	return nm.writeTemplate("system.nix", rawSystemTemplate, values)
-}
-
-func (nm nixManager) UpdateNetwork(values dogeboxd.NixNetworkTemplateValues) error {
-	return nm.writeTemplate("network.nix", rawNetworkTemplate, values)
+func (nm nixManager) UpdateNetwork(nixPatch dogeboxd.NixPatch, values dogeboxd.NixNetworkTemplateValues) {
+	// TODO: Move this out of here once network/nix.go is gone.
+	nixPatch.UpdateNetwork(values)
 }
 
 func (nm nixManager) RebuildBoot() error {
@@ -353,24 +286,20 @@ func (nm nixManager) RebuildBoot() error {
 }
 
 func (nm nixManager) Rebuild() error {
-	md := exec.Command("sudo", "_dbxroot", "nix", "rs")
+	cmd := exec.Command("sudo", "_dbxroot", "nix", "rs")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	output, err := md.CombinedOutput()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		log.Printf("Error executing nix rebuild: %v\n", err)
-		log.Printf("nix output: %s\n", string(output))
 		return err
-	} else {
-		log.Printf("nix output: %s\n", string(output))
 	}
+
 	return nil
 }
 
-func (nm nixManager) NewPatch() NixPatch {
-	return NixPatch{
-		nm:    nm,
-		state: NixPatchStatePending,
-	}
+func (nm nixManager) NewPatch() dogeboxd.NixPatch {
+	return NewNixPatch(nm)
 }
 
 func toEnv(entries map[string]string) []dogeboxd.EnvEntry {

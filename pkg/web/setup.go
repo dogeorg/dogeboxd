@@ -87,14 +87,18 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: turn off AP
 
+	nixPatch := t.nix.NewPatch()
+
 	// This will try and connect to the pending network, and if
 	// that works, it will persist the network config to disk properly.
-	if err := t.dbx.NetworkManager.TryConnect(); err != nil {
+	if err := t.dbx.NetworkManager.TryConnect(nixPatch); err != nil {
+		log.Printf("Error connecting to network: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
 		return
 	}
+	t.nix.InitSystem(nixPatch)
 
-	if err := t.nix.InitSystem(); err != nil {
+	if err := nixPatch.Apply(); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
 	}
