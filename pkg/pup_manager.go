@@ -159,11 +159,14 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 			})
 		}
 	}
+
 	// and give them all Ports
-	ports := t.nextAvailablePorts(len(uis))
-	for _, ui := range uis {
-		ui.Port = ports[0]
-		ports = ports[1:]
+	if len(uis) > 0 {
+		ports := t.nextAvailablePorts(len(uis))
+		for i := range uis {
+			uis[i].Port = ports[0]
+			ports = ports[1:]
+		}
 	}
 
 	// Set up initial PupState and save it to disk
@@ -224,6 +227,9 @@ func (t PupManager) GetUpdateChannel() chan Pupdate {
 // a PupState before you can call again without getting
 // duplicates
 func (t PupManager) nextAvailablePorts(howMany int) []int {
+	if howMany <= 0 {
+		return []int{}
+	}
 	out := []int{}
 	consumed := map[int]struct{}{} // track already used ports
 
@@ -242,14 +248,18 @@ func (t PupManager) nextAvailablePorts(howMany int) []int {
 	}
 
 	for len(out) < howMany {
+		fmt.Println("filled ports", len(out))
 		for port := MIN_WEBUI_PORT; true; port++ {
+			fmt.Println("PORT", port)
 			// check port not in use anywhere
 			_, exists := consumed[port]
 			if !exists {
 				out = append(out, port)
+				break
 			}
 		}
 	}
+	fmt.Println("sending needed ports", out)
 	return out
 }
 
