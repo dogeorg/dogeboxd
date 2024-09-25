@@ -27,6 +27,10 @@ const (
 	PUP_ADOPTED                  = iota
 )
 
+const (
+	MIN_WEBUI_PORT int = 10000 // start assigning ports from..
+)
+
 // Represents a change to pup state
 type Pupdate struct {
 	ID    string
@@ -45,6 +49,7 @@ type PupManager struct {
 	pupDir            string // Where pup state is stored
 	tmpDir            string // Where temporary files are stored
 	lastIP            net.IP // last issued IP address
+	lastPort          int    // last issued Port
 	mu                *sync.Mutex
 	state             map[string]*PupState
 	stats             map[string]*PupStats
@@ -145,6 +150,22 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 		return PupID, errors.New("exhausted 65,534 IP addresses, what are you doing??")
 	}
 
+	// Create any WebUIs listed as exposed
+	uis := []PupWebUI{}
+	for _, ex := range m.Container.Exposes {
+		if ex.WebUI {
+			uis = append(uis, PupWebUI{
+				Name: ex.Name,
+			})
+		}
+	}
+	// and give them all Ports
+	ports := t.nextAvailablePorts(len(uis))
+	for _, ui := range uis {
+		ui.Port = ports[0]
+		ports = ports[1:]
+	}
+
 	// Set up initial PupState and save it to disk
 	p := PupState{
 		ID:           PupID,
@@ -157,7 +178,10 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 		NeedsDeps:    false, // TODO
 		IP:           t.lastIP.String(),
 		Version:      m.Meta.Version,
+		WebUIs:       uis,
 	}
+
+	// Now save it to disk
 	err = t.savePup(&p)
 	if err != nil {
 		return PupID, err
@@ -175,6 +199,7 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 		Event: PUP_ADOPTED,
 		State: p,
 	})
+	// Done! Adpoted
 	return PupID, nil
 }
 
@@ -193,6 +218,39 @@ func (t PupManager) GetUpdateChannel() chan Pupdate {
 	defer t.mu.Unlock()
 	t.updateSubscribers[ch] = true
 	return ch
+}
+
+// get N available webUI ports. These must be set on
+// a PupState before you can call again without getting
+// duplicates
+func (t PupManager) nextAvailablePorts(howMany int) []int {
+	out := []int{}
+	consumed := map[int]struct{}{} // track already used ports
+
+	// find all current ports
+	for _, ps := range t.state {
+		// any ports already assigned to WebUIs
+		for _, w := range ps.WebUIs {
+			consumed[w.Port] = struct{}{}
+		}
+		// and any ports Exposed by the manifest on the host
+		for _, ex := range ps.Manifest.Container.Exposes {
+			if ex.ListenOnHost {
+				consumed[ex.Port] = struct{}{}
+			}
+		}
+	}
+
+	for len(out) < howMany {
+		for port := MIN_WEBUI_PORT; true; port++ {
+			// check port not in use anywhere
+			_, exists := consumed[port]
+			if !exists {
+				out = append(out, port)
+			}
+		}
+	}
+	return out
 }
 
 // send pupdates to subscribers
