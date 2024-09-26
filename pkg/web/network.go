@@ -17,12 +17,20 @@ func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) connectNetwork(w http.ResponseWriter, r *http.Request) {
-	err := t.dbx.NetworkManager.TryConnect()
+	nixPatch := t.nix.NewPatch()
+
+	err := t.dbx.NetworkManager.TryConnect(nixPatch)
 	// Chances are we'll never actually get here, because you'll probably be disconnected
 	// from the box once (if) it changes networks, and your connection will break.
 	if err != nil {
 		log.Printf("Failed to connect to network: %+v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Failed to connect to network")
+		return
+	}
+
+	if err := nixPatch.Apply(); err != nil {
+		log.Printf("Failed to apply nix patch: %+v", err)
+		sendErrorResponse(w, http.StatusInternalServerError, "Failed to apply nix patch")
 		return
 	}
 

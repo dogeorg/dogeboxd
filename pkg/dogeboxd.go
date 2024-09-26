@@ -358,22 +358,12 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 
 	// If the pup may now start, update all of our nix files and rebuild.
 	if canPupStart {
-		if err := t.nix.UpdateSystemContainerConfiguration(); err != nil {
-			fmt.Println("Failed to update container configuration:", err)
-			j.Err = err.Error()
-			t.sendFinishedJob("action", j)
-			return
-		}
+		nixPatch := t.nix.NewPatch()
+		t.nix.UpdateSystemContainerConfiguration(nixPatch)
+		t.nix.WritePupFile(nixPatch, pupState)
 
-		if err := t.nix.WritePupFile(pupState); err != nil {
-			fmt.Println("Failed to write pup file:", err)
-			j.Err = err.Error()
-			t.sendFinishedJob("action", j)
-			return
-		}
-
-		if err := t.nix.Rebuild(); err != nil {
-			fmt.Println("Failed to rebuild:", err)
+		if err := nixPatch.Apply(); err != nil {
+			fmt.Println("Failed to apply nix patch:", err)
 			j.Err = err.Error()
 			t.sendFinishedJob("action", j)
 			return

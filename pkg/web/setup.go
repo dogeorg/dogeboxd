@@ -87,14 +87,20 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: turn off AP
 
+	nixPatch := t.nix.NewPatch()
+
 	// This will try and connect to the pending network, and if
 	// that works, it will persist the network config to disk properly.
-	if err := t.dbx.NetworkManager.TryConnect(); err != nil {
+	if err := t.dbx.NetworkManager.TryConnect(nixPatch); err != nil {
+		log.Printf("Error connecting to network: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
 		return
 	}
+	t.nix.InitSystem(nixPatch)
 
-	if err := t.nix.InitSystem(); err != nil {
+	if err := nixPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
+		RebuildBoot: true,
+	}); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
 	}
@@ -131,12 +137,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	flusher.Flush()
-
-	if err := t.nix.RebuildBoot(); err != nil {
-		log.Printf("Error rebuilding nix: %v", err)
-		log.Println("Unfortunately we're going to have to reboot now, and there's no way we can report this to the client.")
-		// TODO: Maybe we write a file that gets shown to the user on next boot in dpanel?
-	}
 
 	log.Println("Dogebox successfully bootstrapped, rebooting so we can boot into normal mode.")
 
