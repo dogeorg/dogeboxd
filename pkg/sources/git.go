@@ -13,6 +13,7 @@ import (
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/pup"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -203,8 +204,9 @@ func (r ManifestSourceGit) getSourceDetailsFromWorktree(worktree *git.Worktree) 
 }
 
 type GitPupEntry struct {
-	Manifest pup.PupManifest
-	SubPath  string
+	Manifest   pup.PupManifest
+	SubPath    string
+	LogoBase64 string
 }
 
 func (r ManifestSourceGit) ensureTagValidAndGetPups(tag string) ([]GitPupEntry, error) {
@@ -231,14 +233,15 @@ func (r ManifestSourceGit) ensureTagValidAndGetPups(tag string) ([]GitPupEntry, 
 	}
 
 	for _, pupLocation := range pupLocations {
-		pupManifest, isValid, err := r.getPupManifestFromWorktreeLocation(tag, worktree, pupLocation)
+		pupManifest, logoBase64, isValid, err := r.getPupManifestFromWorktreeLocation(tag, worktree, pupLocation)
 		if err != nil {
 			return []GitPupEntry{}, err
 		}
 		if isValid {
 			entries = append(entries, GitPupEntry{
-				Manifest: pupManifest,
-				SubPath:  pupLocation,
+				Manifest:   pupManifest,
+				SubPath:    pupLocation,
+				LogoBase64: logoBase64,
 			})
 		}
 	}
@@ -246,41 +249,60 @@ func (r ManifestSourceGit) ensureTagValidAndGetPups(tag string) ([]GitPupEntry, 
 	return entries, nil
 }
 
-func (r ManifestSourceGit) getPupManifestFromWorktreeLocation(tag string, worktree *git.Worktree, location string) (pup.PupManifest, bool, error) {
+func (r ManifestSourceGit) getPupManifestFromWorktreeLocation(tag string, worktree *git.Worktree, location string) (pup.PupManifest, string, bool, error) {
 	for _, filename := range REQUIRED_FILES {
 		_, err := worktree.Filesystem.Stat(filepath.Join(location, filename))
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("tag %s missing file %s", tag, filename)
-				return pup.PupManifest{}, false, nil
+				return pup.PupManifest{}, "", false, nil
 			}
-			return pup.PupManifest{}, false, fmt.Errorf("failed to check for file %s: %w", filename, err)
+			return pup.PupManifest{}, "", false, fmt.Errorf("failed to check for file %s: %w", filename, err)
 		}
 	}
 
 	content, err := worktree.Filesystem.Open(filepath.Join(location, "manifest.json"))
 	if err != nil {
-		return pup.PupManifest{}, false, fmt.Errorf("failed to open manifest.json: %w", err)
+		return pup.PupManifest{}, "", false, fmt.Errorf("failed to open manifest.json: %w", err)
 	}
 	defer content.Close()
 
 	manifestBytes, err := io.ReadAll(content)
 	if err != nil {
-		return pup.PupManifest{}, false, fmt.Errorf("failed to read manifest.json: %w", err)
+		return pup.PupManifest{}, "", false, fmt.Errorf("failed to read manifest.json: %w", err)
 	}
 
 	var manifest pup.PupManifest
 	err = json.Unmarshal(manifestBytes, &manifest)
 	if err != nil {
-		return pup.PupManifest{}, false, fmt.Errorf("failed to unmarshal manifest.json: %w", err)
+		return pup.PupManifest{}, "", false, fmt.Errorf("failed to unmarshal manifest.json: %w", err)
 	}
 
 	if err := manifest.Validate(); err != nil {
-		return pup.PupManifest{}, false, fmt.Errorf("manifest validation failed: %w", err)
+		return pup.PupManifest{}, "", false, fmt.Errorf("manifest validation failed: %w", err)
+	}
+
+	logoBase64 := ""
+
+	if manifest.Meta.LogoPath != "" {
+		logoPath := worktree.Filesystem.Join(location, manifest.Meta.LogoPath)
+		if _, err := worktree.Filesystem.Stat(logoPath); err == nil {
+			logoFile, err := worktree.Filesystem.Open(logoPath)
+			if err == nil {
+				logoData, err := io.ReadAll(logoFile)
+				if err == nil {
+					logoBase64, err = utils.ImageBytesToWebBase64(logoData, manifest.Meta.LogoPath)
+					if err != nil {
+						// Don't fail if we can't read/convert the logo for whatever reason.
+						log.Printf("failed to read/convert logo for %s: %s", manifest.Meta.Name, err)
+					}
+				}
+			}
+		}
 	}
 
 	log.Printf("Successfully read manifest for location %s", location)
-	return manifest, true, nil
+	return manifest, logoBase64, true, nil
 }
 
 func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList, error) {
@@ -347,8 +369,9 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 					"tag":     result.version,
 					"subPath": entry.SubPath,
 				},
-				Version:  entry.Manifest.Meta.Version,
-				Manifest: entry.Manifest,
+				Version:    entry.Manifest.Meta.Version,
+				Manifest:   entry.Manifest,
+				LogoBase64: entry.LogoBase64,
 			})
 		}
 	}
