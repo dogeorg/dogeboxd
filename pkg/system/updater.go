@@ -21,7 +21,7 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager dogeboxd.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager dogeboxd.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager, stateManager dogeboxd.StateManager) SystemUpdater {
 	return SystemUpdater{
 		config:     config,
 		jobs:       make(chan dogeboxd.Job),
@@ -30,6 +30,7 @@ func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.Netw
 		nix:        nixManager,
 		sources:    sourceManager,
 		pupManager: pupManager,
+		sm:         stateManager,
 	}
 }
 
@@ -41,6 +42,7 @@ type SystemUpdater struct {
 	nix        dogeboxd.NixManager
 	sources    dogeboxd.SourceManager
 	pupManager dogeboxd.PupManager
+	sm         dogeboxd.StateManager
 }
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -99,6 +101,38 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 							j.Err = "Failed to set system network"
 						}
 						t.done <- j
+
+					case dogeboxd.EnableSSH:
+						err := t.EnableSSH()
+						if err != nil {
+							fmt.Println("Failed to enable SSH", err)
+							j.Err = "Failed to enable SSH"
+						}
+						t.done <- j
+					case dogeboxd.DisableSSH:
+						err := t.DisableSSH()
+						if err != nil {
+							fmt.Println("Failed to disable SSH", err)
+							j.Err = "Failed to disable SSH"
+						}
+						t.done <- j
+
+					case dogeboxd.AddSSHKey:
+						err := t.AddSSHKey(a.Key)
+						if err != nil {
+							fmt.Println("Failed to add SSH key", err)
+							j.Err = "Failed to add SSH key"
+						}
+						t.done <- j
+
+					case dogeboxd.RemoveSSHKey:
+						err := t.RemoveSSHKey(a.ID)
+						if err != nil {
+							fmt.Println("Failed to remove SSH key", err)
+							j.Err = "Failed to remove SSH key"
+						}
+						t.done <- j
+
 					default:
 						fmt.Printf("Unknown action type: %v\n", a)
 					}
@@ -182,7 +216,9 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return err
 	}
 
-	t.nix.WritePupFile(nixPatch, newState)
+	dbxState := t.sm.Get().Dogebox
+
+	t.nix.WritePupFile(nixPatch, newState, dbxState)
 	t.nix.UpdateIncludesFile(nixPatch, t.pupManager)
 
 	// Do a nix rebuild before we mark the pup as installed, this way
@@ -282,8 +318,10 @@ func (t SystemUpdater) enablePup(s dogeboxd.PupState) error {
 		return err
 	}
 
+	dbxState := t.sm.Get().Dogebox
+
 	nixPatch := t.nix.NewPatch()
-	t.nix.WritePupFile(nixPatch, newState)
+	t.nix.WritePupFile(nixPatch, newState, dbxState)
 
 	if err := nixPatch.Apply(); err != nil {
 		log.Printf("Failed to apply nix patch: %w", err)
@@ -310,8 +348,10 @@ func (t SystemUpdater) disablePup(s dogeboxd.PupState) error {
 		return err
 	}
 
+	dbxState := t.sm.Get().Dogebox
+
 	nixPatch := t.nix.NewPatch()
-	t.nix.WritePupFile(nixPatch, newState)
+	t.nix.WritePupFile(nixPatch, newState, dbxState)
 
 	if err := nixPatch.Apply(); err != nil {
 		log.Printf("Failed to apply nix patch: %w", err)

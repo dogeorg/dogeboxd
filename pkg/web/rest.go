@@ -71,6 +71,11 @@ func RESTAPI(
 		"POST /keys/create-master":        a.createMasterKey,
 		"GET /keys":                       a.listKeys,
 		"POST /system/bootstrap":          a.initialBootstrap,
+
+		"PUT /system/ssh/state":       a.setSSHState,
+		"GET /system/ssh/keys":        a.listSSHKeys,
+		"PUT /system/ssh/key":         a.addSSHKey,
+		"DELETE /system/ssh/key/{id}": a.removeSSHKey,
 	}
 
 	// Normal routes are used when we are not in recovery mode.
