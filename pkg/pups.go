@@ -55,8 +55,9 @@ type PupState struct {
 
 // Represents a Web UI exposed port from the manifest
 type PupWebUI struct {
-	Name string `json:"name"`
-	Port int    `json:"port"`
+	Name     string `json:"name"`
+	Internal int    `json:"-"`
+	Port     int    `json:"port"`
 }
 
 // noodles ?

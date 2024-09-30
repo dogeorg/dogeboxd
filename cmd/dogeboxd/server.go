@@ -69,6 +69,7 @@ func (t server) Start() {
 	wsh := web.NewWSRelay(t.config, dbx.Changes)
 	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, wsh)
 	internalRouter := web.NewInternalRouter(t.config, dbx, pups)
+	adminRouter := web.NewAdminRouter(t.config, pups)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */
@@ -96,6 +97,7 @@ func (t server) Start() {
 		c.Service("WSock Relay", wsh)
 		c.Service("Pup Manager", pups)
 		c.Service("Internal Router", internalRouter)
+		c.Service("Admin Router", adminRouter)
 	}
 
 	// c.Service("Watcher", NewWatcher(t.state, t.config.PupDir))

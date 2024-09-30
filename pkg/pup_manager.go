@@ -155,7 +155,8 @@ func (t PupManager) AdoptPup(m pup.PupManifest, source ManifestSource) (string, 
 	for _, ex := range m.Container.Exposes {
 		if ex.WebUI {
 			uis = append(uis, PupWebUI{
-				Name: ex.Name,
+				Name:     ex.Name,
+				Internal: ex.Port,
 			})
 		}
 	}
