@@ -13,6 +13,7 @@ type ServerConfig struct {
 	UiDir           string
 	UiPort          int
 	DevMode         bool
+	ReflectorHost   string
 }
 
 func GetSystemEnvironmentVariablesForContainer() map[string]string {

@@ -2,6 +2,7 @@ package dogeboxd
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/dogeorg/dogeboxd/pkg/pup"
@@ -104,6 +105,7 @@ type NetworkManager interface {
 	GetAvailableNetworks() []NetworkConnection
 	SetPendingNetwork(selectedNetwork SelectedNetwork) error
 	TryConnect(nixPatch NixPatch) error
+	GetLocalIP() (net.IP, error)
 }
 
 type NetworkConnection interface {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/system"
 )
 
 type InitialSystemBootstrapRequestBody struct {
@@ -118,7 +119,18 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if requestBody.ReflectorToken != "" {
-		// TODO: ping reflector with relevant internal IP
+		localIP, err := t.dbx.NetworkManager.GetLocalIP()
+		if err != nil {
+			log.Printf("Error getting local IP: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error getting local IP")
+			return
+		}
+
+		if err := system.SubmitToReflector(t.config, requestBody.ReflectorToken, localIP.String()); err != nil {
+			log.Printf("Error submitting to reflector: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error submitting to reflector")
+			return
+		}
 	}
 
 	dbxs := t.sm.Get().Dogebox

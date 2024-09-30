@@ -25,6 +25,7 @@ func main() {
 	var help bool
 	var forcedRecovery bool
 	var dangerousDevMode bool
+	var reflectorHost string
 
 	flag.IntVar(&port, "port", 8080, "REST API Port")
 	flag.StringVar(&bind, "addr", "127.0.0.1", "Address to bind to")
@@ -36,6 +37,7 @@ func main() {
 	flag.IntVar(&internalPort, "internal-port", 80, "Internal Router Port")
 	flag.BoolVar(&forcedRecovery, "force-recovery", false, "Force recovery mode")
 	flag.BoolVar(&dangerousDevMode, "danger-dev", false, "Enable dangerous development mode")
+	flag.StringVar(&reflectorHost, "reflector-host", "https://reflector.dogebox.org", "Reflector host used for initial setup")
 	flag.BoolVar(&verbose, "v", false, "Be verbose")
 	flag.BoolVar(&help, "h", false, "Get help")
 	flag.Parse()
@@ -118,6 +120,7 @@ func main() {
 		UiPort:          uiPort,
 		InternalPort:    internalPort,
 		DevMode:         dangerousDevMode,
+		ReflectorHost:   reflectorHost,
 	}
 
 	srv := Server(stateManager, config)
