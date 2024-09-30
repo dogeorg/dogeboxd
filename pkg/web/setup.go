@@ -10,6 +10,7 @@ import (
 )
 
 type InitialSystemBootstrapRequestBody struct {
+	Hostname       string `json:"hostname"`
 	ReflectorToken string `json:"reflectorToken"`
 }
 
@@ -60,14 +61,14 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbxis := t.sm.Get().Dogebox.InitialState
+	dbxState := t.sm.Get().Dogebox
 
-	if dbxis.HasFullyConfigured {
+	if dbxState.InitialState.HasFullyConfigured {
 		sendErrorResponse(w, http.StatusForbidden, "System has already been initialised")
 		return
 	}
 
-	if !dbxis.HasGeneratedKey || !dbxis.HasSetNetwork {
+	if !dbxState.InitialState.HasGeneratedKey || !dbxState.InitialState.HasSetNetwork {
 		sendErrorResponse(w, http.StatusForbidden, "System not ready to initialise")
 		return
 	}
@@ -87,6 +88,14 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: turn off AP
 
+	dbxState.Hostname = requestBody.Hostname
+	t.sm.SetDogebox(dbxState)
+
+	if err := t.sm.Save(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
+
 	nixPatch := t.nix.NewPatch()
 
 	// This will try and connect to the pending network, and if
@@ -96,7 +105,8 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
 		return
 	}
-	t.nix.InitSystem(nixPatch)
+
+	t.nix.InitSystem(nixPatch, dbxState)
 
 	if err := nixPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
 		RebuildBoot: true,

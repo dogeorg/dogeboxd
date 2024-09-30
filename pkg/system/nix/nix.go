@@ -25,21 +25,16 @@ func NewNixManager(config dogeboxd.ServerConfig, pups dogeboxd.PupManager) dogeb
 	}
 }
 
-func (nm nixManager) InitSystem(patch dogeboxd.NixPatch) {
+func (nm nixManager) InitSystem(patch dogeboxd.NixPatch, dbxState dogeboxd.DogeboxState) {
 	nm.UpdateIncludesFile(patch, nm.pups)
 
-	// TODO: set these values properly
-	sshEnabled := false
-	sshKeys := []string{}
-	systemHostname := "dogebox"
-
 	patch.UpdateSystem(dogeboxd.NixSystemTemplateValues{
-		SSH_ENABLED:     sshEnabled,
-		SSH_KEYS:        sshKeys,
-		SYSTEM_HOSTNAME: systemHostname,
+		SSH_ENABLED:     dbxState.SSH.Enabled,
+		SSH_KEYS:        dbxState.SSH.Keys,
+		SYSTEM_HOSTNAME: dbxState.Hostname,
 	})
 
-	nm.UpdateFirewallRules(patch)
+	nm.UpdateFirewallRules(patch, dbxState)
 	nm.UpdateSystemContainerConfiguration(patch)
 }
 
@@ -62,6 +57,7 @@ func (nm nixManager) UpdateIncludesFile(patch dogeboxd.NixPatch, pups dogeboxd.P
 func (nm nixManager) WritePupFile(
 	nixPatch dogeboxd.NixPatch,
 	state dogeboxd.PupState,
+	dbxState dogeboxd.DogeboxState,
 ) {
 	services := []dogeboxd.NixPupContainerServiceValues{}
 
@@ -116,7 +112,7 @@ func (nm nixManager) WritePupFile(
 	// If we have any public host ports, we need to
 	// update the host firewall to open those ports.
 	if hasPublicPorts {
-		nm.UpdateFirewallRules(nixPatch)
+		nm.UpdateFirewallRules(nixPatch, dbxState)
 	}
 
 	// If we need access to the internet, update the system container config.
@@ -129,6 +125,10 @@ func (nm nixManager) WritePupFile(
 
 func (nm nixManager) RemovePupFile(nixPatch dogeboxd.NixPatch, pupId string) {
 	nixPatch.RemovePupFile(pupId)
+}
+
+func (nm nixManager) UpdateSystem(nixPatch dogeboxd.NixPatch, values dogeboxd.NixSystemTemplateValues) {
+	nixPatch.UpdateSystem(values)
 }
 
 func (nm nixManager) UpdateSystemContainerConfiguration(nixPatch dogeboxd.NixPatch) {
@@ -235,7 +235,7 @@ func (nm nixManager) UpdateSystemContainerConfiguration(nixPatch dogeboxd.NixPat
 	nixPatch.UpdateSystemContainerConfiguration(values)
 }
 
-func (nm nixManager) UpdateFirewallRules(nixPatch dogeboxd.NixPatch) {
+func (nm nixManager) UpdateFirewallRules(nixPatch dogeboxd.NixPatch, dbxState dogeboxd.DogeboxState) {
 	installed := nm.pups.GetStateMap()
 	var pupPorts []struct {
 		PORT   int
@@ -257,11 +257,8 @@ func (nm nixManager) UpdateFirewallRules(nixPatch dogeboxd.NixPatch) {
 		}
 	}
 
-	// TODO: set these values properly
-	sshEnabled := false
-
 	nixPatch.UpdateFirewall(dogeboxd.NixFirewallTemplateValues{
-		SSH_ENABLED: sshEnabled,
+		SSH_ENABLED: dbxState.SSH.Enabled,
 		PUP_PORTS:   pupPorts,
 	})
 }

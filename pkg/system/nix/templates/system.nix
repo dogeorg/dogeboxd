@@ -28,7 +28,7 @@
     openssh = {
       authorizedKeys = {
         keys = [
-          {{ range .SSH_KEYS }}"{{.}}"{{ end }}
+          {{ range .SSH_KEYS }}"{{.Key}} # {{.ID}}"{{ end }}
         ];
       };
     };

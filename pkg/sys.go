@@ -14,6 +14,8 @@ import (
 type SystemUpdater interface {
 	AddJob(Job)
 	GetUpdateChannel() chan Job
+
+	ListSSHKeys() ([]DogeboxStateSSHKey, error)
 }
 
 // monitors systemd services and returns stats
@@ -49,8 +51,20 @@ type DogeboxStateInitialSetup struct {
 	HasFullyConfigured bool `json:"hasFullyConfigured"`
 }
 
+type DogeboxStateSSHKey struct {
+	ID  string `json:"id"`
+	Key string `json:"key"`
+}
+
+type DogeboxStateSSHConfig struct {
+	Enabled bool                 `json:"enabled"`
+	Keys    []DogeboxStateSSHKey `json:"keys"`
+}
+
 type DogeboxState struct {
 	InitialState DogeboxStateInitialSetup
+	Hostname     string
+	SSH          DogeboxStateSSHConfig
 }
 
 type NetworkState struct {
@@ -262,7 +276,7 @@ type NixFirewallTemplateValues struct {
 type NixSystemTemplateValues struct {
 	SYSTEM_HOSTNAME string
 	SSH_ENABLED     bool
-	SSH_KEYS        []string
+	SSH_KEYS        []DogeboxStateSSHKey
 }
 
 type NixIncludesFileTemplateValues struct {
@@ -299,13 +313,14 @@ type NixPatch interface {
 
 type NixManager interface {
 	// NixPatch passthrough helpers.
-	InitSystem(patch NixPatch)
+	InitSystem(patch NixPatch, dbxState DogeboxState)
 	UpdateIncludesFile(patch NixPatch, pups PupManager)
-	WritePupFile(patch NixPatch, state PupState)
+	WritePupFile(patch NixPatch, state PupState, dbxState DogeboxState)
 	RemovePupFile(patch NixPatch, pupId string)
 	UpdateSystemContainerConfiguration(patch NixPatch)
-	UpdateFirewallRules(patch NixPatch)
+	UpdateFirewallRules(patch NixPatch, dbxState DogeboxState)
 	UpdateNetwork(patch NixPatch, values NixNetworkTemplateValues)
+	UpdateSystem(patch NixPatch, values NixSystemTemplateValues)
 
 	RebuildBoot() error
 	Rebuild() error

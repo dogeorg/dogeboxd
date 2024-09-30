@@ -89,6 +89,17 @@ type UpdatePendingSystemNetwork struct {
 	Network SelectedNetwork
 }
 
+type EnableSSH struct{}
+type DisableSSH struct{}
+
+type AddSSHKey struct {
+	Key string
+}
+
+type RemoveSSHKey struct {
+	ID string
+}
+
 /* Updates are responses to Actions or simply
 * internal state changes that the frontend needs,
 * these are wrapped in a 'change' and sent via

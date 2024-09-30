@@ -270,6 +270,18 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	case UpdatePendingSystemNetwork:
 		t.enqueue(j)
 
+	case EnableSSH:
+		t.enqueue(j)
+
+	case DisableSSH:
+		t.enqueue(j)
+
+	case AddSSHKey:
+		t.enqueue(j)
+
+	case RemoveSSHKey:
+		t.enqueue(j)
+
 	// Pup router actions
 	case UpdateMetrics:
 		t.Pups.UpdateMetrics(a)
@@ -358,9 +370,11 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 
 	// If the pup may now start, update all of our nix files and rebuild.
 	if canPupStart {
+		dbxState := t.sm.Get().Dogebox
+
 		nixPatch := t.nix.NewPatch()
 		t.nix.UpdateSystemContainerConfiguration(nixPatch)
-		t.nix.WritePupFile(nixPatch, pupState)
+		t.nix.WritePupFile(nixPatch, pupState, dbxState)
 
 		if err := nixPatch.Apply(); err != nil {
 			fmt.Println("Failed to apply nix patch:", err)
