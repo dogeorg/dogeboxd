@@ -75,6 +75,12 @@ type UpdatePupProviders struct {
 	Payload map[string]string
 }
 
+// Updates hooks for this pup
+type UpdatePupHooks struct {
+	PupID   string
+	Payload []PupHook
+}
+
 // updates the custom metrics for a pup
 type UpdateMetrics struct {
 	PupID   string
@@ -89,8 +95,10 @@ type UpdatePendingSystemNetwork struct {
 	Network SelectedNetwork
 }
 
-type EnableSSH struct{}
-type DisableSSH struct{}
+type (
+	EnableSSH  struct{}
+	DisableSSH struct{}
+)
 
 type AddSSHKey struct {
 	Key string

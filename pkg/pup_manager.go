@@ -999,3 +999,32 @@ func PupEnabled(b bool) func(*PupState, *[]Pupdate) {
 		p.Enabled = b
 	}
 }
+
+func SetPupHooks(newHooks []PupHook) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
+		if p.Hooks == nil {
+			p.Hooks = []PupHook{}
+		}
+
+		for _, hook := range newHooks {
+			id, err := newID(16)
+			if err != nil {
+				fmt.Println("couldn't generate random ID for hook")
+				continue
+			}
+			hook.ID = id
+			p.Hooks = append(p.Hooks, hook)
+		}
+	}
+}
+
+// Generate a somewhat random ID string
+func newID(l int) (string, error) {
+	var ID string
+	b := make([]byte, l)
+	_, err := rand.Read(b)
+	if err != nil {
+		return ID, err
+	}
+	return fmt.Sprintf("%x", b), nil
+}

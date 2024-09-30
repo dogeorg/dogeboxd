@@ -87,6 +87,7 @@ func RESTAPI(
 		"POST /config/{PupID}":    a.updateConfig,
 		"POST /providers/{PupID}": a.updateProviders,
 		"GET /providers/{PupID}":  a.getPupProviders,
+		"POST /hooks/{PupID}":     a.updateHooks,
 		"GET /sources":            a.getSources,
 		"PUT /source":             a.createSource,
 		"GET /sources/store":      a.getStoreList,

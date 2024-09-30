@@ -44,6 +44,7 @@ type PupState struct {
 	Manifest     pup.PupManifest             `json:"manifest"`
 	Config       map[string]string           `json:"config"`
 	Providers    map[string]string           `json:"providers"`    // providers of interface dependencies
+	Hooks        []PupHook                   `json:"hooks"`        // webhooks
 	Installation string                      `json:"installation"` // see table above and constants
 	Enabled      bool                        `json:"enabled"`      // Is this pup supposed to be running?
 	NeedsConf    bool                        `json:"needsConf"`    // Has all required config been provided?
@@ -60,7 +61,12 @@ type PupWebUI struct {
 	Port     int    `json:"port"`
 }
 
-// noodles ?
+type PupHook struct {
+	Port int    `json:"port"`
+	Path string `json:"path"`
+	ID   string `json:"id"`
+}
+
 type PupMetrics[T any] struct {
 	Name   string     `json:"name"`
 	Label  string     `json:"label"`
