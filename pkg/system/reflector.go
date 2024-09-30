@@ -2,19 +2,21 @@ package system
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/go-resty/resty/v2"
 )
 
-func SubmitToReflector(config dogeboxd.ServerConfig, token, localIP string) error {
+func SubmitToReflector(config dogeboxd.ServerConfig, host, token, localIP string) error {
 	if config.DisableReflector {
+		log.Println("Reflector disabled, skipping submission")
 		return nil
 	}
 
 	client := resty.New()
-	client.SetBaseURL(config.ReflectorHost)
+	client.SetBaseURL(host)
 	client.SetHeader("Accept", "application/json")
 	client.SetContentLength(true)
 
@@ -26,7 +28,7 @@ func SubmitToReflector(config dogeboxd.ServerConfig, token, localIP string) erro
 		return err
 	}
 
-	if resp.StatusCode() != http.StatusOK {
+	if resp.StatusCode() != http.StatusCreated {
 		return fmt.Errorf("failed to submit to reflector: %s", resp.String())
 	}
 

@@ -13,7 +13,6 @@ type ServerConfig struct {
 	UiDir            string
 	UiPort           int
 	DevMode          bool
-	ReflectorHost    string
 	DisableReflector bool
 }
 
