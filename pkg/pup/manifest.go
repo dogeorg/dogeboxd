@@ -40,10 +40,6 @@ func (m *PupManifest) Validate() error {
 		return fmt.Errorf("manifest container.build.nixFileSha256 is required")
 	}
 
-	if len(m.Container.Services) == 0 {
-		return fmt.Errorf("at least one service is required")
-	}
-
 	for _, service := range m.Container.Services {
 		if service.Name == "" {
 			return fmt.Errorf("service name is required")
