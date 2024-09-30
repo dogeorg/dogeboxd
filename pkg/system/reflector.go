@@ -9,6 +9,10 @@ import (
 )
 
 func SubmitToReflector(config dogeboxd.ServerConfig, token, localIP string) error {
+	if config.DisableReflector {
+		return nil
+	}
+
 	client := resty.New()
 	client.SetBaseURL(config.ReflectorHost)
 	client.SetHeader("Accept", "application/json")
