@@ -140,6 +140,7 @@ type PupManifestExposeConfig struct {
 	Port         int      `json:"port"`         // The port that is being listened on inside the container.
 	Interfaces   []string `json:"interfaces"`   // Designates that certain interfaces can be accessed on this port
 	ListenOnHost bool     `json:"listenOnHost"` // If true, the port will be accessible on the host network, otherwise it will listen on a private internal network interface.
+	WebUI        bool     `json:"webUI"`        // If true, will be proxied from an available port to the dPanel user
 }
 
 type PupManifestInterface struct {

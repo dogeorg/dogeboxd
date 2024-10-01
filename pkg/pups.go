@@ -50,8 +50,17 @@ type PupState struct {
 	NeedsDeps    bool                        `json:"needsDeps"`    // Have all dependencies been met?
 	IP           string                      `json:"ip"`           // Internal IP for this pup
 	Version      string                      `json:"version"`
+	WebUIs       []PupWebUI                  `json:"webUIs"`
 }
 
+// Represents a Web UI exposed port from the manifest
+type PupWebUI struct {
+	Name     string `json:"name"`
+	Internal int    `json:"-"`
+	Port     int    `json:"port"`
+}
+
+// noodles ?
 type PupMetrics[T any] struct {
 	Name   string     `json:"name"`
 	Label  string     `json:"label"`

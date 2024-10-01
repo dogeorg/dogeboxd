@@ -93,7 +93,7 @@ func (nm nixManager) WritePupFile(
 		GLOBAL_ENV:   toEnv(globalEnv),
 	}
 
-	hasPublicPorts := false
+	rebuildFW := false
 
 	for _, ex := range state.Manifest.Container.Exposes {
 		values.PUP_PORTS = append(values.PUP_PORTS, struct {
@@ -104,14 +104,14 @@ func (nm nixManager) WritePupFile(
 			PUBLIC: ex.ListenOnHost,
 		})
 
-		if ex.ListenOnHost {
-			hasPublicPorts = true
+		if ex.ListenOnHost || ex.WebUI {
+			rebuildFW = true
 		}
 	}
 
 	// If we have any public host ports, we need to
 	// update the host firewall to open those ports.
-	if hasPublicPorts {
+	if rebuildFW {
 		nm.UpdateFirewallRules(nixPatch, dbxState)
 	}
 
@@ -242,8 +242,8 @@ func (nm nixManager) UpdateFirewallRules(nixPatch dogeboxd.NixPatch, dbxState do
 		PUBLIC bool
 		PUP_ID string
 	}
-
 	for pupID, state := range installed {
+		// open all ports Exposed by the manifest
 		for _, port := range state.Manifest.Container.Exposes {
 			pupPorts = append(pupPorts, struct {
 				PORT   int
@@ -252,6 +252,18 @@ func (nm nixManager) UpdateFirewallRules(nixPatch dogeboxd.NixPatch, dbxState do
 			}{
 				PORT:   port.Port,
 				PUBLIC: port.ListenOnHost,
+				PUP_ID: pupID,
+			})
+		}
+		// open all ports for webuis
+		for _, webui := range state.WebUIs {
+			pupPorts = append(pupPorts, struct {
+				PORT   int
+				PUBLIC bool
+				PUP_ID string
+			}{
+				PORT:   webui.Port,
+				PUBLIC: true,
 				PUP_ID: pupID,
 			})
 		}
