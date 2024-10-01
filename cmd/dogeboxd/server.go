@@ -38,6 +38,9 @@ func (t server) Start() {
 		log.Fatalf("Failed to load Pup state: %+v", err)
 	}
 
+	// Set up a doge key manager connection
+	dkm := dogeboxd.NewDKMManager()
+
 	sourceManager := source.NewSourceManager(t.config, t.sm, pups)
 	pups.SetSourceManager(sourceManager)
 	nixManager := nix.NewNixManager(t.config, pups)
@@ -46,7 +49,7 @@ func (t server) Start() {
 	networkManager := network.NewNetworkManager(nixManager, t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager(t.config)
 
-	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups, t.sm)
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups, t.sm, dkm)
 	journalReader := system.NewJournalReader(t.config)
 	logtailer := system.NewLogTailer(t.config)
 
@@ -62,9 +65,6 @@ func (t server) Start() {
 	// Set up Dogeboxd, the beating heart of the beast
 
 	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, sourceManager, nixManager, logtailer)
-
-	// Set up a doge key manager connection
-	dkm := dogeboxd.NewDKMManager()
 
 	/* ----------------------------------------------------------------------- */
 	// Setup our external APIs. REST, Websockets

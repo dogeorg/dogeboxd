@@ -59,9 +59,10 @@ func (t api) updateProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 type InstallPupRequest struct {
-	PupName    string `json:"pupName"`
-	PupVersion string `json:"pupVersion"`
-	SourceId   string `json:"sourceId"`
+	PupName      string `json:"pupName"`
+	PupVersion   string `json:"pupVersion"`
+	SourceId     string `json:"sourceId"`
+	SessionToken string
 }
 
 func (t api) installPup(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +79,13 @@ func (t api) installPup(w http.ResponseWriter, r *http.Request) {
 		sendErrorResponse(w, http.StatusBadRequest, "Error unmarshalling JSON")
 		return
 	}
+
+	session, sessionOK := getSession(r, getBearerToken)
+	if !sessionOK {
+		sendErrorResponse(w, http.StatusBadRequest, "Failed to fetch session")
+		return
+	}
+	req.SessionToken = session.DKM_TOKEN
 
 	id := t.dbx.AddAction(dogeboxd.InstallPup(req))
 	sendResponse(w, map[string]string{"id": id})

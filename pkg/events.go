@@ -37,9 +37,10 @@ type Action any
 
 // Install a pup on the system
 type InstallPup struct {
-	PupName    string
-	PupVersion string
-	SourceId   string
+	PupName      string
+	PupVersion   string
+	SourceId     string
+	SessionToken string
 }
 
 // Uninstalling a pup will remove container
