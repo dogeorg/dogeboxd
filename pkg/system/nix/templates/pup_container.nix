@@ -4,6 +4,12 @@ let
   pupOverlay = self: super: {
     pup = import {{.NIX_FILE}} { inherit pkgs; };
   };
+
+  pupConfig = import {{.NIX_FILE}} { inherit pkgs; };
+
+  pupServices = if lib.hasAttr "services" pupConfig
+    then pupConfig.services
+    else {};
 in
 {
   # Maybe don't need this here at the top-level, only inside the container block?
@@ -87,8 +93,6 @@ in
         };
       };
 
-      services.resolved.enable = true;
-
       # Create a group & user for running the pup executable as.
       # Explicitly set IDs so that bind mounts can be chown'd on the host.
       users.groups.pup = {
@@ -106,6 +110,15 @@ in
         {{ range .SERVICES }}pup.{{.NAME}} {{end}}
       ];
 
+      # Merge in any managed nix service that the pup wants to start.
+      services = lib.mkMerge [
+        pupServices
+        {
+          resolved.enable = true;
+        }
+      ];
+
+      # Create a systemd service for any unmanaged binary the pup wants to start.
       {{range .SERVICES}}
       systemd.services.{{.NAME}} = {
         after = [ "network.target" ];
