@@ -109,3 +109,22 @@ func (t api) pupAction(w http.ResponseWriter, r *http.Request) {
 
 	sendResponse(w, map[string]string{"id": t.dbx.AddAction(a)})
 }
+
+func (t api) updateHooks(w http.ResponseWriter, r *http.Request) {
+	pupid := r.PathValue("PupID")
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	data := []dogeboxd.PupHook{}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error unmarshalling JSON")
+		return
+	}
+	id := t.dbx.AddAction(dogeboxd.UpdatePupHooks{PupID: pupid, Payload: data})
+	sendResponse(w, map[string]string{"id": id})
+}

@@ -266,6 +266,9 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	case UpdatePupProviders:
 		t.updatePupProviders(j, a)
 
+	case UpdatePupHooks:
+		t.updatePupHooks(j, a)
+
 	// Host Actions
 	case UpdatePendingSystemNetwork:
 		t.enqueue(j)
@@ -384,6 +387,26 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 		}
 	}
 
+	t.sendFinishedJob("action", j)
+}
+
+// Handle an UpdatePupHooks action
+func (t *Dogeboxd) updatePupHooks(j Job, u UpdatePupHooks) {
+	_, err := t.Pups.UpdatePup(u.PupID, SetPupHooks(u.Payload))
+	if err != nil {
+		fmt.Println("couldn't update pup", err)
+		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
+		t.sendFinishedJob("action", j)
+		return
+	}
+
+	j.Success, _, err = t.Pups.GetPup(u.PupID)
+	if err != nil {
+		fmt.Println("Couldnt get pup", u.PupID)
+		j.Err = err.Error()
+		t.sendFinishedJob("action", j)
+		return
+	}
 	t.sendFinishedJob("action", j)
 }
 
