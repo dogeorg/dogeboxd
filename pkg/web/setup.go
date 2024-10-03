@@ -8,11 +8,13 @@ import (
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/system"
 )
 
 type InitialSystemBootstrapRequestBody struct {
 	Hostname       string `json:"hostname"`
 	ReflectorToken string `json:"reflectorToken"`
+	ReflectorHost  string `json:"reflectorHost"`
 	InitialSSHKey  string `json:"initialSSHKey"`
 }
 
@@ -117,8 +119,19 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if requestBody.ReflectorToken != "" {
-		// TODO: ping reflector with relevant internal IP
+	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
+		localIP, err := t.dbx.NetworkManager.GetLocalIP()
+		if err != nil {
+			log.Printf("Error getting local IP: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error getting local IP")
+			return
+		}
+
+		if err := system.SubmitToReflector(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken, localIP.String()); err != nil {
+			log.Printf("Error submitting to reflector: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error submitting to reflector")
+			return
+		}
 	}
 
 	dbxs := t.sm.Get().Dogebox
@@ -155,15 +168,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendResponse(w, map[string]any{"status": "OK"})
-
-	// Close the HTTP connection to the client, so we can disconnect successfully.
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
-		return
-	}
-
-	flusher.Flush()
 
 	log.Println("Dogebox successfully bootstrapped, rebooting in 5 seconds so we can boot into normal mode.")
 
