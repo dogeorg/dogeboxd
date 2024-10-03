@@ -20,7 +20,7 @@
 +===================================================+
 '';
 
-  services.openssh.enable = {{ .SSH_ENABLED }};
+  services.openssh.enable = lib.mkForce {{ .SSH_ENABLED }};
 
   users.users.shibe = {
     isNormalUser = true;
