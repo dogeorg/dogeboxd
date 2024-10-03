@@ -38,6 +38,9 @@ func (t server) Start() {
 		log.Fatalf("Failed to load Pup state: %+v", err)
 	}
 
+	// Set up a doge key manager connection
+	dkm := dogeboxd.NewDKMManager()
+
 	sourceManager := source.NewSourceManager(t.config, t.sm, pups)
 	pups.SetSourceManager(sourceManager)
 	nixManager := nix.NewNixManager(t.config, pups)
@@ -46,7 +49,7 @@ func (t server) Start() {
 	networkManager := network.NewNetworkManager(nixManager, t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager(t.config)
 
-	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups, t.sm)
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups, t.sm, dkm)
 	journalReader := system.NewJournalReader(t.config)
 	logtailer := system.NewLogTailer(t.config)
 
@@ -67,9 +70,9 @@ func (t server) Start() {
 	// Setup our external APIs. REST, Websockets
 
 	wsh := web.NewWSRelay(t.config, dbx.Changes)
-	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, wsh)
-	internalRouter := web.NewInternalRouter(t.config, dbx, pups)
 	adminRouter := web.NewAdminRouter(t.config, pups)
+	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, dkm, wsh)
+	internalRouter := web.NewInternalRouter(t.config, dbx, pups, dkm)
 	ui := dogeboxd.ServeUI(t.config)
 
 	/* ----------------------------------------------------------------------- */

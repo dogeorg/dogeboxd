@@ -13,12 +13,13 @@ import (
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
 )
 
-func NewInternalRouter(config dogeboxd.ServerConfig, dbx dogeboxd.Dogeboxd, pm dogeboxd.PupManager) conductor.Service {
+func NewInternalRouter(config dogeboxd.ServerConfig, dbx dogeboxd.Dogeboxd, pm dogeboxd.PupManager, dkm dogeboxd.DKMManager) conductor.Service {
 	return InternalRouter{
 		config: config,
 		pm:     pm,
 		dbx:    dbx,
 		dbxmux: http.NewServeMux(),
+		dkm:    dkm,
 	}
 }
 
@@ -26,12 +27,15 @@ type InternalRouter struct {
 	config dogeboxd.ServerConfig
 	dbx    dogeboxd.Dogeboxd
 	pm     dogeboxd.PupManager
+	dkm    dogeboxd.DKMManager
 	dbxmux *http.ServeMux
 }
 
 func (t InternalRouter) routes() {
 	t.dbxmux.HandleFunc("POST /dbx/metrics", t.recordMetrics)
 	t.dbxmux.HandleFunc("/dbx/hook/{hookID}", t.hookHandler)
+	// TODO: this api needs rethinking
+	// t.dbxmux.HandleFunc("POST /dbx/keys/getDelegatedKeys", t.getDelegatedPupKeys)
 }
 
 func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -88,21 +92,13 @@ func (t InternalRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Who is this request from?
-	var originIsPup bool = false
-
-	originIP := getOriginIP(r)
-	originPup, _, err := t.pm.FindPupByIP(originIP)
-	if err == nil {
-		originIsPup = true
-	}
-
-	// Handle interface requests:
-	if !originIsPup {
+	originPup, ok := t.getOriginPup(r)
+	if !ok {
 		// you must be a pup!
-		forbidden(w, "You are not a Pup we know about", originIP)
+		forbidden(w, "You are not a Pup we know about")
 		return
-
 	}
+	//
 	// check the pup has a provider for this interface and get the provider pup
 	providerID, ok := originPup.Providers[iface]
 	if !ok {
@@ -205,4 +201,14 @@ func forbidden(w http.ResponseWriter, reasons ...string) {
 	}
 	w.WriteHeader(http.StatusForbidden)
 	w.Write([]byte(reason))
+}
+
+func (t InternalRouter) getOriginPup(r *http.Request) (dogeboxd.PupState, bool) {
+	var originIsPup bool = false
+	originIP := getOriginIP(r)
+	originPup, _, err := t.pm.FindPupByIP(originIP)
+	if err == nil {
+		originIsPup = true
+	}
+	return originPup, originIsPup
 }

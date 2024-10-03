@@ -21,7 +21,7 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager dogeboxd.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager, stateManager dogeboxd.StateManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager dogeboxd.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager, stateManager dogeboxd.StateManager, dkm dogeboxd.DKMManager) SystemUpdater {
 	return SystemUpdater{
 		config:     config,
 		jobs:       make(chan dogeboxd.Job),
@@ -31,6 +31,7 @@ func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.Netw
 		sources:    sourceManager,
 		pupManager: pupManager,
 		sm:         stateManager,
+		dkm:        dkm,
 	}
 }
 
@@ -43,6 +44,7 @@ type SystemUpdater struct {
 	sources    dogeboxd.SourceManager
 	pupManager dogeboxd.PupManager
 	sm         dogeboxd.StateManager
+	dkm        dogeboxd.DKMManager
 }
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
@@ -202,11 +204,25 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 		return fmt.Errorf("Nix file hash mismatch")
 	}
 
+	// create the storage dir
 	cmd := exec.Command("sudo", "_dbxroot", "pup", "create-storage", "--data-dir", t.config.DataDir, "--pupId", s.ID)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Failed to create pup storage: %v. Command output: %s", err, output)
 		return fmt.Errorf("failed to create pup storage: %w", err)
+	}
+
+	// write delegate key to storage dir
+	keyData, err := t.dkm.MakeDelegate(s.ID, pupSelection.SessionToken)
+	if err != nil {
+		return fmt.Errorf("failed to create pup storage: %w", err)
+	}
+
+	cmd = exec.Command("sudo", "_dbxroot", "pup", "write-key", "--data-dir", t.config.DataDir, "--pupId", s.ID, "--key-file", "delegated.key", "--data", keyData.Priv)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("Failed to create delegate key in storage: %v. Command output: %s", err, output)
+		return fmt.Errorf("failed to create delegate key: %w", err)
 	}
 
 	// Now that we're mostly installed, enable it.

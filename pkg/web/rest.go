@@ -21,6 +21,7 @@ func RESTAPI(
 	sources dogeboxd.SourceManager,
 	lifecycle dogeboxd.LifecycleManager,
 	nix dogeboxd.NixManager,
+	dkm dogeboxd.DKMManager,
 	ws WSRelay,
 ) conductor.Service {
 	sessions = []Session{}
@@ -40,8 +41,6 @@ func RESTAPI(
 			log.Printf("Failed to open dev-sessions.gob: %v", err)
 		}
 	}
-
-	dkm := dogeboxd.NewDKMManager(pups)
 
 	a := api{
 		mux:       http.NewServeMux(),

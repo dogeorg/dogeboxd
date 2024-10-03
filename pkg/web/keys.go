@@ -101,3 +101,28 @@ func (t api) listKeys(w http.ResponseWriter, r *http.Request) {
 		"keys": keyResponse,
 	})
 }
+
+// Delegate keys to pups based on their pupID
+func (t InternalRouter) getDelegatedPupKeys(w http.ResponseWriter, r *http.Request) {
+	originPup, ok := t.getOriginPup(r)
+	if !ok {
+		// you must be a pup!
+		forbidden(w, "You are not a Pup we know about")
+		return
+	}
+
+	session, sessionOK := getSession(r, getBearerToken)
+	if !sessionOK {
+		sendErrorResponse(w, 500, "Failed to fetch session")
+		return
+	}
+
+	res, err := t.dkm.MakeDelegate(originPup.ID, session.DKM_TOKEN)
+	if err != nil {
+		sendErrorResponse(w, 500, err.Error())
+	}
+
+	sendResponse(w, map[string]any{
+		"pubKey": res.Pub,
+	})
+}
