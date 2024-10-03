@@ -200,7 +200,7 @@ func (t NetworkManagerLinux) TryConnect(nixPatch dogeboxd.NixPatch) error {
 }
 
 func (t NetworkManagerLinux) GetLocalIP() (net.IP, error) {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
+	conn, err := net.Dial("udp", "dogecoin.org:443")
 	if err != nil {
 		return nil, err
 	}
