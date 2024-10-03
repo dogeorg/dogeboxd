@@ -15,6 +15,10 @@ type SystemUpdater interface {
 	AddJob(Job)
 	GetUpdateChannel() chan Job
 
+	// These ideally should not be on here, but we currently don't
+	// have a way to wait for a SystemUpdater event to finish.
+	AddSSHKey(key string) error
+	EnableSSH() error
 	ListSSHKeys() ([]DogeboxStateSSHKey, error)
 }
 
