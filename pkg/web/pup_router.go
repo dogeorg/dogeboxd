@@ -34,7 +34,8 @@ type InternalRouter struct {
 func (t InternalRouter) routes() {
 	t.dbxmux.HandleFunc("POST /dbx/metrics", t.recordMetrics)
 	t.dbxmux.HandleFunc("/dbx/hook/{hookID}", t.hookHandler)
-	t.dbxmux.HandleFunc("POST /dbx/keys/getDelegatedKeys", t.getDelegatedPupKeys)
+	// TODO: this api needs rethinking
+	// t.dbxmux.HandleFunc("POST /dbx/keys/getDelegatedKeys", t.getDelegatedPupKeys)
 }
 
 func (t InternalRouter) Run(started, stopped chan bool, stop chan context.Context) error {
