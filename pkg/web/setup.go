@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
@@ -164,7 +165,10 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	flusher.Flush()
 
-	log.Println("Dogebox successfully bootstrapped, rebooting so we can boot into normal mode.")
+	log.Println("Dogebox successfully bootstrapped, rebooting in 5 seconds so we can boot into normal mode.")
 
-	t.lifecycle.Reboot()
+	go func() {
+		time.Sleep(5 * time.Second)
+		t.lifecycle.Reboot()
+	}()
 }
