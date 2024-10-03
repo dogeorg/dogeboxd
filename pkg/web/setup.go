@@ -12,6 +12,7 @@ import (
 type InitialSystemBootstrapRequestBody struct {
 	Hostname       string `json:"hostname"`
 	ReflectorToken string `json:"reflectorToken"`
+	InitialSSHKey  string `json:"initialSSHKey"`
 }
 
 type BootstrapFacts struct {
@@ -128,6 +129,21 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error adding initial dogeorg source: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error adding dogeorg source")
 		return
+	}
+
+	// If the user has provided an SSH key, we should add it to the system and enable SSH.
+	if requestBody.InitialSSHKey != "" {
+		if err := t.dbx.SystemUpdater.AddSSHKey(requestBody.InitialSSHKey); err != nil {
+			log.Printf("Error adding initial SSH key: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error adding initial SSH key")
+			return
+		}
+
+		if err := t.dbx.SystemUpdater.EnableSSH(); err != nil {
+			log.Printf("Error enabling SSH: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error enabling SSH")
+			return
+		}
 	}
 
 	if err := t.sm.Save(); err != nil {
