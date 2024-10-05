@@ -266,7 +266,12 @@ func (np *nixPatch) RemovePupFile(pupId string) {
 	np.add("RemovePupFile", func() error {
 		// Remove pup nix file
 		filename := fmt.Sprintf("pup_%s.nix", pupId)
-		return os.Remove(filepath.Join(np.nm.config.NixDir, filename))
+		if _, err := os.Stat(filepath.Join(np.nm.config.NixDir, filename)); err == nil {
+			if err := os.Remove(filepath.Join(np.nm.config.NixDir, filename)); err != nil {
+				return fmt.Errorf("failed to remove file %s: %w", filename, err)
+			}
+		}
+		return nil
 	})
 }
 

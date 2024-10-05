@@ -20,6 +20,18 @@ const (
 	STATE_STOPPING     string = "stopping"
 )
 
+const (
+	BROKEN_REASON_STATE_UPDATE_FAILED          string = "state_update_failed"
+	BROKEN_REASON_DOWNLOAD_FAILED              string = "download_failed"
+	BROKEN_REASON_NIX_FILE_MISSING             string = "nix_file_missing"
+	BROKEN_REASON_NIX_HASH_MISMATCH            string = "nix_hash_mismatch"
+	BROKEN_REASON_STORAGE_CREATION_FAILED      string = "storage_creation_failed"
+	BROKEN_REASON_DELEGATE_KEY_CREATION_FAILED string = "delegate_key_creation_failed"
+	BROKEN_REASON_DELEGATE_KEY_WRITE_FAILED    string = "delegate_key_write_failed"
+	BROKEN_REASON_ENABLE_FAILED                string = "enable_failed"
+	BROKEN_REASON_NIX_APPLY_FAILED             string = "nix_apply_failed"
+)
+
 /* Pup state vs pup stats
  * ┌─────────────────────────────┬───────────────────────────────┐
  * │PupState.Installation        │ PupStats.Status               │
@@ -46,6 +58,7 @@ type PupState struct {
 	Providers    map[string]string           `json:"providers"`    // providers of interface dependencies
 	Hooks        []PupHook                   `json:"hooks"`        // webhooks
 	Installation string                      `json:"installation"` // see table above and constants
+	BrokenReason string                      `json:"brokenReason"` // reason for being in a broken state
 	Enabled      bool                        `json:"enabled"`      // Is this pup supposed to be running?
 	NeedsConf    bool                        `json:"needsConf"`    // Has all required config been provided?
 	NeedsDeps    bool                        `json:"needsDeps"`    // Have all dependencies been met?

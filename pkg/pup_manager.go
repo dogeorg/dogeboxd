@@ -974,6 +974,12 @@ func SetPupInstallation(state string) func(*PupState, *[]Pupdate) {
 	}
 }
 
+func SetPupBrokenReason(reason string) func(*PupState, *[]Pupdate) {
+	return func(p *PupState, pu *[]Pupdate) {
+		p.BrokenReason = reason
+	}
+}
+
 func SetPupConfig(newFields map[string]string) func(*PupState, *[]Pupdate) {
 	return func(p *PupState, pu *[]Pupdate) {
 		for k, v := range newFields {
