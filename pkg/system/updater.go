@@ -158,6 +158,18 @@ func (t SystemUpdater) GetUpdateChannel() chan dogeboxd.Job {
 	return t.done
 }
 
+func (t SystemUpdater) markPupBroken(s dogeboxd.PupState, reason string, upstreamError error) error {
+	_, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupBrokenReason(reason), dogeboxd.SetPupInstallation(dogeboxd.STATE_BROKEN))
+	if err != nil {
+		log.Printf("Failed to even mark pup as broken after issue: %w", err)
+		return err
+	}
+
+	log.Printf("Marked pup %s as broken because: %s", s.ID, reason)
+
+	return upstreamError
+}
+
 /* InstallPup takes a PupManifest and ensures a nix config
  * is written and any packages installed so that the Pup can
  * be started.
@@ -165,10 +177,9 @@ func (t SystemUpdater) GetUpdateChannel() chan dogeboxd.Job {
 func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.PupState) error {
 	nixPatch := t.nix.NewPatch()
 
-	// TODO: Install deps!
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_INSTALLING)); err != nil {
 		log.Printf("Failed to update pup installation state: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_STATE_UPDATE_FAILED, err)
 	}
 
 	log.Printf("Installing pup from %s: %s @ %s", pupSelection.SourceId, pupSelection.PupName, pupSelection.PupVersion)
@@ -178,7 +189,7 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	err := t.sources.DownloadPup(pupPath, pupSelection.SourceId, pupSelection.PupName, pupSelection.PupVersion)
 	if err != nil {
 		log.Printf("Failed to download pup: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_DOWNLOAD_FAILED, err)
 	}
 
 	// Ensure the nix file configured in the manifest matches the hash specified.
@@ -186,22 +197,14 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	nixFile, err := os.ReadFile(filepath.Join(pupPath, s.Manifest.Container.Build.NixFile))
 	if err != nil {
 		log.Printf("Failed to read specified nix file: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_NIX_FILE_MISSING, err)
 	}
 	nixFileSha256 := sha256.Sum256(nixFile)
 
 	// Compare the sha256 hash of the nix file to the hash specified in the manifest
 	if fmt.Sprintf("%x", nixFileSha256) != s.Manifest.Container.Build.NixFileSha256 {
 		log.Printf("Nix file hash mismatch")
-
-		// Transition pup into a broken state. We probably need a "why" somewhere to convey to the user.
-		_, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_BROKEN))
-		if err != nil {
-			log.Printf("Failed to transition pup into broken installation state: %w", err)
-			return err
-		}
-
-		return fmt.Errorf("Nix file hash mismatch")
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_NIX_HASH_MISMATCH, err)
 	}
 
 	// create the storage dir
@@ -209,27 +212,27 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Failed to create pup storage: %v. Command output: %s", err, output)
-		return fmt.Errorf("failed to create pup storage: %w", err)
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_STORAGE_CREATION_FAILED, err)
 	}
 
 	// write delegate key to storage dir
 	keyData, err := t.dkm.MakeDelegate(s.ID, pupSelection.SessionToken)
 	if err != nil {
-		return fmt.Errorf("failed to create pup storage: %w", err)
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_DELEGATE_KEY_CREATION_FAILED, err)
 	}
 
 	cmd = exec.Command("sudo", "_dbxroot", "pup", "write-key", "--data-dir", t.config.DataDir, "--pupId", s.ID, "--key-file", "delegated.key", "--data", keyData.Priv)
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("Failed to create delegate key in storage: %v. Command output: %s", err, output)
-		return fmt.Errorf("failed to create delegate key: %w", err)
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_DELEGATE_KEY_WRITE_FAILED, err)
 	}
 
 	// Now that we're mostly installed, enable it.
 	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(true))
 	if err != nil {
 		log.Printf("Failed to update pup enabled state: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_ENABLE_FAILED, err)
 	}
 
 	dbxState := t.sm.Get().Dogebox
@@ -242,12 +245,12 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, s dogeboxd.P
 	// to a much longer "Starting.." state, which might confuse the user.
 	if err := nixPatch.Apply(); err != nil {
 		log.Printf("Failed to apply nix patch: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_NIX_APPLY_FAILED, err)
 	}
 
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_READY)); err != nil {
 		log.Printf("Failed to update pup installation state: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_STATE_UPDATE_FAILED, err)
 	}
 
 	return nil
@@ -262,7 +265,7 @@ func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLING)); err != nil {
 		log.Printf("Failed to update pup uninstalling state: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_STATE_UPDATE_FAILED, err)
 	}
 
 	t.nix.RemovePupFile(nixPatch, s.ID)
@@ -270,42 +273,43 @@ func (t SystemUpdater) uninstallPup(s dogeboxd.PupState) error {
 
 	if err := nixPatch.Apply(); err != nil {
 		log.Printf("Failed to apply nix patch: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_NIX_APPLY_FAILED, err)
 	}
 
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_UNINSTALLED)); err != nil {
 		log.Printf("Failed to update pup installation state: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_STATE_UPDATE_FAILED, err)
 	}
 
 	return nil
 }
 
 func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
+	// Check if we're in a purgable state before we do anything.
+	if s.Installation != dogeboxd.STATE_UNINSTALLED {
+		log.Printf("Cannot purge pup %s in state %s", s.ID, s.Installation)
+		return fmt.Errorf("Cannot purge pup %s in state %s", s.ID, s.Installation)
+	}
+
 	if _, err := t.pupManager.UpdatePup(s.ID, dogeboxd.SetPupInstallation(dogeboxd.STATE_PURGING)); err != nil {
 		log.Printf("Failed to update pup purging state: %w", err)
-		return err
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_STATE_UPDATE_FAILED, err)
 	}
 
 	pupDir := filepath.Join(t.config.DataDir, "pups")
 
 	log.Printf("Purging pup %s (%s)", s.Manifest.Meta.Name, s.ID)
 
-	if s.Installation != dogeboxd.STATE_UNINSTALLED {
-		log.Printf("Cannot purge pup %s in state %s", s.ID, s.Installation)
-		return fmt.Errorf("Cannot purge pup %s in state %s", s.ID, s.Installation)
-	}
-
 	// Delete pup state from disk
 	if err := os.Remove(filepath.Join(pupDir, fmt.Sprintf("pup_%s.gob", s.ID))); err != nil {
 		fmt.Println("Failed to remove pup state", err)
-		return err
+		// Keep going if we fail.
 	}
 
 	// Delete downloaded pup source
 	if err := os.RemoveAll(filepath.Join(pupDir, s.ID)); err != nil {
 		fmt.Println("Failed to remove pup source", err)
-		return err
+		// Keep going if we fail.
 	}
 
 	// Delete pup storage directory
@@ -315,12 +319,12 @@ func (t SystemUpdater) purgePup(s dogeboxd.PupState) error {
 
 	if err := cmd.Run(); err != nil {
 		fmt.Println("Failed to remove pup storage:", err)
-		return err
+		// Keep going if we fail.
 	}
 
 	if err := t.pupManager.PurgePup(s.ID); err != nil {
 		log.Printf("Failed to purge pup %s: %w", s.ID, err)
-		return err
+		// Keep going if we fail.
 	}
 
 	return nil
@@ -331,6 +335,7 @@ func (t SystemUpdater) enablePup(s dogeboxd.PupState) error {
 
 	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(true))
 	if err != nil {
+		log.Printf("Failed to update pup enabled state: %w", err)
 		return err
 	}
 
