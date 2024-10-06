@@ -150,7 +150,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					// job is finished, unlock the queue for the next job
 					t.queue.jobInProgress.Unlock()
-					fmt.Printf("JOB  [%s] finished: exec time %s, time since queued %s\n", j.ID, time.Since(t.queue.jobTimer), time.Since(j.Start))
+					j.Logger.Log("queue", fmt.Sprintf("JOB  [%s] finished: exec time %s, time since queued %s\n", j.ID, time.Since(t.queue.jobTimer), time.Since(j.Start)))
 
 					// if this job was successful, AND it was a
 					// job that results in the stop/start of a pup,
@@ -207,6 +207,8 @@ func (t *Dogeboxd) pumpQueue() {
 			t.queue.jobQLock.Unlock()
 
 			fmt.Printf("added %s to the queue, queue size now: %d\n", job.ID, len(t.queue.jobQueue))
+			job.Logger.Queued = false
+			job.Logger.Log("queue", "Begin processing")
 			t.SystemUpdater.AddJob(job)
 			t.queue.jobTimer = time.Now()
 		} else {
@@ -220,8 +222,9 @@ func (t *Dogeboxd) pumpQueue() {
 func (t *Dogeboxd) enqueue(j Job) {
 	t.queue.jobQLock.Lock()
 	defer t.queue.jobQLock.Unlock()
-
 	t.queue.jobQueue = append(t.queue.jobQueue, j)
+	j.Logger.Queued = true
+	j.Logger.Log("queue", "Queued for execution")
 	fmt.Printf("JOB [%s] queued.", j.ID)
 }
 
@@ -234,7 +237,9 @@ func (t Dogeboxd) AddAction(a Action) string {
 		fmt.Println("Entropic Failure, add more Overminds.")
 	}
 	id := fmt.Sprintf("%x", b)
-	t.jobs <- Job{A: a, ID: id}
+	j := Job{A: a, ID: id}
+	l.Logger = NewActionLogger(j, "", false, t)
+	t.jobs <- j
 	return id
 }
 
@@ -415,6 +420,11 @@ func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
 	t.Changes <- Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success}
 }
 
+// updates the client on the progress of any inflight actions
+func (t Dogeboxd) sendProgress(p ActionProgress) {
+	t.Changes <- Change{ID: p.ID, Type: "action-progress", Update: p}
+}
+
 // helper to attach PupState to a job and send it to the SystemUpdater
 func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	p, _, err := t.Pups.GetPup(PupID)
@@ -425,6 +435,7 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 		return
 	}
 	j.State = &p
+	j.Logger.PupID = PupID
 
 	// Send job to the system updater for handling
 	t.enqueue(j)
