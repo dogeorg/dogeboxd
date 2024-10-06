@@ -14,7 +14,7 @@ type actionLogger struct {
 	dbx       Dogeboxd
 	Step      string
 	StepStart time.Time
-	Progress  int
+	progress  int
 }
 
 func NewActionLogger(j Job, pupID string, queued bool, dbx Dogeboxd) *actionLogger {
@@ -39,7 +39,7 @@ func (t *actionLogger) log(step string, msg string, err bool) {
 	p := ActionProgress{
 		ActionID:   t.Job.ID,
 		PupID:      t.PupID,
-		Progress:   t.Progress,
+		Progress:   t.progress,
 		Step:       step,
 		Msg:        msg,
 		Error:      err,
@@ -74,7 +74,7 @@ type LineWriter struct {
 }
 
 func (t *actionLogger) Progress(p int) *actionLogger {
-	t.Progress = p
+	t.progress = p
 	return t
 }
 
@@ -99,8 +99,11 @@ func (t *LineWriter) Write(p []byte) (int, error) {
 	}
 
 	if len(p) > 0 && p[len(p)-1] != '\n' {
-		t.buf.Write(p[scanner.Err() != nil:])
+		if scanner.Err() == nil {
+			t.buf.Write(p)
+		} else {
+			t.buf.Write(p[:len(p)-len(scanner.Bytes())])
+		}
 	}
-
 	return len(p), scanner.Err()
 }

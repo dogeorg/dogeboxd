@@ -238,7 +238,7 @@ func (t Dogeboxd) AddAction(a Action) string {
 	}
 	id := fmt.Sprintf("%x", b)
 	j := Job{A: a, ID: id}
-	l.Logger = NewActionLogger(j, "", false, t)
+	j.Logger = NewActionLogger(j, "", false, t)
 	t.jobs <- j
 	return id
 }
@@ -422,7 +422,7 @@ func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
 
 // updates the client on the progress of any inflight actions
 func (t Dogeboxd) sendProgress(p ActionProgress) {
-	t.Changes <- Change{ID: p.ID, Type: "action-progress", Update: p}
+	t.Changes <- Change{ID: p.ActionID, Type: "progress", Update: p}
 }
 
 // helper to attach PupState to a job and send it to the SystemUpdater
