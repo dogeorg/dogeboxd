@@ -62,13 +62,8 @@ func (t server) Start() {
 	}
 
 	// Check if we have pending reflector data to submit.
-	localIP, err := networkManager.GetLocalIP()
-	if err != nil {
-		log.Printf("Error getting local IP: %v", err)
-	} else {
-		if err := system.CheckAndSubmitReflectorData(t.config, localIP.String()); err != nil {
-			log.Printf("Error checking and submitting reflector data: %v", err)
-		}
+	if err := system.CheckAndSubmitReflectorData(t.config, networkManager); err != nil {
+		log.Printf("Error checking and submitting reflector data: %v", err)
 	}
 
 	/* ----------------------------------------------------------------------- */

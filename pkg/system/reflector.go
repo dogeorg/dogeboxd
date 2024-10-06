@@ -37,7 +37,7 @@ func SaveReflectorTokenForReboot(config dogeboxd.ServerConfig, host, token strin
 	return nil
 }
 
-func CheckAndSubmitReflectorData(config dogeboxd.ServerConfig, localIP string) error {
+func CheckAndSubmitReflectorData(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager) error {
 	if config.DisableReflector {
 		log.Println("Reflector disabled, skipping checking")
 		return nil
@@ -66,6 +66,12 @@ func CheckAndSubmitReflectorData(config dogeboxd.ServerConfig, localIP string) e
 		return nil
 	}
 
+	localIP, err := networkManager.GetLocalIP()
+	if err != nil {
+		log.Printf("Could not determine local IP address for reflector submission: %s", err)
+		return nil
+	}
+
 	log.Printf("Submitting reflector data to %s w/ token %s", host, token)
 
 	client := resty.New()
@@ -74,7 +80,7 @@ func CheckAndSubmitReflectorData(config dogeboxd.ServerConfig, localIP string) e
 	client.SetContentLength(true)
 
 	resp, err := client.R().
-		SetBody(map[string]string{"token": token, "ip": localIP}).
+		SetBody(map[string]string{"token": token, "ip": localIP.String()}).
 		Post("/")
 
 	if err != nil {
