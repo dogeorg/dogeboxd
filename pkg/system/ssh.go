@@ -4,13 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
-func (t SystemUpdater) sshUpdate(dbxState dogeboxd.DogeboxState) error {
-	patch := t.nix.NewPatch()
+func (t SystemUpdater) sshUpdate(dbxState dogeboxd.DogeboxState, log dogeboxd.SubLogger) error {
+	patch := t.nix.NewPatch(log)
 	t.nix.UpdateFirewallRules(patch, dbxState)
 	t.nix.UpdateSystem(patch, dogeboxd.NixSystemTemplateValues{
 		SYSTEM_HOSTNAME: dbxState.Hostname,
@@ -19,14 +18,14 @@ func (t SystemUpdater) sshUpdate(dbxState dogeboxd.DogeboxState) error {
 	})
 
 	if err := patch.Apply(); err != nil {
-		log.Println("Failed to enable SSH:", err)
+		log.Errf("Failed to enable SSH: %v", err)
 		return err
 	}
 
 	return nil
 }
 
-func (t SystemUpdater) EnableSSH() error {
+func (t SystemUpdater) EnableSSH(l dogeboxd.SubLogger) error {
 	state := t.sm.Get().Dogebox
 	state.SSH.Enabled = true
 	t.sm.SetDogebox(state)
@@ -34,10 +33,10 @@ func (t SystemUpdater) EnableSSH() error {
 		return err
 	}
 
-	return t.sshUpdate(state)
+	return t.sshUpdate(state, l)
 }
 
-func (t SystemUpdater) DisableSSH() error {
+func (t SystemUpdater) DisableSSH(l dogeboxd.SubLogger) error {
 	state := t.sm.Get().Dogebox
 	state.SSH.Enabled = false
 	t.sm.SetDogebox(state)
@@ -45,7 +44,7 @@ func (t SystemUpdater) DisableSSH() error {
 		return err
 	}
 
-	return t.sshUpdate(state)
+	return t.sshUpdate(state, l)
 }
 
 func (t SystemUpdater) ListSSHKeys() ([]dogeboxd.DogeboxStateSSHKey, error) {
@@ -53,7 +52,7 @@ func (t SystemUpdater) ListSSHKeys() ([]dogeboxd.DogeboxStateSSHKey, error) {
 	return state.SSH.Keys, nil
 }
 
-func (t SystemUpdater) AddSSHKey(key string) error {
+func (t SystemUpdater) AddSSHKey(key string, l dogeboxd.SubLogger) error {
 	state := t.sm.Get().Dogebox
 
 	keyID := make([]byte, 8)
@@ -71,9 +70,10 @@ func (t SystemUpdater) AddSSHKey(key string) error {
 		return err
 	}
 
-	return t.sshUpdate(state)
+	return t.sshUpdate(state, l)
 }
-func (t SystemUpdater) RemoveSSHKey(id string) error {
+
+func (t SystemUpdater) RemoveSSHKey(id string, l dogeboxd.SubLogger) error {
 	state := t.sm.Get().Dogebox
 
 	keyFound := false
@@ -94,5 +94,5 @@ func (t SystemUpdater) RemoveSSHKey(id string) error {
 		return err
 	}
 
-	return t.sshUpdate(state)
+	return t.sshUpdate(state, l)
 }

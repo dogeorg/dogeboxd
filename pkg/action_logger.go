@@ -3,79 +3,172 @@ package dogeboxd
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os/exec"
 	"time"
 )
 
-type actionLogger struct {
-	Job       Job
-	PupID     string
-	Queued    bool
-	dbx       Dogeboxd
-	Step      string
-	StepStart time.Time
-	progress  int
+type ActionLogger interface {
+	Progress(p int)
+	Step(step string) SubLogger
 }
 
-func NewActionLogger(j Job, pupID string, queued bool, dbx Dogeboxd) *actionLogger {
+type SubLogger interface {
+	Log(msg string)
+	Logf(msg string, a ...any)
+	Err(msg string)
+	Errf(msg string, a ...any)
+	Progress(p int) SubLogger
+	LogCmd(cmd *exec.Cmd)
+}
+
+type actionLogger struct {
+	Job      Job
+	PupID    string
+	dbx      Dogeboxd
+	Steps    map[string]*stepLogger
+	progress int
+}
+
+func NewActionLogger(j Job, pupID string, dbx Dogeboxd) *actionLogger {
 	l := actionLogger{
-		Job:    j,
-		PupID:  pupID,
-		Queued: queued,
-		dbx:    dbx,
+		Job:   j,
+		PupID: pupID,
+		dbx:   dbx,
+		Steps: map[string]*stepLogger{},
 	}
 	return &l
 }
 
-func (t *actionLogger) updateStep(step string) {
-	if t.Step != step {
-		t.Step = step
-		t.StepStart = time.Now()
-	}
+func (t *actionLogger) Progress(p int) *actionLogger {
+	t.progress = p
+	return t
 }
 
-func (t *actionLogger) log(step string, msg string, err bool) {
-	t.updateStep(step)
+func (t *actionLogger) Step(step string) *stepLogger {
+	s, ok := t.Steps[step]
+	if !ok {
+		t.Steps[step] = &stepLogger{t, step, 0, time.Now()}
+		s = t.Steps[step]
+	}
+	return s
+}
+
+type stepLogger struct {
+	l        *actionLogger
+	step     string
+	progress int
+	start    time.Time
+}
+
+func (t *stepLogger) log(msg string, err bool) {
 	p := ActionProgress{
-		ActionID:   t.Job.ID,
-		PupID:      t.PupID,
-		Progress:   t.progress,
-		Step:       step,
-		Msg:        msg,
-		Error:      err,
-		Queued:     t.Queued,
-		StepTaken:  time.Since(t.StepStart),
-		TotalTaken: time.Since(t.Job.Start),
+		ActionID:  t.l.Job.ID,
+		PupID:     t.l.PupID,
+		Progress:  t.progress,
+		Step:      t.step,
+		Msg:       msg,
+		Error:     err,
+		StepTaken: time.Since(t.start),
 	}
-	t.dbx.sendProgress(p)
+	symbol := "✔️"
+	if p.Error {
+		symbol = "⁉️"
+	}
+	fmt.Printf("%s [%s:%s](%.2fs|%d%%): %s\n", symbol, p.ActionID, p.Step, p.StepTaken.Seconds(), p.Progress, p.Msg)
+	t.l.dbx.sendProgress(p)
 }
 
-func (t *actionLogger) Log(step string, msg string) {
-	t.log(step, msg, false)
+func (t *stepLogger) Progress(p int) SubLogger {
+	t.progress = p
+	return t
 }
 
-func (t *actionLogger) Err(step string, msg string) {
-	t.log(step, msg, true)
+func (t *stepLogger) Log(msg string) {
+	t.log(msg, false)
 }
 
-func (t *actionLogger) LogCmd(step string, cmd *exec.Cmd) {
+func (t *stepLogger) Logf(msg string, a ...any) {
+	t.log(fmt.Sprintf(msg, a...), false)
+}
+
+func (t *stepLogger) Err(msg string) {
+	t.log(msg, true)
+}
+
+func (t *stepLogger) Errf(msg string, a ...any) {
+	t.log(fmt.Sprintf(msg, a...), true)
+}
+
+func (t *stepLogger) LogCmd(cmd *exec.Cmd) {
 	cmd.Stdout = NewLineWriter(func(s string) {
-		t.log(step, s, false)
+		t.log(s, false)
 	})
 
 	cmd.Stderr = NewLineWriter(func(s string) {
-		t.log(step, s, true)
+		t.log(s, true)
+	})
+}
+
+type ConsoleSubLogger struct {
+	PupID    string
+	step     string
+	progress int
+	start    time.Time
+}
+
+func NewConsoleSubLogger(pupID string, step string) *ConsoleSubLogger {
+	l := ConsoleSubLogger{
+		PupID:    pupID,
+		step:     step,
+		progress: 0,
+		start:    time.Now(),
+	}
+	return &l
+}
+
+func (t *ConsoleSubLogger) log(msg string, err bool) {
+	symbol := "✔️"
+	if err {
+		symbol = "⁉️"
+	}
+	fmt.Printf("%s [%s:%s](%.2fs|%d%%): %s\n", symbol, t.PupID, t.step, time.Since(t.start).Seconds(), t.progress, msg)
+}
+
+func (t *ConsoleSubLogger) Progress(p int) SubLogger {
+	t.progress = p
+	return t
+}
+
+func (t *ConsoleSubLogger) Log(msg string) {
+	t.log(msg, false)
+}
+
+func (t *ConsoleSubLogger) Logf(msg string, a ...any) {
+	t.log(fmt.Sprintf(msg, a...), false)
+}
+
+func (t *ConsoleSubLogger) Err(msg string) {
+	t.log(msg, true)
+}
+
+func (t *ConsoleSubLogger) Errf(msg string, a ...any) {
+	t.log(fmt.Sprintf(msg, a...), true)
+}
+
+func (t *ConsoleSubLogger) LogCmd(cmd *exec.Cmd) {
+	cmd.Stdout = NewLineWriter(func(s string) {
+		t.log(s, false)
+	})
+
+	cmd.Stderr = NewLineWriter(func(s string) {
+		t.log(s, true)
 	})
 }
 
 type LineWriter struct {
 	receiver func(string)
 	buf      bytes.Buffer
-}
-
-func (t *actionLogger) Progress(p int) *actionLogger {
-	t.progress = p
-	return t
 }
 
 // implements io.Writer and calls a function for each line

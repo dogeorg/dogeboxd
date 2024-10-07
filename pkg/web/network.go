@@ -17,7 +17,7 @@ func (t api) getNetwork(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) connectNetwork(w http.ResponseWriter, r *http.Request) {
-	nixPatch := t.nix.NewPatch()
+	nixPatch := t.nix.NewPatch(dogeboxd.NewConsoleSubLogger("internal", "set network"))
 
 	err := t.dbx.NetworkManager.TryConnect(nixPatch)
 	// Chances are we'll never actually get here, because you'll probably be disconnected

@@ -2,8 +2,6 @@ package nix
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -280,35 +278,31 @@ func (nm nixManager) UpdateNetwork(nixPatch dogeboxd.NixPatch, values dogeboxd.N
 	nixPatch.UpdateNetwork(values)
 }
 
-func (nm nixManager) RebuildBoot() error {
+func (nm nixManager) RebuildBoot(log dogeboxd.SubLogger) error {
 	md := exec.Command("sudo", "_dbxroot", "nix", "rb")
-
-	output, err := md.CombinedOutput()
+	log.LogCmd(md)
+	err := md.Run()
 	if err != nil {
-		log.Printf("Error executing nix rebuild boot: %v\n", err)
-		log.Printf("nix output: %s\n", string(output))
+		log.Errf("Error executing nix rebuild boot: %v\n", err)
 		return err
-	} else {
-		log.Printf("nix output: %s\n", string(output))
 	}
 	return nil
 }
 
-func (nm nixManager) Rebuild() error {
+func (nm nixManager) Rebuild(log dogeboxd.SubLogger) error {
 	cmd := exec.Command("sudo", "_dbxroot", "nix", "rs")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	log.LogCmd(cmd)
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("Error executing nix rebuild: %v\n", err)
+		log.Errf("Error executing nix rebuild: %v\n", err)
 		return err
 	}
 
 	return nil
 }
 
-func (nm nixManager) NewPatch() dogeboxd.NixPatch {
-	return NewNixPatch(nm)
+func (nm nixManager) NewPatch(log dogeboxd.SubLogger) dogeboxd.NixPatch {
+	return NewNixPatch(nm, log)
 }
 
 func toEnv(entries map[string]string) []dogeboxd.EnvEntry {

@@ -3,7 +3,6 @@ package web
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -64,7 +63,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		sendErrorResponse(w, http.StatusForbidden, "Cannot initiate bootstrap in non-recovery mode.")
 		return
 	}
-
+	log := dogeboxd.NewConsoleSubLogger("internal", "initial setup")
 	dbxState := t.sm.Get().Dogebox
 
 	if dbxState.InitialState.HasFullyConfigured {
@@ -100,12 +99,12 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nixPatch := t.nix.NewPatch()
+	nixPatch := t.nix.NewPatch(log)
 
 	// This will try and connect to the pending network, and if
 	// that works, it will persist the network config to disk properly.
 	if err := t.dbx.NetworkManager.TryConnect(nixPatch); err != nil {
-		log.Printf("Error connecting to network: %v", err)
+		log.Errf("Error connecting to network: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
 		return
 	}
@@ -122,13 +121,13 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
 		localIP, err := t.dbx.NetworkManager.GetLocalIP()
 		if err != nil {
-			log.Printf("Error getting local IP: %v", err)
+			log.Errf("Error getting local IP: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error getting local IP")
 			return
 		}
 
 		if err := system.SubmitToReflector(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken, localIP.String()); err != nil {
-			log.Printf("Error submitting to reflector: %v", err)
+			log.Errf("Error submitting to reflector: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error submitting to reflector")
 			return
 		}
@@ -140,21 +139,21 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	// Add our DogeOrg source in by default, for people to test things with.
 	if _, err := t.sources.AddSource("https://github.com/dogeorg/pups.git"); err != nil {
-		log.Printf("Error adding initial dogeorg source: %v", err)
+		log.Errf("Error adding initial dogeorg source: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error adding dogeorg source")
 		return
 	}
 
 	// If the user has provided an SSH key, we should add it to the system and enable SSH.
 	if requestBody.InitialSSHKey != "" {
-		if err := t.dbx.SystemUpdater.AddSSHKey(requestBody.InitialSSHKey); err != nil {
-			log.Printf("Error adding initial SSH key: %v", err)
+		if err := t.dbx.SystemUpdater.AddSSHKey(requestBody.InitialSSHKey, log); err != nil {
+			log.Errf("Error adding initial SSH key: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error adding initial SSH key")
 			return
 		}
 
-		if err := t.dbx.SystemUpdater.EnableSSH(); err != nil {
-			log.Printf("Error enabling SSH: %v", err)
+		if err := t.dbx.SystemUpdater.EnableSSH(log); err != nil {
+			log.Errf("Error enabling SSH: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error enabling SSH")
 			return
 		}
@@ -169,7 +168,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	sendResponse(w, map[string]any{"status": "OK"})
 
-	log.Println("Dogebox successfully bootstrapped, rebooting in 5 seconds so we can boot into normal mode.")
+	log.Log("Dogebox successfully bootstrapped, rebooting in 5 seconds so we can boot into normal mode.")
 
 	go func() {
 		time.Sleep(5 * time.Second)

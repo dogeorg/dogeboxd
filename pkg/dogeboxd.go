@@ -42,7 +42,6 @@ import (
 	"crypto/rand"
 	_ "embed"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -150,7 +149,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					// job is finished, unlock the queue for the next job
 					t.queue.jobInProgress.Unlock()
-					j.Logger.Log("queue", fmt.Sprintf("JOB  [%s] finished: exec time %s, time since queued %s\n", j.ID, time.Since(t.queue.jobTimer), time.Since(j.Start)))
+					j.Logger.Step("queue").Progress(100).Log(fmt.Sprintf("finished in %.2fs, queued %.2fs", time.Since(t.queue.jobTimer).Seconds(), time.Since(j.Start).Seconds()))
 
 					// if this job was successful, AND it was a
 					// job that results in the stop/start of a pup,
@@ -201,14 +200,11 @@ func (t *Dogeboxd) pumpQueue() {
 	if t.queue.jobInProgress.TryLock() {
 		t.queue.jobQLock.Lock()
 		if len(t.queue.jobQueue) > 0 {
-			fmt.Println("have jobs to queue..", len(t.queue.jobQueue))
 			job := t.queue.jobQueue[0]
 			t.queue.jobQueue = t.queue.jobQueue[1:]
 			t.queue.jobQLock.Unlock()
 
-			fmt.Printf("added %s to the queue, queue size now: %d\n", job.ID, len(t.queue.jobQueue))
-			job.Logger.Queued = false
-			job.Logger.Log("queue", "Begin processing")
+			job.Logger.Step("queue").Log(fmt.Sprintf("Queued, position %d\n", len(t.queue.jobQueue)))
 			t.SystemUpdater.AddJob(job)
 			t.queue.jobTimer = time.Now()
 		} else {
@@ -223,9 +219,6 @@ func (t *Dogeboxd) enqueue(j Job) {
 	t.queue.jobQLock.Lock()
 	defer t.queue.jobQLock.Unlock()
 	t.queue.jobQueue = append(t.queue.jobQueue, j)
-	j.Logger.Queued = true
-	j.Logger.Log("queue", "Queued for execution")
-	fmt.Printf("JOB [%s] queued.", j.ID)
 }
 
 // Add an Action to the Action queue, returns a unique ID
@@ -238,7 +231,7 @@ func (t Dogeboxd) AddAction(a Action) string {
 	}
 	id := fmt.Sprintf("%x", b)
 	j := Job{A: a, ID: id}
-	j.Logger = NewActionLogger(j, "", false, t)
+	j.Logger = NewActionLogger(j, "", t)
 	t.jobs <- j
 	return id
 }
@@ -249,7 +242,6 @@ func (t Dogeboxd) AddAction(a Action) string {
  * for handling.
  */
 func (t Dogeboxd) jobDispatcher(j Job) {
-	fmt.Printf("dispatch job %+v\n", j)
 	switch a := j.A.(type) {
 
 	// System actions
@@ -312,7 +304,6 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceId st
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
 		t.sendFinishedJob("action", j)
-		log.Println(j.Err)
 		return
 	}
 
@@ -321,7 +312,6 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceId st
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
 		t.sendFinishedJob("action", j)
-		log.Println(j.Err)
 		return
 	}
 
@@ -333,7 +323,6 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceId st
 func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 	_, err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
 	if err != nil {
-		fmt.Println("couldn't update pup", err)
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
 		t.sendFinishedJob("action", j)
 		return
@@ -341,7 +330,6 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 
 	j.Success, _, err = t.Pups.GetPup(u.PupID)
 	if err != nil {
-		fmt.Println("Couldnt get pup", u.PupID)
 		j.Err = err.Error()
 		t.sendFinishedJob("action", j)
 		return
@@ -351,9 +339,9 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 
 // Handle an UpdatePupProviders action
 func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
+	log := j.Logger.Step("update providers")
 	_, err := t.Pups.UpdatePup(u.PupID, SetPupProviders(u.Payload))
 	if err != nil {
-		fmt.Println("couldn't update pup", err)
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
 		t.sendFinishedJob("action", j)
 		return
@@ -362,7 +350,6 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 	pupState, _, err := t.Pups.GetPup(u.PupID)
 	j.Success = pupState
 	if err != nil {
-		fmt.Println("Couldnt get pup", u.PupID)
 		j.Err = err.Error()
 		t.sendFinishedJob("action", j)
 		return
@@ -370,7 +357,6 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 
 	canPupStart, err := t.Pups.CanPupStart(u.PupID)
 	if err != nil {
-		fmt.Println("Couldn't check if pup can start", err)
 		j.Err = err.Error()
 		t.sendFinishedJob("action", j)
 		return
@@ -380,13 +366,12 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 	if canPupStart {
 		dbxState := t.sm.Get().Dogebox
 
-		nixPatch := t.nix.NewPatch()
+		nixPatch := t.nix.NewPatch(log)
 		t.nix.UpdateSystemContainerConfiguration(nixPatch)
 		t.nix.WritePupFile(nixPatch, pupState, dbxState)
 
 		if err := nixPatch.Apply(); err != nil {
-			fmt.Println("Failed to apply nix patch:", err)
-			j.Err = err.Error()
+			j.Err = fmt.Sprintf("Failed to apply nix patch: %v", err)
 			t.sendFinishedJob("action", j)
 			return
 		}
@@ -399,7 +384,6 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 func (t *Dogeboxd) updatePupHooks(j Job, u UpdatePupHooks) {
 	_, err := t.Pups.UpdatePup(u.PupID, SetPupHooks(u.Payload))
 	if err != nil {
-		fmt.Println("couldn't update pup", err)
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
 		t.sendFinishedJob("action", j)
 		return
@@ -407,7 +391,6 @@ func (t *Dogeboxd) updatePupHooks(j Job, u UpdatePupHooks) {
 
 	j.Success, _, err = t.Pups.GetPup(u.PupID)
 	if err != nil {
-		fmt.Println("Couldnt get pup", u.PupID)
 		j.Err = err.Error()
 		t.sendFinishedJob("action", j)
 		return
@@ -417,6 +400,9 @@ func (t *Dogeboxd) updatePupHooks(j Job, u UpdatePupHooks) {
 
 // helper to report a completed job back to the client
 func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
+	if j.Err != "" {
+		j.Logger.Step("queue").Err(j.Err)
+	}
 	t.Changes <- Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success}
 }
 
@@ -430,7 +416,6 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	p, _, err := t.Pups.GetPup(PupID)
 	if err != nil {
 		j.Err = err.Error()
-		fmt.Println("Failed to get pup:", err)
 		t.sendFinishedJob("action", j)
 		return
 	}
