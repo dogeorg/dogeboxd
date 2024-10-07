@@ -18,8 +18,8 @@ type SystemUpdater interface {
 
 	// These ideally should not be on here, but we currently don't
 	// have a way to wait for a SystemUpdater event to finish.
-	AddSSHKey(key string) error
-	EnableSSH() error
+	AddSSHKey(key string, l SubLogger) error
+	EnableSSH(l SubLogger) error
 	ListSSHKeys() ([]DogeboxStateSSHKey, error)
 }
 
@@ -103,7 +103,7 @@ type LifecycleManager interface {
 
 type NetworkManager interface {
 	GetAvailableNetworks() []NetworkConnection
-	SetPendingNetwork(selectedNetwork SelectedNetwork) error
+	SetPendingNetwork(selectedNetwork SelectedNetwork, j Job) error
 	TryConnect(nixPatch NixPatch) error
 	GetLocalIP() (net.IP, error)
 }
@@ -328,8 +328,8 @@ type NixManager interface {
 	UpdateNetwork(patch NixPatch, values NixNetworkTemplateValues)
 	UpdateSystem(patch NixPatch, values NixSystemTemplateValues)
 
-	RebuildBoot() error
-	Rebuild() error
+	RebuildBoot(log SubLogger) error
+	Rebuild(log SubLogger) error
 
-	NewPatch() NixPatch
+	NewPatch(log SubLogger) NixPatch
 }

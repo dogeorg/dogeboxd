@@ -11,6 +11,7 @@ type Job struct {
 	Err     string
 	Success any
 	Start   time.Time // set when the job is first created, for calculating duration
+	Logger  *actionLogger
 	State   *PupState // nilable, check before use!
 }
 
@@ -26,6 +27,17 @@ type Change struct {
 	Error  string `json:"error"`
 	Type   string `json:"type"`
 	Update Update `json:"update"`
+}
+
+// Represents some information about an action underway
+type ActionProgress struct {
+	ActionID  string        `json:"actionID"`
+	PupID     string        `json:pupID`        // optional, only if a pup action
+	Progress  int           `json:"progress"`   // 0-100
+	Step      string        `json:"step"`       // a unique name for the step we're up to, ie: installing
+	Msg       string        `json:"msg"`        // the message line
+	Error     bool          `json:"error"`      // if this represents an error or not
+	StepTaken time.Duration `json:"step_taken"` // time taken from previous step
 }
 
 /* Actions are passed to the dogeboxd service via its

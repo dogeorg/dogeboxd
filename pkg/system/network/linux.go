@@ -79,7 +79,6 @@ func (t NetworkManagerLinux) GetAvailableNetworks() []dogeboxd.NetworkConnection
 	}
 
 	allInterfaces, err := net.Interfaces()
-
 	if err != nil {
 		log.Printf("Failed to fetch system interfaces: %s", err)
 		return availableNetworkConnections
@@ -114,31 +113,30 @@ outer:
 	return availableNetworkConnections
 }
 
-func (t NetworkManagerLinux) SetPendingNetwork(selectedNetwork dogeboxd.SelectedNetwork) error {
+func (t NetworkManagerLinux) SetPendingNetwork(selectedNetwork dogeboxd.SelectedNetwork, j dogeboxd.Job) error {
 	var selectedIface string
-
+	log := j.Logger.Step("set network")
 	switch network := selectedNetwork.(type) {
 	case dogeboxd.SelectedNetworkEthernet:
 		{
-			log.Printf("Setting Ethernet network on interface: %s", network.Interface)
+			log.Logf("Setting Ethernet network on interface: %s", network.Interface)
 			selectedIface = network.Interface
 		}
 
 	case dogeboxd.SelectedNetworkWifi:
 		{
-			log.Printf("Setting WiFi network on interface: %s", network.Interface)
-			log.Printf("SSIDs: %s, password: %s, encryption: %s", network.Ssid, network.Password, network.Encryption)
+			log.Logf("Setting WiFi network on interface: %s", network.Interface)
+			log.Logf("SSIDs: %s, password: %s, encryption: %s", network.Ssid, network.Password, network.Encryption)
 			selectedIface = network.Interface
 		}
 
 	default:
-		log.Printf("Unknown network type: %T", selectedNetwork)
+		log.Errf("Unknown network type: %T", selectedNetwork)
 	}
 
 	allInterfaces, err := net.Interfaces()
-
 	if err != nil {
-		log.Printf("Failed to fetch system interfaces: %s", err)
+		log.Errf("Failed to fetch system interfaces: %s", err)
 		return err
 	}
 

@@ -58,9 +58,10 @@ type nixPatch struct {
 	state       string
 	operations  []PatchOperation
 	error       error
+	log         dogeboxd.SubLogger
 }
 
-func NewNixPatch(nm nixManager) dogeboxd.NixPatch {
+func NewNixPatch(nm nixManager, log dogeboxd.SubLogger) dogeboxd.NixPatch {
 	id := make([]byte, 6)
 	rand.Read(id)
 	patchID := hex.EncodeToString(id)
@@ -69,9 +70,10 @@ func NewNixPatch(nm nixManager) dogeboxd.NixPatch {
 		id:    patchID,
 		nm:    nm,
 		state: NixPatchStatePending,
+		log:   log,
 	}
 
-	log.Printf("[patch-%s] Created new nix patch", p.id)
+	log.Logf("[patch-%s] Created new nix patch", p.id)
 
 	return p
 }
@@ -85,7 +87,7 @@ func (np *nixPatch) add(name string, op func() error) error {
 		return errors.New("patch already applied or cancelled")
 	}
 
-	log.Printf("[patch-%s] Adding pending operation %s", np.id, name)
+	np.log.Logf("[patch-%s] Adding pending operation %s", np.id, name)
 	np.operations = append(np.operations, PatchOperation{Name: name, Operation: op})
 
 	return nil
@@ -100,7 +102,7 @@ func (np *nixPatch) ApplyCustom(options dogeboxd.NixPatchApplyOptions) error {
 		return errors.New("patch already applied or cancelled")
 	}
 
-	log.Printf("[patch-%s] Applying nix patch with %d operations", np.id, len(np.operations))
+	np.log.Logf("[patch-%s] Applying nix patch with %d operations", np.id, len(np.operations))
 
 	np.state = NixPatchStateApplying
 
@@ -113,15 +115,15 @@ func (np *nixPatch) ApplyCustom(options dogeboxd.NixPatchApplyOptions) error {
 	np.state = NixPatchStateApplying
 
 	for _, operation := range np.operations {
-		log.Printf("[patch-%s] Applying operation: %s", np.id, operation.Name)
+		np.log.Logf("[patch-%s] Applying operation: %s", np.id, operation.Name)
 		if err := operation.Operation(); err != nil {
 			return np.triggerRollback(err)
 		}
 	}
 
-	log.Printf("[patch-%s] Applied all patch operations, rebuilding..", np.id)
+	np.log.Logf("[patch-%s] Applied all patch operations, rebuilding..", np.id)
 
-	var rebuildFn func() error
+	var rebuildFn func(dogeboxd.SubLogger) error
 
 	if options.RebuildBoot {
 		rebuildFn = np.nm.RebuildBoot
@@ -129,21 +131,21 @@ func (np *nixPatch) ApplyCustom(options dogeboxd.NixPatchApplyOptions) error {
 		rebuildFn = np.nm.Rebuild
 	}
 
-	if err := rebuildFn(); err != nil {
+	if err := rebuildFn(np.log); err != nil {
 		// We failed.
 		// Roll back our changes.
-		log.Printf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
+		np.log.Errf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
 		return np.triggerRollback(err)
 	}
 
 	if err := os.RemoveAll(np.snapshotDir); err != nil {
-		log.Printf("[patch-%s] Warning: Failed to remove snapshot directory: %v", np.id, err)
+		np.log.Errf("[patch-%s] Warning: Failed to remove snapshot directory: %v", np.id, err)
 	} else {
-		log.Printf("[patch-%s] Removed snapshot directory: %s", np.id, np.snapshotDir)
+		np.log.Logf("[patch-%s] Removed snapshot directory: %s", np.id, np.snapshotDir)
 	}
 
 	np.state = NixPatchStateApplied
-	log.Printf("[patch-%s] Nix patch applied successfully", np.id)
+	np.log.Logf("[patch-%s] Nix patch applied successfully", np.id)
 
 	return nil
 }
@@ -326,7 +328,6 @@ func copyDirectory(srcDir, destDir string) error {
 
 		return os.Chmod(destPath, info.Mode())
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to copy files: %w", err)
 	}
