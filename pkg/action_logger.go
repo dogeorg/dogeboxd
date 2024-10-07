@@ -106,7 +106,8 @@ func (t *stepLogger) LogCmd(cmd *exec.Cmd) {
 	})
 
 	cmd.Stderr = NewLineWriter(func(s string) {
-		t.log(s, true)
+		// t.log(s, true)
+		t.log(s, false) // treat stderr as normal output because unix is stupid
 	})
 }
 
@@ -162,7 +163,8 @@ func (t *ConsoleSubLogger) LogCmd(cmd *exec.Cmd) {
 	})
 
 	cmd.Stderr = NewLineWriter(func(s string) {
-		t.log(s, true)
+		// t.log(s, true)
+		t.log(s, false) // treat stderr as normal output because unix is stupid
 	})
 }
 
