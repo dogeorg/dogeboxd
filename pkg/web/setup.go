@@ -119,17 +119,8 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
-		localIP, err := t.dbx.NetworkManager.GetLocalIP()
-		if err != nil {
-			log.Errf("Error getting local IP: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error getting local IP")
-			return
-		}
-
-		if err := system.SubmitToReflector(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken, localIP.String()); err != nil {
-			log.Errf("Error submitting to reflector: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error submitting to reflector")
-			return
+		if err := system.SaveReflectorTokenForReboot(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken); err != nil {
+			log.Errf("Error saving reflector data: %v", err)
 		}
 	}
 

@@ -61,6 +61,11 @@ func (t server) Start() {
 		fmt.Printf("pups %s:\n %+v\n", k, p)
 	}
 
+	// Check if we have pending reflector data to submit.
+	if err := system.CheckAndSubmitReflectorData(t.config, networkManager); err != nil {
+		log.Printf("Error checking and submitting reflector data: %v", err)
+	}
+
 	/* ----------------------------------------------------------------------- */
 	// Set up Dogeboxd, the beating heart of the beast
 
