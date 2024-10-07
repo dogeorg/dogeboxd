@@ -96,7 +96,7 @@ func NewDogeboxd(
 		logtailer:      logtailer,
 		queue:          &q,
 		jobs:           make(chan Job),
-		Changes:        make(chan Change),
+		Changes:        make(chan Change, 256),
 	}
 
 	return s
@@ -133,14 +133,14 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
-					t.Changes <- Change{"internal", "", "pup", p.State}
+					t.sendChange(Change{"internal", "", "pup", p.State})
 
 				// Handle stats from PupManager
 				case stats, ok := <-t.Pups.GetStatsChannel():
 					if !ok {
 						break dance
 					}
-					t.Changes <- Change{"internal", "", "stats", stats}
+					t.sendChange(Change{"internal", "", "stats", stats})
 
 				// Handle completed jobs from SystemUpdater
 				case j, ok := <-t.SystemUpdater.GetUpdateChannel():
@@ -398,17 +398,27 @@ func (t *Dogeboxd) updatePupHooks(j Job, u UpdatePupHooks) {
 	t.sendFinishedJob("action", j)
 }
 
+// send changes without blocking if the channel is full
+func (t Dogeboxd) sendChange(c Change) {
+	timer := time.After(200 * time.Millisecond)
+	select {
+	case t.Changes <- c:
+	case <-timer:
+		fmt.Println("Can't sent change, no receiver", c)
+	}
+}
+
 // helper to report a completed job back to the client
 func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
 	if j.Err != "" {
 		j.Logger.Step("queue").Err(j.Err)
 	}
-	t.Changes <- Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success}
+	t.sendChange(Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success})
 }
 
 // updates the client on the progress of any inflight actions
 func (t Dogeboxd) sendProgress(p ActionProgress) {
-	t.Changes <- Change{ID: p.ActionID, Type: "progress", Update: p}
+	t.sendChange(Change{ID: p.ActionID, Type: "progress", Update: p})
 }
 
 // helper to attach PupState to a job and send it to the SystemUpdater
