@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const DBXRootSecret = "lPqz83ZMJjmaQDTa69uTshoDeL44wCbr"
+const DBXRootSecret = "yes-i-will-destroy-everything-on-this-disk"
 
 func GetPossibleInstallDisks() ([]lsblk.BlockDevice, error) {
 	lsb := lsblk.NewLSBLK(logrus.New())

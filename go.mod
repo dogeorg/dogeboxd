@@ -14,6 +14,7 @@ require (
 	github.com/mdlayher/wifi v0.2.0
 	github.com/rs/cors v1.10.1
 	github.com/shirou/gopsutil/v4 v4.24.6
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/mod v0.17.0
 	golang.org/x/net v0.28.0
@@ -50,7 +51,6 @@ require (
 	github.com/prometheus/procfs v0.13.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/skeema/knownhosts v1.2.2 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect

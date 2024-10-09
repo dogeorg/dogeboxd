@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/spf13/cobra"
@@ -19,7 +20,7 @@ var installToDiskCmd = &cobra.Command{
 This command requires --disk and --dbx-secret flags.
 
 Example:
-  _dbxroot install-to-disk --disk /dev/sdb --dbx-secret :)`,
+  _dbxroot install-to-disk --disk /dev/sdb --dbx-secret ?`,
 	Run: func(cmd *cobra.Command, args []string) {
 		disk, _ := cmd.Flags().GetString("disk")
 		dbxSecret, _ := cmd.Flags().GetString("dbx-secret")
@@ -29,6 +30,13 @@ Example:
 			os.Exit(1)
 		}
 
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Failed to install to disk: %v", r)
+				os.Exit(1)
+			}
+		}()
+
 		// Create partition table
 		runParted(disk, "mklabel", "gpt")
 		runParted(disk, "mkpart", "root", "ext4", "512MB", "-8GB")
@@ -36,9 +44,16 @@ Example:
 		runParted(disk, "mkpart", "ESP", "fat32", "1MB", "512MB")
 		runParted(disk, "set", "3", "esp", "on")
 
-		rootPartition := fmt.Sprintf("%s1", disk)
-		swapPartition := fmt.Sprintf("%s2", disk)
-		espPartition := fmt.Sprintf("%s3", disk)
+		isNVME := strings.HasPrefix(disk, "/dev/nvme")
+		partitionPrefix := ""
+
+		if isNVME {
+			partitionPrefix = "p"
+		}
+
+		rootPartition := fmt.Sprintf("%s%s1", disk, partitionPrefix)
+		swapPartition := fmt.Sprintf("%s%s2", disk, partitionPrefix)
+		espPartition := fmt.Sprintf("%s%s3", disk, partitionPrefix)
 
 		// Format partitions
 		runCommand("mkfs.ext4", "-L", "nixos", rootPartition)
@@ -58,39 +73,40 @@ Example:
 		// Generate hardware-configuration.nix
 		runCommand("nixos-generate-config", "--root", "/mnt")
 
-		// TODO: somehow inject the EFI bootloader & variable modification stuff into /mnt/etc/nixos/configuration.nix
-		// TODO: update dogebox root project to include hardware-configuration.nix if it exists?
-
 		// Install
 		runCommand("nixos-install", "--no-root-passwd", "--root", "/mnt")
-		runCommand("umount", "/mnt")
+
+		log.Println("Finished installing. Please remove installation media and reboot.")
 	},
 }
 
 func init() {
-	pupCmd.AddCommand(installToDiskCmd)
+	rootCmd.AddCommand(installToDiskCmd)
 
 	installToDiskCmd.Flags().StringP("disk", "d", "", "Disk to install to (required)")
 	installToDiskCmd.MarkFlagRequired("disk")
 
-	installToDiskCmd.Flags().StringP("dbx-secret", "s", "", "")
+	installToDiskCmd.Flags().StringP("dbx-secret", "s", "", "?")
 	installToDiskCmd.MarkFlagRequired("dbx-secret")
 }
 
 func runParted(device string, args ...string) error {
-	log.Printf("Running parted: %s -- %+v", device, args)
-	parted := exec.Command("parted", append([]string{device, "--"}, args...)...)
-	parted.Stdout = os.Stdout
-	parted.Stderr = os.Stderr
-	return parted.Run()
+	args = append([]string{"parted", "-s", device, "--"}, args...)
+	return runCommand(args...)
 }
 
 func runCommand(args ...string) error {
+	log.Printf("----------------------------------------")
 	log.Printf("Running command: %+v", args)
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		log.Printf("Error running command: %v", err)
+		panic(err)
+	}
+	log.Printf("----------------------------------------")
+	return nil
 }
 
 func copyFiles(source string, destination string) error {
