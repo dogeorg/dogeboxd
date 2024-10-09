@@ -331,3 +331,16 @@ type NixManager interface {
 
 	NewPatch(log SubLogger) NixPatch
 }
+
+type PossibleInstallDisk struct {
+	Name       string
+	Size       int64
+	SizePretty string
+}
+
+const (
+	BootstrapInstallationModeIsInstalled   = "isInstalled"
+	BootstrapInstallationModeCanInstalled  = "canInstall"
+	BootstrapInstallationModeMustInstall   = "mustInstall"
+	BootstrapInstallationModeCannotInstall = "cannotInstall"
+)

@@ -78,6 +78,10 @@ Example:
 		// Generate hardware-configuration.nix
 		runCommand("nixos-generate-config", "--root", "/mnt")
 
+		// Set an installed flag so we know not to try again.
+		runCommand("mkdir", "-p", "/mnt/opt/")
+		runCommand("touch", "/mnt/opt/dbx-installed")
+
 		// Install
 		runCommand("nixos-install", "--no-root-passwd", "--root", "/mnt")
 

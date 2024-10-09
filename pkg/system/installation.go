@@ -7,20 +7,46 @@ import (
 	"os/exec"
 
 	"github.com/dell/csi-baremetal/pkg/base/linuxutils/lsblk"
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 	"github.com/sirupsen/logrus"
 )
 
 const DBXRootSecret = "yes-i-will-destroy-everything-on-this-disk"
 
-func GetPossibleInstallDisks() ([]lsblk.BlockDevice, error) {
+func GetInstallationMode(dbxState dogeboxd.DogeboxState) (string, error) {
+	// First, check if we're already installed.
+	if _, err := os.Stat("/opt/dbx-installed"); err == nil {
+		return dogeboxd.BootstrapInstallationModeIsInstalled, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("error checking for RO installation media: %v", err)
+	}
+
+	// If we're not already installed, but we've been configured, no install for you.
+	if dbxState.InitialState.HasFullyConfigured {
+		return dogeboxd.BootstrapInstallationModeCannotInstall, nil
+	}
+
+	// Check if we're running on RO installation media. If so, must install.
+	if _, err := os.Stat("/opt/ro-media"); err == nil {
+		return dogeboxd.BootstrapInstallationModeMustInstall, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("error checking for RO installation media: %v", err)
+	}
+
+	// Otherwise, the user can optionally install.
+	return dogeboxd.BootstrapInstallationModeCanInstalled, nil
+}
+
+func GetPossibleInstallDisks() ([]dogeboxd.PossibleInstallDisk, error) {
 	lsb := lsblk.NewLSBLK(logrus.New())
 
 	devices, err := lsb.GetBlockDevices("")
 	if err != nil {
-		return []lsblk.BlockDevice{}, err
+		return []dogeboxd.PossibleInstallDisk{}, err
 	}
 
-	possibleDisks := []lsblk.BlockDevice{}
+	possibleDisks := []dogeboxd.PossibleInstallDisk{}
 
 	for _, device := range devices {
 		// Ignore anything that's not a disk.
@@ -38,7 +64,11 @@ func GetPossibleInstallDisks() ([]lsblk.BlockDevice, error) {
 			continue
 		}
 
-		possibleDisks = append(possibleDisks, device)
+		possibleDisks = append(possibleDisks, dogeboxd.PossibleInstallDisk{
+			Name:       device.Name,
+			Size:       device.Size.Int64,
+			SizePretty: utils.PrettyPrintDiskSize(device.Size.Int64),
+		})
 	}
 
 	return possibleDisks, nil
