@@ -60,6 +60,11 @@ Example:
 		runCommand("mkswap", "-L", "swap", swapPartition)
 		runCommand("mkfs.fat", "-F", "32", "-n", "boot", espPartition)
 
+		// Ensure /mnt exists before we actually mount into it.
+		if _, err := os.Stat("/mnt"); os.IsNotExist(err) {
+			runCommand("mkdir", "/mnt")
+		}
+
 		// Mount everything up
 		runCommand("mount", rootPartition, "/mnt")
 		runCommand("mkdir", "-p", "/mnt/boot")
