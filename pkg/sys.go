@@ -333,3 +333,16 @@ type NixManager interface {
 
 	NewPatch(log SubLogger) NixPatch
 }
+
+type PossibleInstallDisk struct {
+	Name       string `json:"name"`
+	Size       int64  `json:"size"`
+	SizePretty string `json:"sizePretty"`
+}
+
+const (
+	BootstrapInstallationModeIsInstalled   = "isInstalled"
+	BootstrapInstallationModeCanInstalled  = "canInstall"
+	BootstrapInstallationModeMustInstall   = "mustInstall"
+	BootstrapInstallationModeCannotInstall = "cannotInstall"
+)
