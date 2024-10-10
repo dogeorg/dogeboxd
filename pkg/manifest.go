@@ -1,4 +1,4 @@
-package pup
+package dogeboxd
 
 import "fmt"
 

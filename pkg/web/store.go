@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dogeorg/dogeboxd/pkg/pup"
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"golang.org/x/mod/semver"
 )
 
 type StoreListSourceEntryPup struct {
-	LatestVersion string                     `json:"latestVersion"`
-	LogoBase64    string                     `json:"logoBase64"`
-	Versions      map[string]pup.PupManifest `json:"versions"`
+	LatestVersion string                          `json:"latestVersion"`
+	LogoBase64    string                          `json:"logoBase64"`
+	Versions      map[string]dogeboxd.PupManifest `json:"versions"`
 }
 
 type StoreListSourceEntry struct {
@@ -42,7 +42,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 		for _, availablePup := range entry.Pups {
 			// Check if we already have a pup in our list for this version.
 			if _, ok := pups[availablePup.Name]; !ok {
-				versions := map[string]pup.PupManifest{}
+				versions := map[string]dogeboxd.PupManifest{}
 
 				pups[availablePup.Name] = StoreListSourceEntryPup{
 					LatestVersion: availablePup.Version,
@@ -70,7 +70,7 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 			if installedPup.Source.Location == entry.Config.Location && installedPup.Source.Name == entry.Config.Name {
 				if _, ok := pups[installedPup.Manifest.Meta.Name]; !ok {
 					pups[installedPup.Manifest.Meta.Name] = StoreListSourceEntryPup{
-						Versions: map[string]pup.PupManifest{},
+						Versions: map[string]dogeboxd.PupManifest{},
 					}
 				}
 

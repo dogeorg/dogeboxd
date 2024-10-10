@@ -4,8 +4,6 @@ import (
 	"context"
 	"net"
 	"time"
-
-	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 // see ./system/ for implementations
@@ -174,7 +172,7 @@ type SourceDetails struct {
 
 type SourceManager interface {
 	GetAll(ignoreCache bool) (map[string]ManifestSourceList, error)
-	GetSourceManifest(sourceId, pupName, pupVersion string) (pup.PupManifest, ManifestSource, error)
+	GetSourceManifest(sourceId, pupName, pupVersion string) (PupManifest, ManifestSource, error)
 	GetSourcePup(sourceId, pupName, pupVersion string) (ManifestSourcePup, error)
 	GetSource(name string) (ManifestSource, error)
 	AddSource(location string) (ManifestSource, error)
@@ -187,7 +185,7 @@ type ManifestSourcePup struct {
 	Name       string
 	Location   map[string]string
 	Version    string
-	Manifest   pup.PupManifest
+	Manifest   PupManifest
 	LogoBase64 string
 }
 

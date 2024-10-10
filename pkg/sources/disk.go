@@ -10,7 +10,6 @@ import (
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
-	"github.com/dogeorg/dogeboxd/pkg/pup"
 	"github.com/dogeorg/dogeboxd/pkg/utils"
 )
 
@@ -99,7 +98,7 @@ outer:
 			return dogeboxd.ManifestSourceList{}, fmt.Errorf("failed to read manifest file: %w", err)
 		}
 
-		var manifest pup.PupManifest
+		var manifest dogeboxd.PupManifest
 		err = json.Unmarshal(manifestData, &manifest)
 		if err != nil {
 			return dogeboxd.ManifestSourceList{}, fmt.Errorf("failed to parse manifest file: %w", err)
@@ -184,7 +183,6 @@ func (r ManifestSourceDisk) Download(diskPath string, remoteLocation map[string]
 
 		return os.Chmod(destPath, info.Mode())
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to copy subpath to destination: %w", err)
 	}
