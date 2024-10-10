@@ -333,9 +333,9 @@ type NixManager interface {
 }
 
 type PossibleInstallDisk struct {
-	Name       string
-	Size       int64
-	SizePretty string
+	Name       string `json:"name"`
+	Size       int64  `json:"size"`
+	SizePretty string `json:"sizePretty"`
 }
 
 const (
