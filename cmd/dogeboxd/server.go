@@ -7,6 +7,7 @@ import (
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/conductor"
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 	source "github.com/dogeorg/dogeboxd/pkg/sources"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/dogeorg/dogeboxd/pkg/system/lifecycle"
@@ -33,7 +34,7 @@ func Server(sm dogeboxd.StateManager, config dogeboxd.ServerConfig) server {
 func (t server) Start() {
 	systemMonitor := system.NewSystemMonitor(t.config)
 
-	pups, err := dogeboxd.NewPupManager(t.config.DataDir, t.config.TmpDir, systemMonitor)
+	pups, err := pup.NewPupManager(t.config.DataDir, t.config.TmpDir, systemMonitor)
 	if err != nil {
 		log.Fatalf("Failed to load Pup state: %+v", err)
 	}

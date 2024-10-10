@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
-	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 var _ dogeboxd.NixManager = &nixManager{}
@@ -173,7 +172,7 @@ func (nm nixManager) UpdateSystemContainerConfiguration(nixPatch dogeboxd.NixPat
 			}
 
 			// Find our interface in the provider's manifest
-			var providerExposes *pup.PupManifestExposeConfig
+			var providerExposes *dogeboxd.PupManifestExposeConfig
 			for _, providerExpose := range providerPup.Manifest.Container.Exposes {
 				if providerExpose.Type != "tcp" {
 					// Ignore anything not TCP, as those are supported elsewhere.

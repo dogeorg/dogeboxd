@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
-	"github.com/dogeorg/dogeboxd/pkg/pup"
 )
 
 var REQUIRED_FILES = []string{"pup.nix", "manifest.json"}
@@ -61,24 +60,24 @@ func (sourceManager *sourceManager) GetAll(ignoreCache bool) (map[string]dogebox
 	return available, nil
 }
 
-func (sourceManager *sourceManager) GetSourceManifest(sourceID, pupName, pupVersion string) (pup.PupManifest, dogeboxd.ManifestSource, error) {
+func (sourceManager *sourceManager) GetSourceManifest(sourceID, pupName, pupVersion string) (dogeboxd.PupManifest, dogeboxd.ManifestSource, error) {
 	for _, r := range sourceManager.sources {
 		c := r.Config()
 		if c.ID == sourceID {
 			list, err := r.List(false)
 			if err != nil {
-				return pup.PupManifest{}, nil, err
+				return dogeboxd.PupManifest{}, nil, err
 			}
 			for _, pup := range list.Pups {
 				if pup.Name == pupName && pup.Version == pupVersion {
 					return pup.Manifest, r, nil
 				}
 			}
-			return pup.PupManifest{}, nil, fmt.Errorf("no pup found with name %s and version %s", pupName, pupVersion)
+			return dogeboxd.PupManifest{}, nil, fmt.Errorf("no pup found with name %s and version %s", pupName, pupVersion)
 		}
 	}
 
-	return pup.PupManifest{}, nil, fmt.Errorf("no source found with id %s", sourceID)
+	return dogeboxd.PupManifest{}, nil, fmt.Errorf("no source found with id %s", sourceID)
 }
 
 func (sourceManager *sourceManager) GetSourcePup(sourceId, pupName, pupVersion string) (dogeboxd.ManifestSourcePup, error) {
@@ -136,7 +135,7 @@ func (sourceManager *sourceManager) DownloadPup(path, sourceId, pupName, pupVers
 		return fmt.Errorf("failed to read manifest file: %w", err)
 	}
 
-	var manifest pup.PupManifest
+	var manifest dogeboxd.PupManifest
 	err = json.Unmarshal(manifestData, &manifest)
 	if err != nil {
 		return fmt.Errorf("failed to parse manifest file: %w", err)
@@ -156,7 +155,7 @@ func (sourceManager *sourceManager) validatePupFiles(path string) error {
 		return fmt.Errorf("failed to read manifest file: %w", err)
 	}
 
-	var manifest pup.PupManifest
+	var manifest dogeboxd.PupManifest
 	err = json.Unmarshal(manifestData, &manifest)
 	if err != nil {
 		return fmt.Errorf("failed to parse manifest file: %w", err)

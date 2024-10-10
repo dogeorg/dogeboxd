@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dogeorg/dogeboxd/pkg/pup"
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +35,7 @@ var devPupUpdateHashCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Error reading manifest file: %v", err)
 		}
-		var manifest pup.PupManifest
+		var manifest dogeboxd.PupManifest
 		err = json.Unmarshal(manifestFile, &manifest)
 		if err != nil {
 			log.Fatalf("Error unmarshalling manifest file: %v", err)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/dogeorg/dogeboxd/cmd/dbx/utils"
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/pup"
 	source "github.com/dogeorg/dogeboxd/pkg/sources"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/spf13/cobra"
@@ -56,7 +57,7 @@ var canPupStartCmd = &cobra.Command{
 		// Ideally we wouldn't have to init all these things.
 		systemMonitor := system.NewSystemMonitor(dogeboxd.ServerConfig{})
 
-		pupManager, err := dogeboxd.NewPupManager(dataDir, "/tmp", systemMonitor)
+		pupManager, err := pup.NewPupManager(dataDir, "/tmp", systemMonitor)
 		if err != nil {
 			log.Println("Failed to load PupManager: ", err)
 			utils.ExitBad(systemd)
