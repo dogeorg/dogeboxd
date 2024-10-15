@@ -14,7 +14,7 @@ import (
 
 const DBXRootSecret = "yes-i-will-destroy-everything-on-this-disk"
 
-func GetInstallationMode(dbxState dogeboxd.DogeboxState) (string, error) {
+func GetInstallationMode(dbxState dogeboxd.DogeboxState) (dogeboxd.BootstrapInstallationMode, error) {
 	// First, check if we're already installed.
 	if _, err := os.Stat("/opt/dbx-installed"); err == nil {
 		return dogeboxd.BootstrapInstallationModeIsInstalled, nil
@@ -38,52 +38,96 @@ func GetInstallationMode(dbxState dogeboxd.DogeboxState) (string, error) {
 	return dogeboxd.BootstrapInstallationModeCanInstalled, nil
 }
 
-func GetPossibleInstallDisks() ([]dogeboxd.PossibleInstallDisk, error) {
+func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	lsb := lsblk.NewLSBLK(logrus.New())
 
 	devices, err := lsb.GetBlockDevices("")
 	if err != nil {
-		return []dogeboxd.PossibleInstallDisk{}, err
+		return []dogeboxd.SystemDisk{}, err
 	}
 
-	possibleDisks := []dogeboxd.PossibleInstallDisk{}
+	disks := []dogeboxd.SystemDisk{}
 
 	for _, device := range devices {
-		// Ignore anything that's not a disk.
-		if device.Type != "disk" {
-			continue
-		}
-
-		// Ignore anything that's mounted.
-		if device.MountPoint != "" {
-			continue
-		}
-
-		// Ignore anything that is less than 100GB.
-		if device.Size.Int64 < 100*1024*1024*1024 {
-			continue
-		}
-
-		possibleDisks = append(possibleDisks, dogeboxd.PossibleInstallDisk{
+		disk := dogeboxd.SystemDisk{
 			Name:       device.Name,
 			Size:       device.Size.Int64,
 			SizePretty: utils.PrettyPrintDiskSize(device.Size.Int64),
-		})
+		}
+
+		// We will likely never see loop devices in the wild,
+		// but it's useful to support these for development.
+		isOKDevice := device.Type == "disk" || device.Type == "loop"
+
+		isMounted := device.MountPoint != ""
+		hasChildren := len(device.Children) > 0
+		isZeroBytes := device.Size.Int64 == 0
+		isOver10GB := device.Size.Int64 >= 10*1024*1024*1024
+		isOver300GB := device.Size.Int64 >= 100*1024*1024*1024
+
+		// Don't bother even returning these.
+		if isZeroBytes {
+			continue
+		}
+
+		if isOKDevice && !isMounted && !hasChildren {
+			if isOver300GB {
+				disk.SuitableDataDrive = true
+			}
+
+			if isOver10GB {
+				disk.SuitableInstallDrive = true
+			}
+		}
+
+		// This block package only seems to return a single mount point.
+		// So we need to check if we're mounted at either / or /nix/store
+		// to "reliably" determine if this is our boot media.
+		if device.MountPoint == "/" || device.MountPoint == "/nix/store" {
+			disk.BootMedia = true
+		}
+
+		// Check if any of our children are mounted as boot.
+		for _, child := range device.Children {
+			if child.MountPoint == "/" || child.MountPoint == "/nix/store" {
+				disk.BootMedia = true
+			}
+		}
+
+		disks = append(disks, disk)
 	}
 
-	return possibleDisks, nil
+	return disks, nil
 }
 
-func InstallToDisk(name string) error {
-	possibleDisks, err := GetPossibleInstallDisks()
+func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {
+	if config.DevMode {
+		log.Printf("Dev mode enabled, skipping installation. You probably do not want to do this. re-run without dev mode if you do.")
+		return nil
+	}
+
+	if !config.Recovery {
+		return fmt.Errorf("installation can only be done in recovery mode")
+	}
+
+	installMode, err := GetInstallationMode(dbxState)
+	if err != nil {
+		return err
+	}
+
+	if installMode != dogeboxd.BootstrapInstallationModeMustInstall && installMode != dogeboxd.BootstrapInstallationModeCanInstalled {
+		return fmt.Errorf("installation is not possible with current system state: %s", installMode)
+	}
+
+	disks, err := GetSystemDisks()
 	if err != nil {
 		return err
 	}
 
 	// Check if the specified disk name exists in possibleDisks
 	diskExists := false
-	for _, disk := range possibleDisks {
-		if disk.Name == name {
+	for _, disk := range disks {
+		if disk.Name == name && disk.SuitableInstallDrive {
 			diskExists = true
 			break
 		}

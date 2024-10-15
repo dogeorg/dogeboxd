@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 )
 
@@ -14,7 +13,7 @@ type InstallToDiskRequest struct {
 }
 
 func (t api) getInstallDisks(w http.ResponseWriter, r *http.Request) {
-	disks, err := system.GetPossibleInstallDisks()
+	disks, err := system.GetSystemDisks()
 	if err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, err.Error())
 		return
@@ -47,18 +46,7 @@ func (t api) installToDisk(w http.ResponseWriter, r *http.Request) {
 
 	dbxState := t.sm.Get().Dogebox
 
-	mode, err := system.GetInstallationMode(dbxState)
-	if err != nil {
-		sendErrorResponse(w, http.StatusBadRequest, "Could not determine installation mode")
-		return
-	}
-
-	if mode != dogeboxd.BootstrapInstallationModeMustInstall && mode != dogeboxd.BootstrapInstallationModeCanInstalled {
-		// We're not in a state where we can actually install.
-		sendErrorResponse(w, http.StatusBadRequest, "Not in installable state")
-	}
-
-	if err := system.InstallToDisk(req.Disk); err != nil {
+	if err := system.InstallToDisk(t.config, dbxState, req.Disk); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error installing to disk: "+err.Error())
 		return
 	}

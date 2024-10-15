@@ -10,18 +10,27 @@ import (
 )
 
 var getDisksCmd = &cobra.Command{
-	Use:   "get-disks",
-	Short: "Get a list of possible install disks.",
+	Use:   "get-install-disks",
+	Short: "Get a list of suitable disks you can install DogeboxOS to.",
 	Run: func(cmd *cobra.Command, args []string) {
-		disks, err := system.GetPossibleInstallDisks()
+		disks, err := system.GetSystemDisks()
 		if err != nil {
-			log.Printf("Failed to get possible install disks: %+v", err)
+			log.Printf("Failed to get list of disks: %+v", err)
 			os.Exit(1)
 		}
 
-		log.Println("Possible install disks:")
+		if len(disks) == 0 {
+			log.Println("No suitable install disks found.")
+			os.Exit(1)
+		}
+
+		log.Println("Suitable install disks:")
 
 		for _, disk := range disks {
+			if !disk.SuitableInstallDrive {
+				continue
+			}
+
 			log.Printf(" - %s (%s)", disk.Name, disk.SizePretty)
 		}
 

@@ -149,7 +149,7 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 	// TODO: Don't hardcode these.
 	if route == "GET /system/bootstrap" ||
 		route == "POST /system/bootstrap" ||
-		route == "GET /system/install/disks" ||
+		route == "GET /system/disks" ||
 		route == "POST /system/install" ||
 		route == "GET /system/network/list" ||
 		route == "PUT /system/network/set-pending" ||

@@ -19,13 +19,14 @@ type InitialSystemBootstrapRequestBody struct {
 }
 
 type BootstrapFacts struct {
-	InstallationMode                 string `json:"installationMode"`
-	HasGeneratedKey                  bool   `json:"hasGeneratedKey"`
-	HasConfiguredNetwork             bool   `json:"hasConfiguredNetwork"`
-	HasCompletedInitialConfiguration bool   `json:"hasCompletedInitialConfiguration"`
+	InstallationMode                 dogeboxd.BootstrapInstallationMode `json:"installationMode"`
+	HasGeneratedKey                  bool                               `json:"hasGeneratedKey"`
+	HasConfiguredNetwork             bool                               `json:"hasConfiguredNetwork"`
+	HasCompletedInitialConfiguration bool                               `json:"hasCompletedInitialConfiguration"`
 }
 
 type BootstrapResponse struct {
+	DevMode    bool                         `json:"devMode"`
 	Assets     map[string]dogeboxd.PupAsset `json:"assets"`
 	States     map[string]dogeboxd.PupState `json:"states"`
 	Stats      map[string]dogeboxd.PupStats `json:"stats"`
@@ -42,9 +43,10 @@ func (t api) getRawBS() BootstrapResponse {
 	}
 
 	return BootstrapResponse{
-		Assets: t.pups.GetAssetsMap(),
-		States: t.pups.GetStateMap(),
-		Stats:  t.pups.GetStatsMap(),
+		DevMode: t.config.DevMode,
+		Assets:  t.pups.GetAssetsMap(),
+		States:  t.pups.GetStateMap(),
+		Stats:   t.pups.GetStatsMap(),
 		SetupFacts: BootstrapFacts{
 			InstallationMode:                 installationMode,
 			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
