@@ -139,7 +139,7 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 
 	log.Printf("Starting to install to disk %s", name)
 
-	cmd := exec.Command("_dbxroot", "install-to-disk", "--disk", name, "--dbx-secret", DBXRootSecret)
+	cmd := exec.Command("sudo", "_dbxroot", "install-to-disk", "--disk", name, "--dbx-secret", DBXRootSecret)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
