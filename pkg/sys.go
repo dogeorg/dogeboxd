@@ -331,3 +331,21 @@ type NixManager interface {
 
 	NewPatch(log SubLogger) NixPatch
 }
+
+type SystemDisk struct {
+	Name                 string `json:"name"`
+	Size                 int64  `json:"size"`
+	SizePretty           string `json:"sizePretty"`
+	SuitableInstallDrive bool   `json:"suitableInstallDrive"`
+	SuitableDataDrive    bool   `json:"suitableDataDrive"`
+	BootMedia            bool   `json:"bootMedia"`
+}
+
+type BootstrapInstallationMode string
+
+const (
+	BootstrapInstallationModeIsInstalled   BootstrapInstallationMode = "isInstalled"
+	BootstrapInstallationModeCanInstalled  BootstrapInstallationMode = "canInstall"
+	BootstrapInstallationModeMustInstall   BootstrapInstallationMode = "mustInstall"
+	BootstrapInstallationModeCannotInstall BootstrapInstallationMode = "cannotInstall"
+)

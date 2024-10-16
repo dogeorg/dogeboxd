@@ -59,9 +59,13 @@ func RESTAPI(
 
 	// Recovery routes are the _only_ routes loaded in recovery mode.
 	recoveryRoutes := map[string]http.HandlerFunc{
-		"POST /authenticate":              a.authenticate,
-		"POST /logout":                    a.logout,
-		"GET /system/bootstrap":           a.getBootstrap,
+		"POST /authenticate": a.authenticate,
+		"POST /logout":       a.logout,
+
+		"GET /system/bootstrap": a.getBootstrap,
+		"GET /system/disks":     a.getInstallDisks,
+		"POST /system/install":  a.installToDisk,
+
 		"GET /system/network/list":        a.getNetwork,
 		"PUT /system/network/set-pending": a.setPendingNetwork,
 		"POST /system/network/connect":    a.connectNetwork,

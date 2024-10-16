@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -18,12 +19,14 @@ type InitialSystemBootstrapRequestBody struct {
 }
 
 type BootstrapFacts struct {
-	HasGeneratedKey                  bool `json:"hasGeneratedKey"`
-	HasConfiguredNetwork             bool `json:"hasConfiguredNetwork"`
-	HasCompletedInitialConfiguration bool `json:"hasCompletedInitialConfiguration"`
+	InstallationMode                 dogeboxd.BootstrapInstallationMode `json:"installationMode"`
+	HasGeneratedKey                  bool                               `json:"hasGeneratedKey"`
+	HasConfiguredNetwork             bool                               `json:"hasConfiguredNetwork"`
+	HasCompletedInitialConfiguration bool                               `json:"hasCompletedInitialConfiguration"`
 }
 
 type BootstrapResponse struct {
+	DevMode    bool                         `json:"devMode"`
 	Assets     map[string]dogeboxd.PupAsset `json:"assets"`
 	States     map[string]dogeboxd.PupState `json:"states"`
 	Stats      map[string]dogeboxd.PupStats `json:"stats"`
@@ -33,11 +36,19 @@ type BootstrapResponse struct {
 func (t api) getRawBS() BootstrapResponse {
 	dbxState := t.sm.Get().Dogebox
 
+	installationMode, err := system.GetInstallationMode(dbxState)
+	if err != nil {
+		log.Printf("Could not determine installation mode: %v", err)
+		installationMode = dogeboxd.BootstrapInstallationModeCannotInstall
+	}
+
 	return BootstrapResponse{
-		Assets: t.pups.GetAssetsMap(),
-		States: t.pups.GetStateMap(),
-		Stats:  t.pups.GetStatsMap(),
+		DevMode: t.config.DevMode,
+		Assets:  t.pups.GetAssetsMap(),
+		States:  t.pups.GetStateMap(),
+		Stats:   t.pups.GetStatsMap(),
 		SetupFacts: BootstrapFacts{
+			InstallationMode:                 installationMode,
 			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
 			HasConfiguredNetwork:             dbxState.InitialState.HasSetNetwork,
 			HasCompletedInitialConfiguration: dbxState.InitialState.HasFullyConfigured,
