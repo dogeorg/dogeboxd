@@ -68,6 +68,64 @@ func (t api) hostShutdown(w http.ResponseWriter, r *http.Request) {
 	t.lifecycle.Shutdown()
 }
 
+type SetStorageDeviceRequestBody struct {
+	StorageDevice string `json:"storageDevice"`
+}
+
+func (t api) setStorageDevice(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	if dbxState.InitialState.HasFullyConfigured {
+		sendErrorResponse(w, http.StatusForbidden, "Cannot set storage device once initial setup has completed")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody SetStorageDeviceRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	disks, err := system.GetSystemDisks()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error getting system disks")
+		return
+	}
+
+	diskOK := false
+
+	// Ensure that the provided storage device can actually be used.
+	for _, disk := range disks {
+		if disk.Name == requestBody.StorageDevice && disk.SuitableDataDrive {
+			diskOK = true
+			break
+		}
+	}
+
+	if !diskOK {
+		sendErrorResponse(w, http.StatusBadRequest, "Invalid storage device")
+		return
+	}
+
+	dbxState = t.sm.Get().Dogebox
+	dbxState.StorageDevice = requestBody.StorageDevice
+	t.sm.SetDogebox(dbxState)
+
+	if err := t.sm.Save(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
+
+	sendResponse(w, map[string]any{"status": "OK"})
+}
+
 func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	// Check a few things first.
 	if !t.config.Recovery {
@@ -118,6 +176,11 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		log.Errf("Error connecting to network: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
 		return
+	}
+
+	if dbxState.StorageDevice != "" {
+		system.InitStorageDevice(dbxState)
+		t.nix.UpdateStorageOverlay(nixPatch, dbxState)
 	}
 
 	t.nix.InitSystem(nixPatch, dbxState)

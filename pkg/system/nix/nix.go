@@ -277,6 +277,19 @@ func (nm nixManager) UpdateNetwork(nixPatch dogeboxd.NixPatch, values dogeboxd.N
 	nixPatch.UpdateNetwork(values)
 }
 
+func (nm nixManager) UpdateStorageOverlay(nixPatch dogeboxd.NixPatch, dbxState dogeboxd.DogeboxState) {
+	// We don't currently support changing/removing the storage device.
+	if dbxState.StorageDevice == "" {
+		return
+	}
+
+	values := dogeboxd.NixStorageOverlayTemplateValues{
+		STORAGE_DEVICE: dbxState.StorageDevice,
+	}
+
+	nixPatch.UpdateStorageOverlay(values)
+}
+
 func (nm nixManager) RebuildBoot(log dogeboxd.SubLogger) error {
 	md := exec.Command("sudo", "_dbxroot", "nix", "rb")
 	log.LogCmd(md)

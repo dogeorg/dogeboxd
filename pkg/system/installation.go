@@ -100,6 +100,25 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	return disks, nil
 }
 
+func InitStorageDevice(dbxState dogeboxd.DogeboxState) error {
+	if dbxState.StorageDevice == "" || dbxState.InitialState.HasFullyConfigured {
+		return nil
+	}
+
+	cmd := exec.Command("sudo", "_dbxroot", "prepare-storage-device", "--disk", dbxState.StorageDevice, "--dbx-secret", DBXRootSecret)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Execute the command
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to execute _dbxroot install-to-disk: %w", err)
+	}
+
+	return nil
+}
+
 func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {
 	if config.DevMode {
 		log.Printf("Dev mode enabled, skipping installation. You probably do not want to do this. re-run without dev mode if you do.")
