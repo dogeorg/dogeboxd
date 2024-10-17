@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
+	"strings"
 
+	"github.com/dogeorg/dogeboxd/cmd/_dbxroot/utils"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/spf13/cobra"
 )
@@ -21,6 +22,7 @@ Example:
 	Run: func(cmd *cobra.Command, args []string) {
 		disk, _ := cmd.Flags().GetString("disk")
 		dbxSecret, _ := cmd.Flags().GetString("dbx-secret")
+		print, _ := cmd.Flags().GetBool("print")
 
 		if dbxSecret != system.DBXRootSecret {
 			log.Printf("Invalid dbx secret")
@@ -34,19 +36,42 @@ Example:
 			}
 		}()
 
-		runParted(disk, "mklabel", "gpt")
-		runParted(disk, "mkpart", "root", "ext4", "100%")
+		utils.RunParted(disk, "mklabel", "gpt")
+		utils.RunParted(disk, "mkpart", "root", "ext4", "0%", "100%")
 
+		hasPartitionPrefix := strings.HasPrefix(disk, "/dev/nvme") || strings.HasPrefix(disk, "/dev/mmcblk")
 		partitionPrefix := ""
 
-		if isNVME {
+		if strings.HasPrefix(disk, "/dev/loop") {
+			// Loop device. This is probably only used for development, but I guess support it anyway?
+			// We need to unmount, then remount it with partition scanning so it shows up again.
+			backingFile, err := utils.GetLoopDeviceBackingFile(disk)
+			if err != nil {
+				log.Printf("Error getting loop device backing file: %v", err)
+				os.Exit(1)
+			}
+
+			// Unmount it.
+			utils.RunCommand("sudo", "losetup", "-d", disk)
+
+			// Remount it with partition scanning.
+			utils.RunCommand("sudo", "losetup", "-P", disk, backingFile)
+
+			hasPartitionPrefix = true
+		}
+
+		if hasPartitionPrefix {
 			partitionPrefix = "p"
 		}
 
 		partition := fmt.Sprintf("%s%s1", disk, partitionPrefix)
-		runCommand("mkfs.ext4", "-L", "dogebox-storage", partition)
+		utils.RunCommand("mkfs.ext4", "-L", "dogebox-storage", partition)
 
 		log.Println("Finished preparing storage device.")
+
+		if print {
+			log.Printf(partition)
+		}
 	},
 }
 
@@ -58,23 +83,6 @@ func init() {
 
 	prepareStorageDeviceCmd.Flags().StringP("dbx-secret", "s", "", "?")
 	prepareStorageDeviceCmd.MarkFlagRequired("dbx-secret")
-}
 
-func runParted(device string, args ...string) error {
-	args = append([]string{"parted", "-s", device, "--"}, args...)
-	return runCommand(args...)
-}
-
-func runCommand(args ...string) error {
-	log.Printf("----------------------------------------")
-	log.Printf("Running command: %+v", args)
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Printf("Error running command: %v", err)
-		panic(err)
-	}
-	log.Printf("----------------------------------------")
-	return nil
+	prepareStorageDeviceCmd.Flags().BoolP("print", "p", false, "Prints the resulting partition location")
 }

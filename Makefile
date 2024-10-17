@@ -29,3 +29,9 @@ recovery:
 
 test:
 	go test -v ./test
+
+create-loop-device:
+	truncate -s 512000000000 /tmp/empty.img && sudo losetup /dev/loop0 /tmp/empty.img
+
+delete-loop-device:
+	sudo losetup -d /dev/loop0 && rm /tmp/empty.img

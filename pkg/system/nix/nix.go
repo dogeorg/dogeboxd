@@ -2,8 +2,10 @@ package nix
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
@@ -46,6 +48,7 @@ func (nm nixManager) UpdateIncludesFile(patch dogeboxd.NixPatch, pups dogeboxd.P
 
 	values := dogeboxd.NixIncludesFileTemplateValues{
 		PUP_IDS: pupIDs,
+		NIX_DIR: nm.config.NixDir,
 	}
 
 	patch.UpdateIncludesFile(values)
@@ -277,14 +280,14 @@ func (nm nixManager) UpdateNetwork(nixPatch dogeboxd.NixPatch, values dogeboxd.N
 	nixPatch.UpdateNetwork(values)
 }
 
-func (nm nixManager) UpdateStorageOverlay(nixPatch dogeboxd.NixPatch, dbxState dogeboxd.DogeboxState) {
-	// We don't currently support changing/removing the storage device.
-	if dbxState.StorageDevice == "" {
-		return
-	}
+func (nm nixManager) UpdateStorageOverlay(nixPatch dogeboxd.NixPatch, partitionName string) {
+	currentUID := os.Getuid()
+	uidStr := strconv.Itoa(currentUID)
 
 	values := dogeboxd.NixStorageOverlayTemplateValues{
-		STORAGE_DEVICE: dbxState.StorageDevice,
+		STORAGE_DEVICE: partitionName,
+		DATA_DIR:       nm.config.DataDir,
+		DBX_UID:        uidStr,
 	}
 
 	nixPatch.UpdateStorageOverlay(values)

@@ -5,10 +5,12 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 )
 
 type InitialSystemBootstrapRequestBody struct {
@@ -178,15 +180,48 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create a temporary directory that is used as the target location to copy our
+	// data to if we have a separate storage device that we will use as an overlay for /opt.
+	tempDir, err := os.MkdirTemp("", "dbx-data")
+	if err != nil {
+		log.Errf("Error creating temporary directory: %v", err)
+		sendErrorResponse(w, http.StatusInternalServerError, "Error creating temporary directory")
+		return
+	}
+	defer os.RemoveAll(tempDir)
+
 	if dbxState.StorageDevice != "" {
-		system.InitStorageDevice(dbxState)
-		t.nix.UpdateStorageOverlay(nixPatch, dbxState)
+		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
+
+		partitionName, err := system.InitStorageDevice(dbxState)
+		if err != nil {
+			log.Errf("Error initialising storage device: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")
+			return
+		}
+
+		t.nix.UpdateStorageOverlay(nixPatch, partitionName)
+
+		// Copy all our existing data to our temp dir so we don't lose everything created already.
+		if err := utils.CopyFiles(t.config.DataDir, tempDir); err != nil {
+			log.Errf("Error copying data to temp dir: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data to temp dir")
+			return
+		}
 	}
 
 	t.nix.InitSystem(nixPatch, dbxState)
 
+	rebuildBoot := true
+
+	if t.config.DevMode {
+		// Mostly safe to rebuild-switch if we're in dev mode.
+		// This will make sure that our device is mounted right now.
+		rebuildBoot = false
+	}
+
 	if err := nixPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
-		RebuildBoot: true,
+		RebuildBoot: rebuildBoot,
 	}); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
@@ -195,6 +230,16 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
 		if err := system.SaveReflectorTokenForReboot(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken); err != nil {
 			log.Errf("Error saving reflector data: %v", err)
+		}
+	}
+
+	// At this point, if we have a specified storage device, it should already be mounted over /opt.
+	// So we copy our data back from the temp dir to /opt.
+	if dbxState.StorageDevice != "" {
+		if err := utils.CopyFiles(tempDir, t.config.DataDir); err != nil {
+			log.Errf("Error copying data back to /opt: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data back to /opt")
+			return
 		}
 	}
 

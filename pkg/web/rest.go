@@ -64,6 +64,7 @@ func RESTAPI(
 
 		"GET /system/bootstrap": a.getBootstrap,
 		"GET /system/disks":     a.getInstallDisks,
+		"POST /system/storage":  a.setStorageDevice,
 		"POST /system/install":  a.installToDisk,
 
 		"GET /system/network/list":        a.getNetwork,

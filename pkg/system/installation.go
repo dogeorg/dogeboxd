@@ -1,10 +1,13 @@
 package system
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/dell/csi-baremetal/pkg/base/linuxutils/lsblk"
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -100,23 +103,40 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	return disks, nil
 }
 
-func InitStorageDevice(dbxState dogeboxd.DogeboxState) error {
+func InitStorageDevice(dbxState dogeboxd.DogeboxState) (string, error) {
 	if dbxState.StorageDevice == "" || dbxState.InitialState.HasFullyConfigured {
-		return nil
+		return "", nil
 	}
 
-	cmd := exec.Command("sudo", "_dbxroot", "prepare-storage-device", "--disk", dbxState.StorageDevice, "--dbx-secret", DBXRootSecret)
+	cmd := exec.Command("sudo", "_dbxroot", "prepare-storage-device", "--print", "--disk", dbxState.StorageDevice, "--dbx-secret", DBXRootSecret)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var out bytes.Buffer
+	cmd.Stdout = io.MultiWriter(&out, os.Stdout)
+	cmd.Stderr = io.MultiWriter(&out, os.Stderr)
 
 	// Execute the command
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to execute _dbxroot install-to-disk: %w", err)
+		return "", fmt.Errorf("failed to execute _dbxroot prepare-storage-device: %w", err)
 	}
 
-	return nil
+	output := out.String()
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	partitionName := ""
+	if len(lines) > 0 {
+		lastLine := lines[len(lines)-1]
+		parts := strings.Split(lastLine, " ")
+		if len(parts) > 0 {
+			partitionName = parts[len(parts)-1]
+		}
+	}
+
+	if partitionName == "" {
+		return "", fmt.Errorf("failed to get partition name")
+	}
+
+	return partitionName, nil
 }
 
 func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {

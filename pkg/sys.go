@@ -285,6 +285,7 @@ type NixSystemTemplateValues struct {
 }
 
 type NixIncludesFileTemplateValues struct {
+	NIX_DIR string
 	PUP_IDS []string
 }
 
@@ -298,6 +299,8 @@ type NixNetworkTemplateValues struct {
 
 type NixStorageOverlayTemplateValues struct {
 	STORAGE_DEVICE string
+	DATA_DIR       string
+	DBX_UID        string
 }
 
 type NixPatchApplyOptions struct {
@@ -331,7 +334,7 @@ type NixManager interface {
 	UpdateFirewallRules(patch NixPatch, dbxState DogeboxState)
 	UpdateNetwork(patch NixPatch, values NixNetworkTemplateValues)
 	UpdateSystem(patch NixPatch, values NixSystemTemplateValues)
-	UpdateStorageOverlay(patch NixPatch, dbxState DogeboxState)
+	UpdateStorageOverlay(patch NixPatch, partitionName string)
 
 	RebuildBoot(log SubLogger) error
 	Rebuild(log SubLogger) error
