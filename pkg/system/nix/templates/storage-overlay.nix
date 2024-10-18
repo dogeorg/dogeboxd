@@ -7,9 +7,13 @@
     description = "Mounts the selected storage device as an overlay at {{.DATA_DIR}}";
     wantedBy = [ "local-fs.target" ];
     script = ''
-      ${pkgs.mount}/bin/mount {{ .STORAGE_DEVICE }} {{ .DATA_DIR }}
-      ${pkgs.coreutils}/bin/chown {{.DBX_UID}}:{{.DBX_UID}} {{.DATA_DIR}}
-      ${pkgs.coreutils}/bin/chmod u+rwX,g+rwX,o-rwx {{ .DATA_DIR }}
+      if ! ${pkgs.mount}/bin/mountpoint -q {{ .DATA_DIR }}; then
+        ${pkgs.mount}/bin/mount {{ .STORAGE_DEVICE }} {{ .DATA_DIR }}
+        ${pkgs.coreutils}/bin/chown {{.DBX_UID}}:{{.DBX_UID}} {{.DATA_DIR}}
+        ${pkgs.coreutils}/bin/chmod u+rwX,g+rwX,o-rwx {{ .DATA_DIR }}
+      else
+        echo "{{ .DATA_DIR }} is already mounted, skipping mount operation"
+      fi
     '';
   };
 }

@@ -14,7 +14,6 @@ import (
 )
 
 type InitialSystemBootstrapRequestBody struct {
-	Hostname       string `json:"hostname"`
 	ReflectorToken string `json:"reflectorToken"`
 	ReflectorHost  string `json:"reflectorHost"`
 	InitialSSHKey  string `json:"initialSSHKey"`
@@ -70,6 +69,44 @@ func (t api) hostShutdown(w http.ResponseWriter, r *http.Request) {
 	t.lifecycle.Shutdown()
 }
 
+func (t api) getKeymaps(w http.ResponseWriter, r *http.Request) {
+	sendResponse(w, []string{})
+}
+
+type SetHostnameRequestBody struct {
+	Hostname string `json:"hostname"`
+}
+
+func (t api) setHostname(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody SetHostnameRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	dbxState = t.sm.Get().Dogebox
+	dbxState.Hostname = requestBody.Hostname
+	t.sm.SetDogebox(dbxState)
+
+	// TODO: If we've already configured our box, rebuild here?
+
+	if err := t.sm.Save(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
+
+	sendResponse(w, map[string]any{"status": "OK"})
+}
+
 type SetStorageDeviceRequestBody struct {
 	StorageDevice string `json:"storageDevice"`
 }
@@ -101,17 +138,23 @@ func (t api) setStorageDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	diskOK := false
+	var foundDisk *dogeboxd.SystemDisk
 
 	// Ensure that the provided storage device can actually be used.
 	for _, disk := range disks {
-		if disk.Name == requestBody.StorageDevice && disk.SuitableDataDrive {
-			diskOK = true
+		if disk.Name == requestBody.StorageDevice {
+			foundDisk = &disk
 			break
 		}
 	}
 
-	if !diskOK {
+	// If the disk selected is actually our boot drive, allow it, and don't set StorageDevice.
+	if foundDisk != nil && foundDisk.BootMedia {
+		sendResponse(w, map[string]any{"status": "OK"})
+		return
+	}
+
+	if foundDisk == nil {
 		sendErrorResponse(w, http.StatusBadRequest, "Invalid storage device")
 		return
 	}
@@ -162,14 +205,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: turn off AP
 
-	dbxState.Hostname = requestBody.Hostname
-	t.sm.SetDogebox(dbxState)
-
-	if err := t.sm.Save(); err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
-		return
-	}
-
 	nixPatch := t.nix.NewPatch(log)
 
 	// This will try and connect to the pending network, and if
@@ -178,36 +213,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		log.Errf("Error connecting to network: %v", err)
 		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
 		return
-	}
-
-	// Create a temporary directory that is used as the target location to copy our
-	// data to if we have a separate storage device that we will use as an overlay for /opt.
-	tempDir, err := os.MkdirTemp("", "dbx-data")
-	if err != nil {
-		log.Errf("Error creating temporary directory: %v", err)
-		sendErrorResponse(w, http.StatusInternalServerError, "Error creating temporary directory")
-		return
-	}
-	defer os.RemoveAll(tempDir)
-
-	if dbxState.StorageDevice != "" {
-		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
-
-		partitionName, err := system.InitStorageDevice(dbxState)
-		if err != nil {
-			log.Errf("Error initialising storage device: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")
-			return
-		}
-
-		t.nix.UpdateStorageOverlay(nixPatch, partitionName)
-
-		// Copy all our existing data to our temp dir so we don't lose everything created already.
-		if err := utils.CopyFiles(t.config.DataDir, tempDir); err != nil {
-			log.Errf("Error copying data to temp dir: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data to temp dir")
-			return
-		}
 	}
 
 	t.nix.InitSystem(nixPatch, dbxState)
@@ -227,19 +232,72 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
-		if err := system.SaveReflectorTokenForReboot(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken); err != nil {
-			log.Errf("Error saving reflector data: %v", err)
+	// This storage overlay stuff needs to happen _after_ we've init'd our system, as
+	// otherwise we end up in a position where we can't access the $datadir/nix/* files
+	// to copy back into our new overlay.. because the overlay is mounted as part of the
+	// system init. So we init, copy files, apply overlay, copy files back.
+	if dbxState.StorageDevice != "" {
+		tempDir, err := os.MkdirTemp("", "dbx-data-overlay")
+		if err != nil {
+			log.Errf("Error creating temporary directory: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error creating temporary directory")
+			return
+		}
+		log.Logf("Created temporary directory: %s", tempDir)
+		// defer os.RemoveAll(tempDir)
+
+		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
+
+		partitionName, err := system.InitStorageDevice(dbxState)
+		if err != nil {
+			log.Errf("Error initialising storage device: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")
+			return
+		}
+
+		// Copy all our existing data to our temp dir so we don't lose everything created already.
+		if err := utils.CopyFiles(t.config.DataDir, tempDir); err != nil {
+			log.Errf("Error copying data to temp dir: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data to temp dir")
+			return
+		}
+
+		// Apply our new overlay update.
+		overlayPatch := t.nix.NewPatch(log)
+		t.nix.UpdateStorageOverlay(overlayPatch, partitionName)
+
+		if err := overlayPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
+			RebuildBoot: rebuildBoot,
+		}); err != nil {
+			log.Errf("Error applying overlay patch: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error applying overlay patch")
+			return
+		}
+
+		// Copy our data back from the temp dir to the new location.
+		if err := utils.CopyFiles(tempDir, t.config.DataDir); err != nil {
+			log.Errf("Error copying data back to %s: %v", t.config.DataDir, err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data back to data dir")
+			return
+		}
+
+		// This sucks, but because we wrote our storage-overlay file during the last rebuild,
+		// we don't actually have that in the tempDir we backed up. So we have to re-save this
+		// file into the overlay we now have mounted, but we don't actually have to rebuild.
+		reoverlayPatch := t.nix.NewPatch(log)
+		t.nix.UpdateStorageOverlay(reoverlayPatch, partitionName)
+		if err := reoverlayPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
+			DangerousNoRebuild: true,
+		}); err != nil {
+			log.Errf("Error re-applying overlay patch: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error re-applying overlay patch")
+			return
 		}
 	}
 
-	// At this point, if we have a specified storage device, it should already be mounted over /opt.
-	// So we copy our data back from the temp dir to /opt.
-	if dbxState.StorageDevice != "" {
-		if err := utils.CopyFiles(tempDir, t.config.DataDir); err != nil {
-			log.Errf("Error copying data back to /opt: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data back to /opt")
-			return
+	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
+		if err := system.SaveReflectorTokenForReboot(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken); err != nil {
+			log.Errf("Error saving reflector data: %v", err)
 		}
 	}
 

@@ -304,7 +304,8 @@ type NixStorageOverlayTemplateValues struct {
 }
 
 type NixPatchApplyOptions struct {
-	RebuildBoot bool
+	RebuildBoot        bool
+	DangerousNoRebuild bool
 }
 
 type NixPatch interface {

@@ -124,21 +124,25 @@ func (np *nixPatch) ApplyCustom(options dogeboxd.NixPatchApplyOptions) error {
 		}
 	}
 
-	np.log.Logf("[patch-%s] Applied all patch operations, rebuilding..", np.id)
+	if !options.DangerousNoRebuild {
+		np.log.Logf("[patch-%s] Applied all patch operations, rebuilding..", np.id)
 
-	var rebuildFn func(dogeboxd.SubLogger) error
+		var rebuildFn func(dogeboxd.SubLogger) error
 
-	if options.RebuildBoot {
-		rebuildFn = np.nm.RebuildBoot
+		if options.RebuildBoot {
+			rebuildFn = np.nm.RebuildBoot
+		} else {
+			rebuildFn = np.nm.Rebuild
+		}
+
+		if err := rebuildFn(np.log); err != nil {
+			// We failed.
+			// Roll back our changes.
+			np.log.Errf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
+			return np.triggerRollback(err)
+		}
 	} else {
-		rebuildFn = np.nm.Rebuild
-	}
-
-	if err := rebuildFn(np.log); err != nil {
-		// We failed.
-		// Roll back our changes.
-		np.log.Errf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
-		return np.triggerRollback(err)
+		np.log.Logf("[patch-%s] Applied all patch operations, but not rebuilding as requested.", np.id)
 	}
 
 	if err := os.RemoveAll(np.snapshotDir); err != nil {

@@ -31,7 +31,13 @@ test:
 	go test -v ./test
 
 create-loop-device:
-	truncate -s 512000000000 /tmp/empty.img && sudo losetup /dev/loop0 /tmp/empty.img
+	sudo truncate -s 512000000000 /loop0.img && sudo losetup /dev/loop0 /loop0.img
+
+create-loop-device-2:
+	sudo truncate -s 512000000000 /loop1.img && sudo losetup /dev/loop1 /loop1.img
 
 delete-loop-device:
-	sudo losetup -d /dev/loop0 && rm /tmp/empty.img
+	sudo losetup -d /dev/loop0 && sudo rm /loop0.img
+
+delete-loop-device-2:
+	sudo losetup -d /dev/loop1 && sudo rm /loop1.img

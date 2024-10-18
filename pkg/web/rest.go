@@ -63,7 +63,9 @@ func RESTAPI(
 		"POST /logout":       a.logout,
 
 		"GET /system/bootstrap": a.getBootstrap,
+		"GET /system/keymaps":   a.getKeymaps,
 		"GET /system/disks":     a.getInstallDisks,
+		"POST /system/hostname": a.setHostname,
 		"POST /system/storage":  a.setStorageDevice,
 		"POST /system/install":  a.installToDisk,
 
