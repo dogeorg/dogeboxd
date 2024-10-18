@@ -31,6 +31,7 @@ func (nm nixManager) InitSystem(patch dogeboxd.NixPatch, dbxState dogeboxd.Dogeb
 		SSH_ENABLED:     dbxState.SSH.Enabled,
 		SSH_KEYS:        dbxState.SSH.Keys,
 		SYSTEM_HOSTNAME: dbxState.Hostname,
+		KEYMAP:          dbxState.KeyMap,
 	})
 
 	nm.UpdateFirewallRules(patch, dbxState)
@@ -128,6 +129,10 @@ func (nm nixManager) RemovePupFile(nixPatch dogeboxd.NixPatch, pupId string) {
 }
 
 func (nm nixManager) UpdateSystem(nixPatch dogeboxd.NixPatch, values dogeboxd.NixSystemTemplateValues) {
+	if values.KEYMAP == "" {
+		values.KEYMAP = "us"
+	}
+
 	nixPatch.UpdateSystem(values)
 }
 

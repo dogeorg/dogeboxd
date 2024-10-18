@@ -11,6 +11,7 @@ pkgs.mkShell {
     pkgs.nixos-install-tools
     pkgs.nix
     pkgs.git
+    pkgs.libxkbcommon
   ];
 
   shellHook = ''

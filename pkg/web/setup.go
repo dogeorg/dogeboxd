@@ -70,7 +70,22 @@ func (t api) hostShutdown(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) getKeymaps(w http.ResponseWriter, r *http.Request) {
-	sendResponse(w, []string{})
+	keymaps, err := system.GetKeymaps()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error getting keymaps")
+		return
+	}
+
+	// Convert keymaps to the desired format
+	formattedKeymaps := make([]map[string]string, len(keymaps))
+	for i, keymap := range keymaps {
+		formattedKeymaps[i] = map[string]string{
+			"id":    keymap.Name,
+			"label": keymap.Value,
+		}
+	}
+
+	sendResponse(w, formattedKeymaps)
 }
 
 type SetHostnameRequestBody struct {
@@ -95,6 +110,61 @@ func (t api) setHostname(w http.ResponseWriter, r *http.Request) {
 
 	dbxState = t.sm.Get().Dogebox
 	dbxState.Hostname = requestBody.Hostname
+	t.sm.SetDogebox(dbxState)
+
+	// TODO: If we've already configured our box, rebuild here?
+
+	if err := t.sm.Save(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
+
+	sendResponse(w, map[string]any{"status": "OK"})
+}
+
+type SetKeyMapRequestBody struct {
+	KeyMap string `json:"keyMap"`
+}
+
+func (t api) setKeyMap(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody SetKeyMapRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch available keymaps
+	keymaps, err := system.GetKeymaps()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching keymaps")
+		return
+	}
+
+	// Check if the submitted keymap is valid
+	isValidKeymap := false
+	for _, keymap := range keymaps {
+		if keymap.Name == requestBody.KeyMap {
+			isValidKeymap = true
+			break
+		}
+	}
+
+	if !isValidKeymap {
+		sendErrorResponse(w, http.StatusBadRequest, "Invalid keymap")
+		return
+	}
+
+	dbxState = t.sm.Get().Dogebox
+	dbxState.KeyMap = requestBody.KeyMap
 	t.sm.SetDogebox(dbxState)
 
 	// TODO: If we've already configured our box, rebuild here?

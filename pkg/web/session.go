@@ -151,6 +151,7 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 		route == "POST /system/bootstrap" ||
 		route == "GET /system/disks" ||
 		route == "GET /system/keymaps" ||
+		route == "POST /system/keymap" ||
 		route == "POST /system/hostname" ||
 		route == "POST /system/storage" ||
 		route == "POST /system/install" ||
