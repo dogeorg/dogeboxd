@@ -2,8 +2,10 @@ package nix
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
@@ -29,6 +31,7 @@ func (nm nixManager) InitSystem(patch dogeboxd.NixPatch, dbxState dogeboxd.Dogeb
 		SSH_ENABLED:     dbxState.SSH.Enabled,
 		SSH_KEYS:        dbxState.SSH.Keys,
 		SYSTEM_HOSTNAME: dbxState.Hostname,
+		KEYMAP:          dbxState.KeyMap,
 	})
 
 	nm.UpdateFirewallRules(patch, dbxState)
@@ -46,6 +49,7 @@ func (nm nixManager) UpdateIncludesFile(patch dogeboxd.NixPatch, pups dogeboxd.P
 
 	values := dogeboxd.NixIncludesFileTemplateValues{
 		PUP_IDS: pupIDs,
+		NIX_DIR: nm.config.NixDir,
 	}
 
 	patch.UpdateIncludesFile(values)
@@ -125,6 +129,10 @@ func (nm nixManager) RemovePupFile(nixPatch dogeboxd.NixPatch, pupId string) {
 }
 
 func (nm nixManager) UpdateSystem(nixPatch dogeboxd.NixPatch, values dogeboxd.NixSystemTemplateValues) {
+	if values.KEYMAP == "" {
+		values.KEYMAP = "us"
+	}
+
 	nixPatch.UpdateSystem(values)
 }
 
@@ -275,6 +283,19 @@ func (nm nixManager) UpdateFirewallRules(nixPatch dogeboxd.NixPatch, dbxState do
 func (nm nixManager) UpdateNetwork(nixPatch dogeboxd.NixPatch, values dogeboxd.NixNetworkTemplateValues) {
 	// TODO: Move this out of here once network/nix.go is gone.
 	nixPatch.UpdateNetwork(values)
+}
+
+func (nm nixManager) UpdateStorageOverlay(nixPatch dogeboxd.NixPatch, partitionName string) {
+	currentUID := os.Getuid()
+	uidStr := strconv.Itoa(currentUID)
+
+	values := dogeboxd.NixStorageOverlayTemplateValues{
+		STORAGE_DEVICE: partitionName,
+		DATA_DIR:       nm.config.DataDir,
+		DBX_UID:        uidStr,
+	}
+
+	nixPatch.UpdateStorageOverlay(values)
 }
 
 func (nm nixManager) RebuildBoot(log dogeboxd.SubLogger) error {

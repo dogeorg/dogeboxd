@@ -65,9 +65,11 @@ type DogeboxStateSSHConfig struct {
 }
 
 type DogeboxState struct {
-	InitialState DogeboxStateInitialSetup
-	Hostname     string
-	SSH          DogeboxStateSSHConfig
+	InitialState  DogeboxStateInitialSetup
+	Hostname      string
+	KeyMap        string
+	SSH           DogeboxStateSSHConfig
+	StorageDevice string
 }
 
 type NetworkState struct {
@@ -279,11 +281,13 @@ type NixFirewallTemplateValues struct {
 
 type NixSystemTemplateValues struct {
 	SYSTEM_HOSTNAME string
+	KEYMAP          string
 	SSH_ENABLED     bool
 	SSH_KEYS        []DogeboxStateSSHKey
 }
 
 type NixIncludesFileTemplateValues struct {
+	NIX_DIR string
 	PUP_IDS []string
 }
 
@@ -295,8 +299,15 @@ type NixNetworkTemplateValues struct {
 	WIFI_PASSWORD string
 }
 
+type NixStorageOverlayTemplateValues struct {
+	STORAGE_DEVICE string
+	DATA_DIR       string
+	DBX_UID        string
+}
+
 type NixPatchApplyOptions struct {
-	RebuildBoot bool
+	RebuildBoot        bool
+	DangerousNoRebuild bool
 }
 
 type NixPatch interface {
@@ -313,6 +324,7 @@ type NixPatch interface {
 	UpdateIncludesFile(values NixIncludesFileTemplateValues)
 	WritePupFile(pupId string, values NixPupContainerTemplateValues)
 	RemovePupFile(pupId string)
+	UpdateStorageOverlay(values NixStorageOverlayTemplateValues)
 }
 
 type NixManager interface {
@@ -325,6 +337,7 @@ type NixManager interface {
 	UpdateFirewallRules(patch NixPatch, dbxState DogeboxState)
 	UpdateNetwork(patch NixPatch, values NixNetworkTemplateValues)
 	UpdateSystem(patch NixPatch, values NixSystemTemplateValues)
+	UpdateStorageOverlay(patch NixPatch, partitionName string)
 
 	RebuildBoot(log SubLogger) error
 	Rebuild(log SubLogger) error

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/dogeorg/dogeboxd/cmd/_dbxroot/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,7 @@ Example:
   pup stop --pupId mypup123`,
 	Run: func(cmd *cobra.Command, args []string) {
 		pupId, _ := cmd.Flags().GetString("pupId")
-		if !IsAlphanumeric(pupId) {
+		if !utils.IsAlphanumeric(pupId) {
 			fmt.Println("Error: pupId must contain only alphanumeric characters")
 			return
 		}

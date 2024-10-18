@@ -4,6 +4,8 @@
   networking.hostName = lib.mkForce "{{ .SYSTEM_HOSTNAME }}";
   networking.networkmanager.enable = false;
 
+  console.keyMap = "{{ .KEYMAP }}";
+
   services.openssh.settings = {
     AllowUsers = [ "shibe" ];
   };
