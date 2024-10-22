@@ -86,13 +86,13 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 		// This block package only seems to return a single mount point.
 		// So we need to check if we're mounted at either / or /nix/store
 		// to "reliably" determine if this is our boot media.
-		if device.MountPoint == "/" || device.MountPoint == "/nix/store" {
+		if device.MountPoint == "/" || device.MountPoint == "/nix/store" || device.MountPoint == "/nix/.ro-store" {
 			disk.BootMedia = true
 		}
 
 		// Check if any of our children are mounted as boot.
 		for _, child := range device.Children {
-			if child.MountPoint == "/" || child.MountPoint == "/nix/store" {
+			if child.MountPoint == "/" || child.MountPoint == "/nix/store" || device.MountPoint == "/nix/.ro-store" {
 				disk.BootMedia = true
 			}
 		}
