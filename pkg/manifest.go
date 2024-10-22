@@ -166,6 +166,7 @@ type PupManifestDependency struct {
 	InterfaceVersion string                      `json:"interfaceVersion"` // semver expression
 	PermissionGroups []string                    `json:"permissionGroups"` // list of permission groups from that interface we want
 	DefaultSource    PupManifestDependencySource `json:"source"`           // optional, default package that provides this interface
+	Optional         bool                        `json:"optional"`
 }
 
 /* A DependencySource specifies the location of a

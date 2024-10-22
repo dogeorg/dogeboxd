@@ -24,6 +24,7 @@ func (t PupManager) calculateDeps(pupState *dogeboxd.PupState) []dogeboxd.PupDep
 		report := dogeboxd.PupDependencyReport{
 			Interface: dep.InterfaceName,
 			Version:   dep.InterfaceVersion,
+			Optional:  dep.Optional,
 		}
 
 		constraint, err := semver.NewConstraint(dep.InterfaceVersion)

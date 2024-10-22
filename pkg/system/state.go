@@ -1,32 +1,27 @@
 package system
 
 import (
-	"bytes"
 	"encoding/gob"
 	"log"
 	"os"
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
-	source "github.com/dogeorg/dogeboxd/pkg/sources"
 )
 
 var _ dogeboxd.StateManager = &StateManager{}
 
-func NewStateManager(dataDir string) dogeboxd.StateManager {
-	gob.Register(dogeboxd.SelectedNetworkEthernet{})
-	gob.Register(dogeboxd.SelectedNetworkWifi{})
-	gob.Register(dogeboxd.DogeboxStateInitialSetup{})
-	gob.Register(source.ManifestSourceDisk{})
-	gob.Register(source.ManifestSourceGit{})
-	return &StateManager{dataDir: dataDir}
+func NewStateManager(store *dogeboxd.StoreManager) dogeboxd.StateManager {
+	return &StateManager{
+		storeManager: storeManager,
+	}
 }
 
 type StateManager struct {
-	dataDir string
-	network dogeboxd.NetworkState
-	dogebox dogeboxd.DogeboxState
-	source  dogeboxd.SourceState
+	storeManager *dogeboxd.StoreManager
+	network      dogeboxd.NetworkState
+	dogebox      dogeboxd.DogeboxState
+	source       dogeboxd.SourceState
 }
 
 func (m *StateManager) reset() {
@@ -44,44 +39,6 @@ func (m *StateManager) reset() {
 	m.source = dogeboxd.SourceState{
 		SourceConfigs: []dogeboxd.ManifestSourceConfiguration{},
 	}
-}
-
-func (m StateManager) GobEncode() ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := gob.NewEncoder(&buf)
-
-	if err := encoder.Encode(m.network); err != nil {
-		return nil, err
-	}
-
-	if err := encoder.Encode(m.dogebox); err != nil {
-		return nil, err
-	}
-
-	if err := encoder.Encode(m.source); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-func (m *StateManager) GobDecode(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(buf)
-
-	if err := decoder.Decode(&m.network); err != nil {
-		return err
-	}
-
-	if err := decoder.Decode(&m.dogebox); err != nil {
-		return err
-	}
-
-	if err := decoder.Decode(&m.source); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *StateManager) Get() dogeboxd.State {

@@ -67,7 +67,7 @@ loop:
 				}
 			}
 		}
-		if !depMet {
+		if !depMet && !d.Optional {
 			depsMet = false
 		}
 	}

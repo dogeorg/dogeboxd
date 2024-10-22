@@ -129,6 +129,7 @@ type PupIssues struct {
 type PupDependencyReport struct {
 	Interface             string                        `json:"interface"`
 	Version               string                        `json:"version"`
+	Optional              bool                          `json:"optional"`
 	CurrentProvider       string                        `json:"currentProvider"`
 	InstalledProviders    []string                      `json:"installedProviders"`
 	InstallableProviders  []PupManifestDependencySource `json:"InstallableProviders"`
