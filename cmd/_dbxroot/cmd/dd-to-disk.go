@@ -73,10 +73,7 @@ Example:
 		log.Printf("Using %s as source boot media", bootMediaDisk)
 		log.Printf("Installing to target disk: %s", targetDisk)
 
-		// Copy first 5gb of the disk. This _should_ contain all the bootloaders and enough of the rootfs.
-		megaBytesToCopy := 5000
-
-		utils.RunCommand("sudo", "dd", "if="+bootMediaDisk.Name, "of="+targetDisk, "bs=1M", "status=progress", "count="+fmt.Sprintf("%d", megaBytesToCopy))
+		utils.RunCommand("sudo", "dd", "if="+bootMediaDisk.Name, "of="+targetDisk, "bs=8M", "status=progress")
 
 		utils.RunCommand("sudo", "partprobe", targetDisk)
 
@@ -91,6 +88,7 @@ Example:
 
 		// Set an installed flag so we know not to try again.
 		utils.RunCommand("sudo", "touch", "/mnt/opt/dbx-installed")
+		utils.RunCommand("sudo", "chown", "dogeboxd:dogeboxd", "/mnt/opt/dbx-installed")
 
 		// Remove the ro-media flag so we don't force the user to re-install.
 		utils.RunCommand("sudo", "rm", "-rf", "/mnt/opt/ro-media")
