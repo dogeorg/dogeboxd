@@ -35,6 +35,9 @@ var rawIncludesFileTemplate []byte
 //go:embed templates/network.nix
 var rawNetworkTemplate []byte
 
+//go:embed templates/storage-overlay.nix
+var rawStorageOverlayTemplate []byte
+
 const (
 	NixPatchStatePending     string = "pending"
 	NixPatchStateCancelled   string = "cancelled"
@@ -121,21 +124,25 @@ func (np *nixPatch) ApplyCustom(options dogeboxd.NixPatchApplyOptions) error {
 		}
 	}
 
-	np.log.Logf("[patch-%s] Applied all patch operations, rebuilding..", np.id)
+	if !options.DangerousNoRebuild {
+		np.log.Logf("[patch-%s] Applied all patch operations, rebuilding..", np.id)
 
-	var rebuildFn func(dogeboxd.SubLogger) error
+		var rebuildFn func(dogeboxd.SubLogger) error
 
-	if options.RebuildBoot {
-		rebuildFn = np.nm.RebuildBoot
+		if options.RebuildBoot {
+			rebuildFn = np.nm.RebuildBoot
+		} else {
+			rebuildFn = np.nm.Rebuild
+		}
+
+		if err := rebuildFn(np.log); err != nil {
+			// We failed.
+			// Roll back our changes.
+			np.log.Errf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
+			return np.triggerRollback(err)
+		}
 	} else {
-		rebuildFn = np.nm.Rebuild
-	}
-
-	if err := rebuildFn(np.log); err != nil {
-		// We failed.
-		// Roll back our changes.
-		np.log.Errf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
-		return np.triggerRollback(err)
+		np.log.Logf("[patch-%s] Applied all patch operations, but not rebuilding as requested.", np.id)
 	}
 
 	if err := os.RemoveAll(np.snapshotDir); err != nil {
@@ -241,6 +248,12 @@ func (np *nixPatch) WritePupFile(pupId string, values dogeboxd.NixPupContainerTe
 	np.add("WritePupFile", func() error {
 		filename := fmt.Sprintf("pup_%s.nix", pupId)
 		return np.writeTemplate(filename, rawPupContainerTemplate, values)
+	})
+}
+
+func (np *nixPatch) UpdateStorageOverlay(values dogeboxd.NixStorageOverlayTemplateValues) {
+	np.add("UpdateStorageOverlay", func() error {
+		return np.writeTemplate("storage-overlay.nix", rawStorageOverlayTemplate, values)
 	})
 }
 

@@ -5,10 +5,10 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/dogeorg/dogeboxd/cmd/_dbxroot/utils"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/spf13/cobra"
 )
@@ -38,16 +38,16 @@ Example:
 		}()
 
 		// Create partition table
-		runParted(disk, "mklabel", "gpt")
-		runParted(disk, "mkpart", "root", "ext4", "512MB", "-8GB")
-		runParted(disk, "mkpart", "swap", "linux-swap", "-8GB", "100%")
-		runParted(disk, "mkpart", "ESP", "fat32", "1MB", "512MB")
-		runParted(disk, "set", "3", "esp", "on")
+		utils.RunParted(disk, "mklabel", "gpt")
+		utils.RunParted(disk, "mkpart", "root", "ext4", "512MB", "-8GB")
+		utils.RunParted(disk, "mkpart", "swap", "linux-swap", "-8GB", "100%")
+		utils.RunParted(disk, "mkpart", "ESP", "fat32", "1MB", "512MB")
+		utils.RunParted(disk, "set", "3", "esp", "on")
 
-		isNVME := strings.HasPrefix(disk, "/dev/nvme")
+		hasPartitionPrefix := strings.HasPrefix(disk, "/dev/nvme") || strings.HasPrefix(disk, "/dev/mmcblk")
 		partitionPrefix := ""
 
-		if isNVME {
+		if hasPartitionPrefix {
 			partitionPrefix = "p"
 		}
 
@@ -56,34 +56,34 @@ Example:
 		espPartition := fmt.Sprintf("%s%s3", disk, partitionPrefix)
 
 		// Format partitions
-		runCommand("mkfs.ext4", "-L", "nixos", rootPartition)
-		runCommand("mkswap", "-L", "swap", swapPartition)
-		runCommand("mkfs.fat", "-F", "32", "-n", "boot", espPartition)
+		utils.RunCommand("mkfs.ext4", "-L", "nixos", rootPartition)
+		utils.RunCommand("mkswap", "-L", "swap", swapPartition)
+		utils.RunCommand("mkfs.fat", "-F", "32", "-n", "boot", espPartition)
 
 		// Ensure /mnt exists before we actually mount into it.
 		if _, err := os.Stat("/mnt"); os.IsNotExist(err) {
-			runCommand("mkdir", "/mnt")
+			utils.RunCommand("mkdir", "/mnt")
 		}
 
 		// Mount everything up
-		runCommand("mount", rootPartition, "/mnt")
-		runCommand("mkdir", "-p", "/mnt/boot")
-		runCommand("mount", "-o", "umask=077", espPartition, "/mnt/boot")
-		runCommand("swapon", swapPartition)
+		utils.RunCommand("mount", rootPartition, "/mnt")
+		utils.RunCommand("mkdir", "-p", "/mnt/boot")
+		utils.RunCommand("mount", "-o", "umask=077", espPartition, "/mnt/boot")
+		utils.RunCommand("swapon", swapPartition)
 
 		// Copy our NixOS configuration over
-		runCommand("mkdir", "-p", "/mnt/etc/nixos/")
+		utils.RunCommand("mkdir", "-p", "/mnt/etc/nixos/")
 		copyFiles("/etc/nixos/", "/mnt/etc/nixos/")
 
 		// Generate hardware-configuration.nix
-		runCommand("nixos-generate-config", "--root", "/mnt")
+		utils.RunCommand("nixos-generate-config", "--root", "/mnt")
 
 		// Set an installed flag so we know not to try again.
-		runCommand("mkdir", "-p", "/mnt/opt/")
-		runCommand("touch", "/mnt/opt/dbx-installed")
+		utils.RunCommand("mkdir", "-p", "/mnt/opt/")
+		utils.RunCommand("touch", "/mnt/opt/dbx-installed")
 
 		// Install
-		runCommand("nixos-install", "--no-root-passwd", "--root", "/mnt")
+		utils.RunCommand("nixos-install", "--no-root-passwd", "--root", "/mnt")
 
 		log.Println("Finished installing. Please remove installation media and reboot.")
 	},
@@ -97,25 +97,6 @@ func init() {
 
 	installToDiskCmd.Flags().StringP("dbx-secret", "s", "", "?")
 	installToDiskCmd.MarkFlagRequired("dbx-secret")
-}
-
-func runParted(device string, args ...string) error {
-	args = append([]string{"parted", "-s", device, "--"}, args...)
-	return runCommand(args...)
-}
-
-func runCommand(args ...string) error {
-	log.Printf("----------------------------------------")
-	log.Printf("Running command: %+v", args)
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Printf("Error running command: %v", err)
-		panic(err)
-	}
-	log.Printf("----------------------------------------")
-	return nil
 }
 
 func copyFiles(source string, destination string) error {

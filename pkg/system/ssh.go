@@ -15,6 +15,7 @@ func (t SystemUpdater) sshUpdate(dbxState dogeboxd.DogeboxState, log dogeboxd.Su
 		SYSTEM_HOSTNAME: dbxState.Hostname,
 		SSH_ENABLED:     dbxState.SSH.Enabled,
 		SSH_KEYS:        dbxState.SSH.Keys,
+		KEYMAP:          dbxState.KeyMap,
 	})
 
 	if err := patch.Apply(); err != nil {

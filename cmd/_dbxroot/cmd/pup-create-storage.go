@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dogeorg/dogeboxd/cmd/_dbxroot/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -27,12 +28,12 @@ Example:
 		pupId, _ := cmd.Flags().GetString("pupId")
 		dataDir, _ := cmd.Flags().GetString("data-dir")
 
-		if !IsAlphanumeric(pupId) {
+		if !utils.IsAlphanumeric(pupId) {
 			fmt.Println("Error: pupId must contain only alphanumeric characters")
 			os.Exit(1)
 		}
 
-		if !IsAbsolutePath(dataDir) {
+		if !utils.IsAbsolutePath(dataDir) {
 			fmt.Println("Error: data-dir must be an absolute path")
 			os.Exit(1)
 		}

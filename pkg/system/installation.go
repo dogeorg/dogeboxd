@@ -1,10 +1,13 @@
 package system
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/dell/csi-baremetal/pkg/base/linuxutils/lsblk"
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -83,13 +86,13 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 		// This block package only seems to return a single mount point.
 		// So we need to check if we're mounted at either / or /nix/store
 		// to "reliably" determine if this is our boot media.
-		if device.MountPoint == "/" || device.MountPoint == "/nix/store" {
+		if device.MountPoint == "/" || device.MountPoint == "/nix/store" || device.MountPoint == "/nix/.ro-store" {
 			disk.BootMedia = true
 		}
 
 		// Check if any of our children are mounted as boot.
 		for _, child := range device.Children {
-			if child.MountPoint == "/" || child.MountPoint == "/nix/store" {
+			if child.MountPoint == "/" || child.MountPoint == "/nix/store" || device.MountPoint == "/nix/.ro-store" {
 				disk.BootMedia = true
 			}
 		}
@@ -98,6 +101,53 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	}
 
 	return disks, nil
+}
+
+func InitStorageDevice(dbxState dogeboxd.DogeboxState) (string, error) {
+	if dbxState.StorageDevice == "" || dbxState.InitialState.HasFullyConfigured {
+		return "", nil
+	}
+
+	cmd := exec.Command("sudo", "_dbxroot", "prepare-storage-device", "--print", "--disk", dbxState.StorageDevice, "--dbx-secret", DBXRootSecret)
+
+	var out bytes.Buffer
+	cmd.Stdout = io.MultiWriter(&out, os.Stdout)
+	cmd.Stderr = io.MultiWriter(&out, os.Stderr)
+
+	// Execute the command
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("failed to execute _dbxroot prepare-storage-device: %w", err)
+	}
+
+	output := out.String()
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	partitionName := ""
+	if len(lines) > 0 {
+		lastLine := lines[len(lines)-1]
+		parts := strings.Split(lastLine, " ")
+		if len(parts) > 0 {
+			partitionName = parts[len(parts)-1]
+		}
+	}
+
+	if partitionName == "" {
+		return "", fmt.Errorf("failed to get partition name")
+	}
+
+	return partitionName, nil
+}
+
+func GetBuildType() (string, error) {
+	buildType, err := os.ReadFile("/opt/build-type")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "unknown", nil
+		}
+		return "", fmt.Errorf("failed to read build type: %w", err)
+	}
+	return strings.TrimSpace(string(buildType)), nil
 }
 
 func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {
@@ -137,20 +187,44 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 		return fmt.Errorf("specified disk '%s' not found in list of possible install disks", name)
 	}
 
+	buildType, err := GetBuildType()
+	if err != nil {
+		log.Printf("Failed to get build type: %v", err)
+		return err
+	}
+
 	log.Printf("Starting to install to disk %s", name)
 
-	cmd := exec.Command("sudo", "_dbxroot", "install-to-disk", "--disk", name, "--dbx-secret", DBXRootSecret)
+	var installFn func(string) error
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	installFn = dbxrootInstallToDisk
 
-	// Execute the command
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to execute _dbxroot install-to-disk: %w", err)
+	// For the T6, we need to write the root FS over the EMMC
+	// with DD, as we need all the arm-specific bootloaders and such.
+	if buildType == "nanopc-T6" {
+		installFn = dbxrootDDToDisk
+	}
+
+	if err := installFn(name); err != nil {
+		log.Printf("Failed to install to disk: %v", err)
+		return err
 	}
 
 	log.Printf("Installation completed successfully")
 
 	return nil
+}
+
+func dbxrootInstallToDisk(disk string) error {
+	cmd := exec.Command("sudo", "_dbxroot", "install-to-disk", "--disk", disk, "--dbx-secret", DBXRootSecret)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func dbxrootDDToDisk(toDisk string) error {
+	cmd := exec.Command("sudo", "_dbxroot", "dd-to-disk", "--target-disk", toDisk, "--dbx-secret", DBXRootSecret)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

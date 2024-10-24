@@ -5,14 +5,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 )
 
 type InitialSystemBootstrapRequestBody struct {
-	Hostname       string `json:"hostname"`
 	ReflectorToken string `json:"reflectorToken"`
 	ReflectorHost  string `json:"reflectorHost"`
 	InitialSSHKey  string `json:"initialSSHKey"`
@@ -68,6 +69,178 @@ func (t api) hostShutdown(w http.ResponseWriter, r *http.Request) {
 	t.lifecycle.Shutdown()
 }
 
+func (t api) getKeymaps(w http.ResponseWriter, r *http.Request) {
+	keymaps, err := system.GetKeymaps()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error getting keymaps")
+		return
+	}
+
+	// Convert keymaps to the desired format
+	formattedKeymaps := make([]map[string]string, len(keymaps))
+	for i, keymap := range keymaps {
+		formattedKeymaps[i] = map[string]string{
+			"id":    keymap.Name,
+			"label": keymap.Value,
+		}
+	}
+
+	sendResponse(w, formattedKeymaps)
+}
+
+type SetHostnameRequestBody struct {
+	Hostname string `json:"hostname"`
+}
+
+func (t api) setHostname(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody SetHostnameRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	dbxState = t.sm.Get().Dogebox
+	dbxState.Hostname = requestBody.Hostname
+	t.sm.SetDogebox(dbxState)
+
+	// TODO: If we've already configured our box, rebuild here?
+
+	if err := t.sm.Save(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
+
+	sendResponse(w, map[string]any{"status": "OK"})
+}
+
+type SetKeyMapRequestBody struct {
+	KeyMap string `json:"keyMap"`
+}
+
+func (t api) setKeyMap(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody SetKeyMapRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch available keymaps
+	keymaps, err := system.GetKeymaps()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error fetching keymaps")
+		return
+	}
+
+	// Check if the submitted keymap is valid
+	isValidKeymap := false
+	for _, keymap := range keymaps {
+		if keymap.Name == requestBody.KeyMap {
+			isValidKeymap = true
+			break
+		}
+	}
+
+	if !isValidKeymap {
+		sendErrorResponse(w, http.StatusBadRequest, "Invalid keymap")
+		return
+	}
+
+	dbxState = t.sm.Get().Dogebox
+	dbxState.KeyMap = requestBody.KeyMap
+	t.sm.SetDogebox(dbxState)
+
+	// TODO: If we've already configured our box, rebuild here?
+
+	if err := t.sm.Save(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
+
+	sendResponse(w, map[string]any{"status": "OK"})
+}
+
+type SetStorageDeviceRequestBody struct {
+	StorageDevice string `json:"storageDevice"`
+}
+
+func (t api) setStorageDevice(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	if dbxState.InitialState.HasFullyConfigured {
+		sendErrorResponse(w, http.StatusForbidden, "Cannot set storage device once initial setup has completed")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Error reading request body")
+		return
+	}
+	defer r.Body.Close()
+
+	var requestBody SetStorageDeviceRequestBody
+	if err := json.Unmarshal(body, &requestBody); err != nil {
+		http.Error(w, "Error parsing payload", http.StatusBadRequest)
+		return
+	}
+
+	disks, err := system.GetSystemDisks()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error getting system disks")
+		return
+	}
+
+	var foundDisk *dogeboxd.SystemDisk
+
+	// Ensure that the provided storage device can actually be used.
+	for _, disk := range disks {
+		if disk.Name == requestBody.StorageDevice {
+			foundDisk = &disk
+			break
+		}
+	}
+
+	// If the disk selected is actually our boot drive, allow it, and don't set StorageDevice.
+	if foundDisk != nil && foundDisk.BootMedia {
+		sendResponse(w, map[string]any{"status": "OK"})
+		return
+	}
+
+	if foundDisk == nil {
+		sendErrorResponse(w, http.StatusBadRequest, "Invalid storage device")
+		return
+	}
+
+	dbxState = t.sm.Get().Dogebox
+	dbxState.StorageDevice = requestBody.StorageDevice
+	t.sm.SetDogebox(dbxState)
+
+	if err := t.sm.Save(); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
+
+	sendResponse(w, map[string]any{"status": "OK"})
+}
+
 func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	// Check a few things first.
 	if !t.config.Recovery {
@@ -102,14 +275,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: turn off AP
 
-	dbxState.Hostname = requestBody.Hostname
-	t.sm.SetDogebox(dbxState)
-
-	if err := t.sm.Save(); err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
-		return
-	}
-
 	nixPatch := t.nix.NewPatch(log)
 
 	// This will try and connect to the pending network, and if
@@ -122,11 +287,82 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	t.nix.InitSystem(nixPatch, dbxState)
 
+	rebuildBoot := true
+
+	if t.config.DevMode {
+		// Mostly safe to rebuild-switch if we're in dev mode.
+		// This will make sure that our device is mounted right now.
+		rebuildBoot = false
+	}
+
 	if err := nixPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
-		RebuildBoot: true,
+		RebuildBoot: rebuildBoot,
 	}); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
+	}
+
+	// This storage overlay stuff needs to happen _after_ we've init'd our system, as
+	// otherwise we end up in a position where we can't access the $datadir/nix/* files
+	// to copy back into our new overlay.. because the overlay is mounted as part of the
+	// system init. So we init, copy files, apply overlay, copy files back.
+	if dbxState.StorageDevice != "" {
+		tempDir, err := os.MkdirTemp("", "dbx-data-overlay")
+		if err != nil {
+			log.Errf("Error creating temporary directory: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error creating temporary directory")
+			return
+		}
+		log.Logf("Created temporary directory: %s", tempDir)
+		// defer os.RemoveAll(tempDir)
+
+		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
+
+		partitionName, err := system.InitStorageDevice(dbxState)
+		if err != nil {
+			log.Errf("Error initialising storage device: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")
+			return
+		}
+
+		// Copy all our existing data to our temp dir so we don't lose everything created already.
+		if err := utils.CopyFiles(t.config.DataDir, tempDir); err != nil {
+			log.Errf("Error copying data to temp dir: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data to temp dir")
+			return
+		}
+
+		// Apply our new overlay update.
+		overlayPatch := t.nix.NewPatch(log)
+		t.nix.UpdateStorageOverlay(overlayPatch, partitionName)
+
+		if err := overlayPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
+			RebuildBoot: rebuildBoot,
+		}); err != nil {
+			log.Errf("Error applying overlay patch: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error applying overlay patch")
+			return
+		}
+
+		// Copy our data back from the temp dir to the new location.
+		if err := utils.CopyFiles(tempDir, t.config.DataDir); err != nil {
+			log.Errf("Error copying data back to %s: %v", t.config.DataDir, err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data back to data dir")
+			return
+		}
+
+		// This sucks, but because we wrote our storage-overlay file during the last rebuild,
+		// we don't actually have that in the tempDir we backed up. So we have to re-save this
+		// file into the overlay we now have mounted, but we don't actually have to rebuild.
+		reoverlayPatch := t.nix.NewPatch(log)
+		t.nix.UpdateStorageOverlay(reoverlayPatch, partitionName)
+		if err := reoverlayPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
+			DangerousNoRebuild: true,
+		}); err != nil {
+			log.Errf("Error re-applying overlay patch: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error re-applying overlay patch")
+			return
+		}
 	}
 
 	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
