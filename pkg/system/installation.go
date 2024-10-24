@@ -139,6 +139,17 @@ func InitStorageDevice(dbxState dogeboxd.DogeboxState) (string, error) {
 	return partitionName, nil
 }
 
+func GetBuildType() (string, error) {
+	buildType, err := os.ReadFile("/opt/build-type")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "unknown", nil
+		}
+		return "", fmt.Errorf("failed to read build type: %w", err)
+	}
+	return strings.TrimSpace(string(buildType)), nil
+}
+
 func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {
 	if config.DevMode {
 		log.Printf("Dev mode enabled, skipping installation. You probably do not want to do this. re-run without dev mode if you do.")
@@ -176,20 +187,44 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 		return fmt.Errorf("specified disk '%s' not found in list of possible install disks", name)
 	}
 
+	buildType, err := GetBuildType()
+	if err != nil {
+		log.Printf("Failed to get build type: %v", err)
+		return err
+	}
+
 	log.Printf("Starting to install to disk %s", name)
 
-	cmd := exec.Command("sudo", "_dbxroot", "install-to-disk", "--disk", name, "--dbx-secret", DBXRootSecret)
+	var installFn func(string) error
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	installFn = dbxrootInstallToDisk
 
-	// Execute the command
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to execute _dbxroot install-to-disk: %w", err)
+	// For the T6, we need to write the root FS over the EMMC
+	// with DD, as we need all the arm-specific bootloaders and such.
+	if buildType == "nanopc-T6" {
+		installFn = dbxrootDDToDisk
+	}
+
+	if err := installFn(name); err != nil {
+		log.Printf("Failed to install to disk: %v", err)
+		return err
 	}
 
 	log.Printf("Installation completed successfully")
 
 	return nil
+}
+
+func dbxrootInstallToDisk(disk string) error {
+	cmd := exec.Command("sudo", "_dbxroot", "install-to-disk", "--disk", disk, "--dbx-secret", DBXRootSecret)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func dbxrootDDToDisk(toDisk string) error {
+	cmd := exec.Command("sudo", "_dbxroot", "dd-to-disk", "--target-disk", toDisk, "--dbx-secret", DBXRootSecret)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
