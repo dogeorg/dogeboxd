@@ -287,17 +287,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	t.nix.InitSystem(nixPatch, dbxState)
 
-	rebuildBoot := true
-
-	if t.config.DevMode {
-		// Mostly safe to rebuild-switch if we're in dev mode.
-		// This will make sure that our device is mounted right now.
-		rebuildBoot = false
-	}
-
-	if err := nixPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
-		RebuildBoot: rebuildBoot,
-	}); err != nil {
+	if err := nixPatch.Apply(); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
 	}
@@ -336,9 +326,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		overlayPatch := t.nix.NewPatch(log)
 		t.nix.UpdateStorageOverlay(overlayPatch, partitionName)
 
-		if err := overlayPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
-			RebuildBoot: rebuildBoot,
-		}); err != nil {
+		if err := overlayPatch.Apply(); err != nil {
 			log.Errf("Error applying overlay patch: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error applying overlay patch")
 			return
