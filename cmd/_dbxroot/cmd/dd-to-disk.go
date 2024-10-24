@@ -88,7 +88,7 @@ Example:
 
 		// Set an installed flag so we know not to try again.
 		utils.RunCommand("sudo", "touch", "/mnt/opt/dbx-installed")
-		utils.RunCommand("sudo", "chown", "dogeboxd:dogeboxd", "/mnt/opt/dbx-installed")
+		utils.RunCommand("sudo", "chown", "dogeboxd:dogebox", "/mnt/opt/dbx-installed")
 
 		// Remove the ro-media flag so we don't force the user to re-install.
 		utils.RunCommand("sudo", "rm", "-rf", "/mnt/opt/ro-media")
