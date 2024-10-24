@@ -78,6 +78,8 @@ Example:
 
 		utils.RunCommand("sudo", "dd", "if="+bootMediaDisk.Name, "of="+targetDisk, "bs=1M", "status=progress", "count="+fmt.Sprintf("%d", megaBytesToCopy))
 
+		utils.RunCommand("sudo", "partprobe", targetDisk)
+
 		// Once we've copied the data, we need to find the new partition, mount it, and set/remove some flags.
 		rootPartition, err := getWrittenRootPartition(targetDisk)
 		if err != nil {
