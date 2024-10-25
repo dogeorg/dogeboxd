@@ -27,7 +27,7 @@ var getDisksCmd = &cobra.Command{
 		log.Println("Suitable install disks:")
 
 		for _, disk := range disks {
-			if !disk.SuitableInstallDrive {
+			if !disk.Suitability.Install.Usable {
 				continue
 			}
 

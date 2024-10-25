@@ -41,6 +41,12 @@ func GetInstallationMode(dbxState dogeboxd.DogeboxState) (dogeboxd.BootstrapInst
 	return dogeboxd.BootstrapInstallationModeCanInstalled, nil
 }
 
+const (
+	one_gigabyte            = 1024 * 1024 * 1024
+	ten_gigabytes           = 10 * one_gigabyte
+	three_hundred_gigabytes = 300 * one_gigabyte
+)
+
 func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	lsb := lsblk.NewLSBLK(logrus.New())
 
@@ -64,24 +70,11 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 
 		isMounted := device.MountPoint != ""
 		hasChildren := len(device.Children) > 0
-		isZeroBytes := device.Size.Int64 == 0
-		isOver10GB := device.Size.Int64 >= 10*1024*1024*1024
-		isOver300GB := device.Size.Int64 >= 100*1024*1024*1024
 
-		// Don't bother even returning these.
-		if isZeroBytes {
-			continue
-		}
+		isSuitableInstallSize := device.Size.Int64 >= ten_gigabytes
+		isSuitableStorageSize := device.Size.Int64 >= three_hundred_gigabytes
 
-		if isOKDevice && !isMounted && !hasChildren {
-			if isOver300GB {
-				disk.SuitableDataDrive = true
-			}
-
-			if isOver10GB {
-				disk.SuitableInstallDrive = true
-			}
-		}
+		isSuitableDevice := isOKDevice && !isMounted && !hasChildren && device.Size.Int64 > 0
 
 		// This block package only seems to return a single mount point.
 		// So we need to check if we're mounted at either / or /nix/store
@@ -95,6 +88,21 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 			if child.MountPoint == "/" || child.MountPoint == "/nix/store" || device.MountPoint == "/nix/.ro-store" {
 				disk.BootMedia = true
 			}
+		}
+
+		// Even for devices we don't class as "usable" for storage, if we're
+		// booting off it, we need to let the user select it (ie. no external storage)
+		isUsableStorageDevice := isSuitableDevice || disk.BootMedia
+
+		disk.Suitability = dogeboxd.SystemDiskSuitability{
+			Install: dogeboxd.SystemDiskSuitabilityEntry{
+				Usable: isSuitableDevice,
+				SizeOK: isSuitableInstallSize,
+			},
+			Storage: dogeboxd.SystemDiskSuitabilityEntry{
+				Usable: isUsableStorageDevice,
+				SizeOK: isSuitableStorageSize,
+			},
 		}
 
 		disks = append(disks, disk)
@@ -177,7 +185,7 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 	// Check if the specified disk name exists in possibleDisks
 	diskExists := false
 	for _, disk := range disks {
-		if disk.Name == name && disk.SuitableInstallDrive {
+		if disk.Name == name && disk.Suitability.Install.Usable {
 			diskExists = true
 			break
 		}

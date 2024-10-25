@@ -212,7 +212,7 @@ func (t api) setStorageDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure that the provided storage device can actually be used.
 	for _, disk := range disks {
-		if disk.Name == requestBody.StorageDevice {
+		if disk.Name == requestBody.StorageDevice && disk.Suitability.Storage.Usable {
 			foundDisk = &disk
 			break
 		}

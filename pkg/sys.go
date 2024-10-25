@@ -345,13 +345,22 @@ type NixManager interface {
 	NewPatch(log SubLogger) NixPatch
 }
 
+type SystemDiskSuitabilityEntry struct {
+	Usable bool `json:"usable"`
+	SizeOK bool `json:"sizeOK"`
+}
+
+type SystemDiskSuitability struct {
+	Install SystemDiskSuitabilityEntry `json:"install"`
+	Storage SystemDiskSuitabilityEntry `json:"storage"`
+}
+
 type SystemDisk struct {
-	Name                 string `json:"name"`
-	Size                 int64  `json:"size"`
-	SizePretty           string `json:"sizePretty"`
-	SuitableInstallDrive bool   `json:"suitableInstallDrive"`
-	SuitableDataDrive    bool   `json:"suitableDataDrive"`
-	BootMedia            bool   `json:"bootMedia"`
+	Name        string                `json:"name"`
+	Size        int64                 `json:"size"`
+	SizePretty  string                `json:"sizePretty"`
+	Suitability SystemDiskSuitability `json:"suitability"`
+	BootMedia   bool                  `json:"bootMedia"`
 }
 
 type BootstrapInstallationMode string
