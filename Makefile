@@ -10,13 +10,22 @@ mkbuild:
 build: build/dogeboxd build/dbx build/_dbxroot
 
 build/dogeboxd: clean mkbuild
-	go build -o build/dogeboxd ./cmd/dogeboxd/.
+	go build \
+		-ldflags "-X version.dbxRelease=${DBX_RELEASE} -X version.nurHash=${DBX_NUR_HASH}" \
+		-o build/dogeboxd \
+			./cmd/dogeboxd/.
 
 build/dbx: clean mkbuild
-	go build -o build/dbx ./cmd/dbx/.
+	go build \
+		-ldflags "-X github.com/dogeorg/dogeboxd/pkg/version.dbxRelease=${DBX_RELEASE} -X github.com/dogeorg/dogeboxd/pkg/version.nurHash=${DBX_NUR_HASH}" \
+		-o build/dbx \
+		./cmd/dbx/.
 
 build/_dbxroot: clean mkbuild
-	go build -o build/_dbxroot ./cmd/_dbxroot/.
+	go build \
+		-ldflags "-X github.com/dogeorg/dogeboxd/pkg/version.dbxRelease=${DBX_RELEASE} -X github.com/dogeorg/dogeboxd/pkg/version.nurHash=${DBX_NUR_HASH}" \
+		-o build/_dbxroot \
+		./cmd/_dbxroot/.
 
 multipassdev:
 	go run ./cmd/dogeboxd -v -addr 0.0.0.0 -pups ~/

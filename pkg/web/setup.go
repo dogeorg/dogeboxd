@@ -11,6 +11,7 @@ import (
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/dogeorg/dogeboxd/pkg/utils"
+	"github.com/dogeorg/dogeboxd/pkg/version"
 )
 
 type InitialSystemBootstrapRequestBody struct {
@@ -27,6 +28,7 @@ type BootstrapFacts struct {
 }
 
 type BootstrapResponse struct {
+	Version    *version.DBXVersionInfo      `json:"version"`
 	DevMode    bool                         `json:"devMode"`
 	Assets     map[string]dogeboxd.PupAsset `json:"assets"`
 	States     map[string]dogeboxd.PupState `json:"states"`
@@ -44,6 +46,7 @@ func (t api) getRawBS() BootstrapResponse {
 	}
 
 	return BootstrapResponse{
+		Version: version.GetDBXRelease(),
 		DevMode: t.config.DevMode,
 		Assets:  t.pups.GetAssetsMap(),
 		States:  t.pups.GetStateMap(),
