@@ -11,7 +11,7 @@ build: build/dogeboxd build/dbx build/_dbxroot
 
 build/dogeboxd: clean mkbuild
 	go build \
-		-ldflags "-X version.dbxRelease=${DBX_RELEASE} -X version.nurHash=${DBX_NUR_HASH}" \
+		-ldflags "-X github.com/dogeorg/dogeboxd/pkg/version.dbxRelease=${DBX_RELEASE} -X version.nurHash=${DBX_NUR_HASH}" \
 		-o build/dogeboxd \
 			./cmd/dogeboxd/.
 
