@@ -2,6 +2,7 @@ package cmd
 
 import (
 	_ "embed"
+	"fmt"
 	"log"
 	"os"
 
@@ -38,13 +39,12 @@ var canPupStartCmd = &cobra.Command{
 			return
 		}
 
-		sm := system.NewStateManager(dataDir)
-		err = sm.Load()
+		store, err := dogeboxd.NewStoreManager(fmt.Sprintf("%s/dogebox.db", dataDir))
 		if err != nil {
-			log.Println("Failed to load state manager: ", err)
+			log.Println("couldn't open store-manager db", err)
 			utils.ExitBad(systemd)
-			return
 		}
+		sm := system.NewStateManager(store)
 
 		isInRecoveryMode := system.IsRecoveryMode(dataDir, sm)
 

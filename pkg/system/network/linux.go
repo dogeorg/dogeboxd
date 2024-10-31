@@ -154,8 +154,7 @@ func (t NetworkManagerLinux) SetPendingNetwork(selectedNetwork dogeboxd.Selected
 
 	ns := t.sm.Get().Network
 	ns.PendingNetwork = selectedNetwork
-	t.sm.SetNetwork(ns)
-	return t.sm.Save()
+	return t.sm.SetNetwork(ns)
 }
 
 func (t NetworkManagerLinux) TryConnect(nixPatch dogeboxd.NixPatch) error {
@@ -186,9 +185,7 @@ func (t NetworkManagerLinux) TryConnect(nixPatch dogeboxd.NixPatch) error {
 	state.CurrentNetwork = state.PendingNetwork
 	state.PendingNetwork = nil
 
-	t.sm.SetNetwork(state)
-
-	err = t.sm.Save()
+	err = t.sm.SetNetwork(state)
 	if err != nil {
 		return err
 	}

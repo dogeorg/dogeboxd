@@ -25,13 +25,13 @@ func NewStoreManager(dbPath string) (*StoreManager, error) {
 	return &StoreManager{DB: db}, nil
 }
 
-func (t SystemMonitor) Run(started, stopped chan bool, stop chan context.Context) error {
+func (sm *StoreManager) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
 		started <- true
 		<-stop
 		// wait for writes to finish..
-		sm.writeMu.Lock()
-		defer sm.writeMu.Unlock()
+		sm.WriteMu.Lock()
+		defer sm.WriteMu.Unlock()
 		sm.DB.Close()
 		stopped <- true
 	}()
@@ -93,6 +93,8 @@ func (ts *TypeStore[T]) Get(key string) (T, error) {
 }
 
 func (ts *TypeStore[T]) Del(key string) error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
 	_, err := ts.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE key = ?", ts.Table), key)
 	return err
 }

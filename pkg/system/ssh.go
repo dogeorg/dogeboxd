@@ -29,8 +29,8 @@ func (t SystemUpdater) sshUpdate(dbxState dogeboxd.DogeboxState, log dogeboxd.Su
 func (t SystemUpdater) EnableSSH(l dogeboxd.SubLogger) error {
 	state := t.sm.Get().Dogebox
 	state.SSH.Enabled = true
-	t.sm.SetDogebox(state)
-	if err := t.sm.Save(); err != nil {
+
+	if err := t.sm.SetDogebox(state); err != nil {
 		return err
 	}
 
@@ -40,8 +40,7 @@ func (t SystemUpdater) EnableSSH(l dogeboxd.SubLogger) error {
 func (t SystemUpdater) DisableSSH(l dogeboxd.SubLogger) error {
 	state := t.sm.Get().Dogebox
 	state.SSH.Enabled = false
-	t.sm.SetDogebox(state)
-	if err := t.sm.Save(); err != nil {
+	if err := t.sm.SetDogebox(state); err != nil {
 		return err
 	}
 
@@ -66,8 +65,7 @@ func (t SystemUpdater) AddSSHKey(key string, l dogeboxd.SubLogger) error {
 		Key: key,
 	})
 
-	t.sm.SetDogebox(state)
-	if err := t.sm.Save(); err != nil {
+	if err := t.sm.SetDogebox(state); err != nil {
 		return err
 	}
 
@@ -90,8 +88,7 @@ func (t SystemUpdater) RemoveSSHKey(id string, l dogeboxd.SubLogger) error {
 		return fmt.Errorf("SSH key with ID %s not found", id)
 	}
 
-	t.sm.SetDogebox(state)
-	if err := t.sm.Save(); err != nil {
+	if err := t.sm.SetDogebox(state); err != nil {
 		return err
 	}
 

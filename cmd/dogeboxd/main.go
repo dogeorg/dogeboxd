@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -76,11 +77,12 @@ func main() {
 		}
 	}
 
-	stateManager := system.NewStateManager(dataDir)
-	err := stateManager.Load()
+	store, err := dogeboxd.NewStoreManager(fmt.Sprintf("%s/dogebox.db", dataDir))
 	if err != nil {
-		log.Fatalf("Failed to load Dogeboxd system state: %+v", err)
+		log.Fatalf("couldn't open store-manager db", err)
 	}
+
+	stateManager := system.NewStateManager(store)
 
 	recoveryMode := system.ShouldEnterRecovery(dataDir, stateManager)
 	if forcedRecovery {
@@ -123,6 +125,6 @@ func main() {
 		DisableReflector: disableReflector,
 	}
 
-	srv := Server(stateManager, config)
+	srv := Server(stateManager, store, config)
 	srv.Start()
 }

@@ -13,6 +13,7 @@ import (
 
 var REQUIRED_FILES = []string{"pup.nix", "manifest.json"}
 
+// TODO: This should take storeManager and manage state internally not via Statemanager
 func NewSourceManager(config dogeboxd.ServerConfig, sm dogeboxd.StateManager, pm dogeboxd.PupManager) dogeboxd.SourceManager {
 	state := sm.Get().Sources
 
@@ -296,6 +297,5 @@ func (sourceManager *sourceManager) RemoveSource(id string) error {
 func (sourceManager *sourceManager) Save() error {
 	state := sourceManager.sm.Get().Sources
 	state.SourceConfigs = sourceManager.GetAllSourceConfigurations()
-	sourceManager.sm.SetSources(state)
-	return sourceManager.sm.Save()
+	return sourceManager.sm.SetSources(state)
 }

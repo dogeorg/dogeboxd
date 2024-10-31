@@ -50,8 +50,7 @@ func (t api) createMasterKey(w http.ResponseWriter, r *http.Request) {
 	// TODO: this shouldn't live in here.
 	if !dbxs.InitialState.HasGeneratedKey {
 		dbxs.InitialState.HasGeneratedKey = true
-		t.sm.SetDogebox(dbxs)
-		if err := t.sm.Save(); err != nil {
+		if err := t.sm.SetDogebox(dbxs); err != nil {
 			sendErrorResponse(w, http.StatusInternalServerError, "Failed to persist key generation flag")
 			return
 		}

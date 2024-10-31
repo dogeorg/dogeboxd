@@ -81,8 +81,7 @@ func (t api) setPendingNetwork(w http.ResponseWriter, r *http.Request) {
 	// TODO: this shouldn't live in here.
 	if !dbxs.InitialState.HasSetNetwork {
 		dbxs.InitialState.HasSetNetwork = true
-		t.sm.SetDogebox(dbxs)
-		if err := t.sm.Save(); err != nil {
+		if err := t.sm.SetDogebox(dbxs); err != nil {
 			sendErrorResponse(w, http.StatusInternalServerError, "Failed to persist network set flag")
 			return
 		}
