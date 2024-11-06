@@ -89,11 +89,9 @@ type State struct {
 
 type StateManager interface {
 	Get() State
-	SetNetwork(s NetworkState)
-	SetDogebox(s DogeboxState)
-	SetSources(s SourceState)
-	Save() error
-	Load() error
+	SetNetwork(s NetworkState) error
+	SetDogebox(s DogeboxState) error
+	SetSources(s SourceState) error
 }
 
 type LifecycleManager interface {

@@ -110,6 +110,19 @@ func (t *adminProxy) Start() {
 		Handler: httputil.NewSingleHostReverseProxy(proxyURL),
 	}
 
+	// Custom Director to set Cache-Control header
+	proxy := httpServer.Handler.(*httputil.ReverseProxy)
+	proxy.Director = func(req *http.Request) {
+		req.URL.Scheme = proxyURL.Scheme
+		req.URL.Host = proxyURL.Host
+		if _, ok := req.Header["User-Agent"]; !ok {
+			// explicitly disable User-Agent so it's not set automatically.
+			req.Header.Set("User-Agent", "")
+		}
+
+		req.Header.Set("Cache-Control", "private, max-age=10")
+	}
+
 	// handle stopping
 	go func() {
 		<-ctx.Done()

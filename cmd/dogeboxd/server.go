@@ -20,12 +20,14 @@ import (
 var dogeboxManifestFile []byte
 
 type server struct {
+	store  *dogeboxd.StoreManager
 	sm     dogeboxd.StateManager
 	config dogeboxd.ServerConfig
 }
 
-func Server(sm dogeboxd.StateManager, config dogeboxd.ServerConfig) server {
+func Server(sm dogeboxd.StateManager, store *dogeboxd.StoreManager, config dogeboxd.ServerConfig) server {
 	return server{
+		store:  store,
 		sm:     sm,
 		config: config,
 	}
@@ -96,6 +98,7 @@ func (t server) Start() {
 			conductor.HookSignals(),
 		)
 	}
+	c.Service("Store", t.store)
 	c.Service("Dogeboxd", dbx)
 	c.Service("REST API", rest)
 	c.Service("UI Server", ui)

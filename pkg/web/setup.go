@@ -113,11 +113,10 @@ func (t api) setHostname(w http.ResponseWriter, r *http.Request) {
 
 	dbxState = t.sm.Get().Dogebox
 	dbxState.Hostname = requestBody.Hostname
-	t.sm.SetDogebox(dbxState)
 
 	// TODO: If we've already configured our box, rebuild here?
 
-	if err := t.sm.Save(); err != nil {
+	if err := t.sm.SetDogebox(dbxState); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
 		return
 	}
@@ -168,11 +167,10 @@ func (t api) setKeyMap(w http.ResponseWriter, r *http.Request) {
 
 	dbxState = t.sm.Get().Dogebox
 	dbxState.KeyMap = requestBody.KeyMap
-	t.sm.SetDogebox(dbxState)
 
 	// TODO: If we've already configured our box, rebuild here?
 
-	if err := t.sm.Save(); err != nil {
+	if err := t.sm.SetDogebox(dbxState); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
 		return
 	}
@@ -234,9 +232,8 @@ func (t api) setStorageDevice(w http.ResponseWriter, r *http.Request) {
 
 	dbxState = t.sm.Get().Dogebox
 	dbxState.StorageDevice = requestBody.StorageDevice
-	t.sm.SetDogebox(dbxState)
 
-	if err := t.sm.Save(); err != nil {
+	if err := t.sm.SetDogebox(dbxState); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
 		return
 	}
@@ -276,7 +273,10 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: turn off AP
+	if err := t.sm.SetDogebox(dbxState); err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+		return
+	}
 
 	nixPatch := t.nix.NewPatch(log)
 
@@ -362,10 +362,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	dbxs := t.sm.Get().Dogebox
-	dbxs.InitialState.HasFullyConfigured = true
-	t.sm.SetDogebox(dbxs)
-
 	// Add our DogeOrg source in by default, for people to test things with.
 	if _, err := t.sources.AddSource("https://github.com/dogeorg/pups.git"); err != nil {
 		log.Errf("Error adding initial dogeorg source: %v", err)
@@ -388,7 +384,9 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := t.sm.Save(); err != nil {
+	dbxs := t.sm.Get().Dogebox
+	dbxs.InitialState.HasFullyConfigured = true
+	if err := t.sm.SetDogebox(dbxs); err != nil {
 		// What should we do here? We've already turned off AP mode so any errors
 		// won't get send back to the client. I guess we just reboot?
 		// That'll force recovery mode again. We can't even persist this error though.
