@@ -349,8 +349,9 @@ type SystemDiskSuitabilityEntry struct {
 }
 
 type SystemDiskSuitability struct {
-	Install SystemDiskSuitabilityEntry `json:"install"`
-	Storage SystemDiskSuitabilityEntry `json:"storage"`
+	Install       SystemDiskSuitabilityEntry `json:"install"`
+	Storage       SystemDiskSuitabilityEntry `json:"storage"`
+	IsAlreadyUsed bool                       `json:"isAlreadyUsed"`
 }
 
 type SystemDisk struct {

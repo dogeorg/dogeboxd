@@ -74,7 +74,8 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 		isSuitableInstallSize := device.Size.Int64 >= ten_gigabytes
 		isSuitableStorageSize := device.Size.Int64 >= three_hundred_gigabytes
 
-		isSuitableDevice := isOKDevice && !isMounted && !hasChildren && device.Size.Int64 > 0
+		isSuitableDevice := isOKDevice && device.Size.Int64 > 0
+		isAlreadyUsed := isMounted || hasChildren
 
 		// This block package only seems to return a single mount point.
 		// So we need to check if we're mounted at either / or /nix/store
@@ -103,6 +104,7 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 				Usable: isUsableStorageDevice,
 				SizeOK: isSuitableStorageSize,
 			},
+			IsAlreadyUsed: isAlreadyUsed,
 		}
 
 		disks = append(disks, disk)
