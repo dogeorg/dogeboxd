@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
@@ -61,8 +62,9 @@ func (t SystemUpdater) AddSSHKey(key string, l dogeboxd.SubLogger) error {
 	}
 
 	state.SSH.Keys = append(state.SSH.Keys, dogeboxd.DogeboxStateSSHKey{
-		ID:  hex.EncodeToString(keyID),
-		Key: key,
+		ID:        hex.EncodeToString(keyID),
+		DateAdded: time.Now(),
+		Key:       key,
 	})
 
 	if err := t.sm.SetDogebox(state); err != nil {
