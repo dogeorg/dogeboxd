@@ -16,6 +16,12 @@ type AddSSHKeyRequest struct {
 	Key string `json:"key"`
 }
 
+func (t api) getSSHState(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	sendResponse(w, map[string]bool{"enabled": dbxState.SSH.Enabled})
+}
+
 func (t api) setSSHState(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
