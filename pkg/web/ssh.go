@@ -70,7 +70,8 @@ func (t api) addSSHKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Key = strings.TrimSpace(req.Key)
+	req.Key = strings.ReplaceAll(req.Key, "\n", "")
+	req.Key = strings.ReplaceAll(req.Key, "\r", "")
 
 	if req.Key == "" {
 		sendErrorResponse(w, http.StatusBadRequest, "SSH key is required")
