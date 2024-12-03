@@ -55,8 +55,9 @@ type DogeboxStateInitialSetup struct {
 }
 
 type DogeboxStateSSHKey struct {
-	ID  string `json:"id"`
-	Key string `json:"key"`
+	ID        string    `json:"id"`
+	DateAdded time.Time `json:"dateAdded"`
+	Key       string    `json:"key"`
 }
 
 type DogeboxStateSSHConfig struct {
