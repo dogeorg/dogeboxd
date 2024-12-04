@@ -121,6 +121,11 @@ type RemoveSSHKey struct {
 	ID string
 }
 
+type SystemUpdateRequest struct {
+	Package string
+	Version string
+}
+
 /* Updates are responses to Actions or simply
 * internal state changes that the frontend needs,
 * these are wrapped in a 'change' and sent via

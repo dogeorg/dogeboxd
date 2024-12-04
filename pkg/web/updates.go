@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"golang.org/x/mod/semver"
 )
@@ -86,10 +87,11 @@ func (t api) doSystemUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := system.DoSystemUpdate(req.Package, req.Version); err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Failed to do system update")
-		return
+	update := dogeboxd.SystemUpdateRequest{
+		Package: req.Package,
+		Version: req.Version,
 	}
 
-	sendResponse(w, map[string]any{"status": "success", "message": "System update started"})
+	id := t.dbx.AddAction(update)
+	sendResponse(w, map[string]string{"id": id})
 }
