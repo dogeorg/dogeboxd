@@ -125,6 +125,13 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						}
 						t.done <- j
 
+					case dogeboxd.SystemUpdateRequest:
+						err := t.doSystemUpdate(a.Package, a.Version, j)
+						if err != nil {
+							j.Err = "Failed to do system update"
+						}
+						t.done <- j
+
 					default:
 						fmt.Printf("Unknown action type: %v\n", a)
 					}
@@ -387,4 +394,10 @@ func (t SystemUpdater) disablePup(j dogeboxd.Job) error {
 	}
 
 	return nil
+}
+
+func (t SystemUpdater) doSystemUpdate(packageName, version string, j dogeboxd.Job) error {
+	log := j.Logger.Step("System Update")
+	log.Logf("Updating system package %s to %s", packageName, version)
+	return DoSystemUpdate(packageName, version)
 }
