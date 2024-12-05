@@ -68,7 +68,7 @@ in
     ephemeral = true;
 
     config = { config, pkgs, lib, ... }: {
-      system.stateVersion = "24.05";
+      system.stateVersion = "24.11";
       system.copySystemConfiguration = true;
 
       nixpkgs.overlays = [ pupOverlay ];
