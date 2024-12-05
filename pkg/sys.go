@@ -65,6 +65,7 @@ type DogeboxStateSSHConfig struct {
 }
 
 type DogeboxStateBinaryCache struct {
+	ID   string `json:"id"`
 	Host string `json:"host"`
 	Key  string `json:"key"`
 }
