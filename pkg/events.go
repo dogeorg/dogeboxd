@@ -121,6 +121,15 @@ type RemoveSSHKey struct {
 	ID string
 }
 
+type AddBinaryCache struct {
+	Host string
+	Key  string
+}
+
+type RemoveBinaryCache struct {
+	ID string
+}
+
 /* Updates are responses to Actions or simply
 * internal state changes that the frontend needs,
 * these are wrapped in a 'change' and sent via

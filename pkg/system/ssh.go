@@ -12,11 +12,21 @@ import (
 func (t SystemUpdater) sshUpdate(dbxState dogeboxd.DogeboxState, log dogeboxd.SubLogger) error {
 	patch := t.nix.NewPatch(log)
 	t.nix.UpdateFirewallRules(patch, dbxState)
+
+	binaryCacheSubs := []string{}
+	binaryCacheKeys := []string{}
+	for _, cache := range dbxState.BinaryCaches {
+		binaryCacheSubs = append(binaryCacheSubs, cache.Host)
+		binaryCacheKeys = append(binaryCacheKeys, cache.Key)
+	}
+
 	t.nix.UpdateSystem(patch, dogeboxd.NixSystemTemplateValues{
-		SYSTEM_HOSTNAME: dbxState.Hostname,
-		SSH_ENABLED:     dbxState.SSH.Enabled,
-		SSH_KEYS:        dbxState.SSH.Keys,
-		KEYMAP:          dbxState.KeyMap,
+		SYSTEM_HOSTNAME:   dbxState.Hostname,
+		SSH_ENABLED:       dbxState.SSH.Enabled,
+		SSH_KEYS:          dbxState.SSH.Keys,
+		KEYMAP:            dbxState.KeyMap,
+		BINARY_CACHE_SUBS: binaryCacheSubs,
+		BINARY_CACHE_KEYS: binaryCacheKeys,
 	})
 
 	if err := patch.Apply(); err != nil {

@@ -65,12 +65,19 @@ type DogeboxStateSSHConfig struct {
 	Keys    []DogeboxStateSSHKey `json:"keys"`
 }
 
+type DogeboxStateBinaryCache struct {
+	ID   string `json:"id"`
+	Host string `json:"host"`
+	Key  string `json:"key"`
+}
+
 type DogeboxState struct {
 	InitialState  DogeboxStateInitialSetup
 	Hostname      string
 	KeyMap        string
 	SSH           DogeboxStateSSHConfig
 	StorageDevice string
+	BinaryCaches  []DogeboxStateBinaryCache
 }
 
 type NetworkState struct {
@@ -279,10 +286,12 @@ type NixFirewallTemplateValues struct {
 }
 
 type NixSystemTemplateValues struct {
-	SYSTEM_HOSTNAME string
-	KEYMAP          string
-	SSH_ENABLED     bool
-	SSH_KEYS        []DogeboxStateSSHKey
+	SYSTEM_HOSTNAME   string
+	KEYMAP            string
+	SSH_ENABLED       bool
+	SSH_KEYS          []DogeboxStateSSHKey
+	BINARY_CACHE_SUBS []string
+	BINARY_CACHE_KEYS []string
 }
 
 type NixIncludesFileTemplateValues struct {

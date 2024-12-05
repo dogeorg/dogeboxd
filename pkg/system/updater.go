@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	_ "embed"
 	"fmt"
@@ -122,6 +123,20 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						err := t.RemoveSSHKey(a.ID, j.Logger.Step("remove SSH key"))
 						if err != nil {
 							j.Err = "Failed to remove SSH key"
+						}
+						t.done <- j
+
+					case dogeboxd.AddBinaryCache:
+						err := t.addBinaryCache(a)
+						if err != nil {
+							j.Err = "Failed to add binary cache"
+						}
+						t.done <- j
+
+					case dogeboxd.RemoveBinaryCache:
+						err := t.removeBinaryCache(a)
+						if err != nil {
+							j.Err = "Failed to remove binary cache"
 						}
 						t.done <- j
 
@@ -379,4 +394,40 @@ func (t SystemUpdater) disablePup(j dogeboxd.Job) error {
 	}
 
 	return nil
+}
+
+func (t SystemUpdater) addBinaryCache(j dogeboxd.AddBinaryCache) error {
+	dbxState := t.sm.Get().Dogebox
+
+	id := make([]byte, 8)
+	if _, err := rand.Read(id); err != nil {
+		return fmt.Errorf("failed to generate random ID for binary cache: %v", err)
+	}
+
+	dbxState.BinaryCaches = append(dbxState.BinaryCaches, dogeboxd.DogeboxStateBinaryCache{
+		ID:   string(id),
+		Host: j.Host,
+		Key:  j.Key,
+	})
+
+	return t.sm.SetDogebox(dbxState)
+}
+
+func (t SystemUpdater) removeBinaryCache(j dogeboxd.RemoveBinaryCache) error {
+	dbxState := t.sm.Get().Dogebox
+
+	keyFound := false
+	for i, cache := range dbxState.BinaryCaches {
+		if cache.ID == j.ID {
+			dbxState.BinaryCaches = append(dbxState.BinaryCaches[:i], dbxState.BinaryCaches[i+1:]...)
+			keyFound = true
+			break
+		}
+	}
+
+	if !keyFound {
+		return fmt.Errorf("binary cache with ID %s not found", j.ID)
+	}
+
+	return t.sm.SetDogebox(dbxState)
 }
