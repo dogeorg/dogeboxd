@@ -4,16 +4,23 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
 type SetSSHStateRequest struct {
-	Enabled string `json:"enabled"`
+	Enabled bool `json:"enabled"`
 }
 
 type AddSSHKeyRequest struct {
 	Key string `json:"key"`
+}
+
+func (t api) getSSHState(w http.ResponseWriter, r *http.Request) {
+	dbxState := t.sm.Get().Dogebox
+
+	sendResponse(w, map[string]bool{"enabled": dbxState.SSH.Enabled})
 }
 
 func (t api) setSSHState(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +37,7 @@ func (t api) setSSHState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var action dogeboxd.Action
-	if req.Enabled == "true" {
+	if req.Enabled {
 		action = dogeboxd.EnableSSH{}
 	} else {
 		action = dogeboxd.DisableSSH{}
@@ -62,6 +69,9 @@ func (t api) addSSHKey(w http.ResponseWriter, r *http.Request) {
 		sendErrorResponse(w, http.StatusBadRequest, "Error unmarshalling JSON")
 		return
 	}
+
+	req.Key = strings.ReplaceAll(req.Key, "\n", "")
+	req.Key = strings.ReplaceAll(req.Key, "\r", "")
 
 	if req.Key == "" {
 		sendErrorResponse(w, http.StatusBadRequest, "SSH key is required")

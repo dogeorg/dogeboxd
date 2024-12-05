@@ -79,6 +79,7 @@ func RESTAPI(
 		"GET /keys":                       a.listKeys,
 		"POST /system/bootstrap":          a.initialBootstrap,
 
+		"GET /system/ssh/state":       a.getSSHState,
 		"PUT /system/ssh/state":       a.setSSHState,
 		"GET /system/ssh/keys":        a.listSSHKeys,
 		"PUT /system/ssh/key":         a.addSSHKey,
