@@ -221,6 +221,14 @@ func (t SystemUpdater) installPup(pupSelection dogeboxd.InstallPup, j dogeboxd.J
 		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_DELEGATE_KEY_WRITE_FAILED, err)
 	}
 
+	cmd = exec.Command("sudo", "_dbxroot", "pup", "write-key", "--data-dir", t.config.DataDir, "--pupId", s.ID, "--key-file", "delegated.extended.key", "--data", keyData.Wif)
+	log.LogCmd(cmd)
+	err = cmd.Run()
+	if err != nil {
+		log.Errf("Failed to create extended delegate key in storage: %v. Command output: %s", err)
+		return t.markPupBroken(s, dogeboxd.BROKEN_REASON_DELEGATE_KEY_WRITE_FAILED, err)
+	}
+
 	// Now that we're mostly installed, enable it.
 	newState, err := t.pupManager.UpdatePup(s.ID, dogeboxd.PupEnabled(true))
 	if err != nil {
