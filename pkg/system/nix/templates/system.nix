@@ -35,4 +35,14 @@
       };
     };
   };
+
+  {{ range .BINARY_CACHE_SUBS }}
+  nix.settings.substituters = [
+    "{{.}}"
+  ];{{ end }}
+
+  {{ range .BINARY_CACHE_KEYS }}
+  nix.settings.trusted-public-keys = [
+    "{{.}}"
+  ];{{ end }}
 }
