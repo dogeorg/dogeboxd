@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 )
 
 /*
@@ -127,7 +128,7 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						t.done <- j
 
 					case dogeboxd.AddBinaryCache:
-						err := t.addBinaryCache(a)
+						err := t.AddBinaryCache(a, j.Logger.Step("Add binary cache"))
 						if err != nil {
 							j.Err = "Failed to add binary cache"
 						}
@@ -396,7 +397,7 @@ func (t SystemUpdater) disablePup(j dogeboxd.Job) error {
 	return nil
 }
 
-func (t SystemUpdater) addBinaryCache(j dogeboxd.AddBinaryCache) error {
+func (t SystemUpdater) AddBinaryCache(j dogeboxd.AddBinaryCache, log dogeboxd.SubLogger) error {
 	dbxState := t.sm.Get().Dogebox
 
 	id := make([]byte, 8)
@@ -410,7 +411,16 @@ func (t SystemUpdater) addBinaryCache(j dogeboxd.AddBinaryCache) error {
 		Key:  j.Key,
 	})
 
-	return t.sm.SetDogebox(dbxState)
+	if err := t.sm.SetDogebox(dbxState); err != nil {
+		return err
+	}
+
+	nixPatch := t.nix.NewPatch(log)
+
+	values := utils.GetNixSystemTemplateValues(dbxState)
+	t.nix.UpdateSystem(nixPatch, values)
+
+	return nixPatch.Apply()
 }
 
 func (t SystemUpdater) removeBinaryCache(j dogeboxd.RemoveBinaryCache) error {

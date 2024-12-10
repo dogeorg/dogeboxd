@@ -6,27 +6,15 @@ import (
 	"fmt"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/utils"
 )
 
 func (t SystemUpdater) sshUpdate(dbxState dogeboxd.DogeboxState, log dogeboxd.SubLogger) error {
 	patch := t.nix.NewPatch(log)
 	t.nix.UpdateFirewallRules(patch, dbxState)
 
-	binaryCacheSubs := []string{}
-	binaryCacheKeys := []string{}
-	for _, cache := range dbxState.BinaryCaches {
-		binaryCacheSubs = append(binaryCacheSubs, cache.Host)
-		binaryCacheKeys = append(binaryCacheKeys, cache.Key)
-	}
-
-	t.nix.UpdateSystem(patch, dogeboxd.NixSystemTemplateValues{
-		SYSTEM_HOSTNAME:   dbxState.Hostname,
-		SSH_ENABLED:       dbxState.SSH.Enabled,
-		SSH_KEYS:          dbxState.SSH.Keys,
-		KEYMAP:            dbxState.KeyMap,
-		BINARY_CACHE_SUBS: binaryCacheSubs,
-		BINARY_CACHE_KEYS: binaryCacheKeys,
-	})
+	values := utils.GetNixSystemTemplateValues(dbxState)
+	t.nix.UpdateSystem(patch, values)
 
 	if err := patch.Apply(); err != nil {
 		log.Errf("Failed to enable SSH: %v", err)

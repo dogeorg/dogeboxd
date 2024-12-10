@@ -268,11 +268,23 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 
 	// Host Actions
 	case UpdatePendingSystemNetwork:
+		t.enqueue(j)
+
 	case EnableSSH:
+		t.enqueue(j)
+
 	case DisableSSH:
+		t.enqueue(j)
+
 	case AddSSHKey:
+		t.enqueue(j)
+
 	case RemoveSSHKey:
+		t.enqueue(j)
+
 	case AddBinaryCache:
+		t.enqueue(j)
+
 	case RemoveBinaryCache:
 		t.enqueue(j)
 
