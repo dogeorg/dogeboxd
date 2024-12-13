@@ -84,6 +84,9 @@ Example:
 			os.Exit(1)
 		}
 
+		// Create /mnt if it doesn't exist, -p will prevent error if it already exists.
+		utils.RunCommand("sudo", "mkdir", "-p", "/mnt")
+
 		utils.RunCommand("sudo", "mount", rootPartition, "/mnt")
 
 		// Set an installed flag so we know not to try again.
