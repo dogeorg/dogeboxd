@@ -13,6 +13,7 @@ import (
 )
 
 type StoreManager struct {
+	DBPath  string
 	DB      *sql.DB
 	WriteMu sync.Mutex
 }
@@ -22,7 +23,22 @@ func NewStoreManager(dbPath string) (*StoreManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &StoreManager{DB: db}, nil
+	return &StoreManager{DB: db, DBPath: dbPath}, nil
+}
+
+func (sm *StoreManager) ReOpen() error {
+	if sm.DB != nil {
+		if err := sm.DB.Close(); err != nil {
+			return err
+		}
+	}
+
+	db, err := sql.Open("sqlite3", sm.DBPath)
+	if err != nil {
+		return err
+	}
+	sm.DB = db
+	return nil
 }
 
 func (sm *StoreManager) Run(started, stopped chan bool, stop chan context.Context) error {

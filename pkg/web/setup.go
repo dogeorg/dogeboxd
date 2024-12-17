@@ -354,6 +354,14 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 			sendErrorResponse(w, http.StatusInternalServerError, "Error re-applying overlay patch")
 			return
 		}
+
+		// We need to re-open the store manager here because we've just potentially changed
+		// where it lives after we mount an overlay over /opt
+		if err := t.sm.ReOpen(); err != nil {
+			log.Errf("Error re-opening store manager: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error re-opening store manager")
+			return
+		}
 	}
 
 	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
