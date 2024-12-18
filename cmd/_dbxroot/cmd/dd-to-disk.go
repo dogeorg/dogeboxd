@@ -139,8 +139,6 @@ func getWrittenRootPartition(disk string) (string, error) {
 		return "", fmt.Errorf("failed to parse lsblk output: %w", err)
 	}
 
-	log.Printf("lsblk output: %+v", result)
-
 	for _, device := range result.Blockdevices {
 		if device.Label == "nixos" {
 			return "/dev/" + device.Name, nil
