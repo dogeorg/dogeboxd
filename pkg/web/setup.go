@@ -300,6 +300,14 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	// to copy back into our new overlay.. because the overlay is mounted as part of the
 	// system init. So we init, copy files, apply overlay, copy files back.
 	if dbxState.StorageDevice != "" {
+		// Before we do anything, close the DB so we don't have any
+		// issues with the overlay mount (ie. stuff not written yet)
+		if err := t.sm.CloseDB(); err != nil {
+			log.Errf("Error closing DB: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error closing DB")
+			return
+		}
+
 		tempDir, err := os.MkdirTemp("", "dbx-data-overlay")
 		if err != nil {
 			log.Errf("Error creating temporary directory: %v", err)
@@ -355,9 +363,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// We need to re-open the store manager here because we've just potentially changed
-		// where it lives after we mount an overlay over /opt
-		if err := t.sm.ReOpen(); err != nil {
+		if err := t.sm.OpenDB(); err != nil {
 			log.Errf("Error re-opening store manager: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error re-opening store manager")
 			return

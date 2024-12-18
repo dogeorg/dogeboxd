@@ -19,20 +19,26 @@ type StoreManager struct {
 }
 
 func NewStoreManager(dbPath string) (*StoreManager, error) {
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
+	store := &StoreManager{DBPath: dbPath}
+	if err := store.OpenDB(); err != nil {
 		return nil, err
 	}
-	return &StoreManager{DB: db, DBPath: dbPath}, nil
+	return store, nil
 }
 
-func (sm *StoreManager) ReOpen() error {
+func (sm *StoreManager) CloseDB() error {
+	sm.WriteMu.Lock()
+	defer sm.WriteMu.Unlock()
+
 	if sm.DB != nil {
 		if err := sm.DB.Close(); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
+func (sm *StoreManager) OpenDB() error {
 	db, err := sql.Open("sqlite3", sm.DBPath)
 	if err != nil {
 		return err
