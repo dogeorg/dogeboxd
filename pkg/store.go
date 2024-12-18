@@ -74,11 +74,11 @@ func GetTypeStore[T any](sm *StoreManager) *TypeStore[T] {
 	typeName := reflect.TypeOf((*T)(nil)).Elem().Name()
 	tableName := strings.ToLower(strings.ReplaceAll(typeName, "_", ""))
 	sm.ensureTableExists(tableName)
-	return &TypeStore[T]{DB: sm.DB, mu: &sm.WriteMu, Table: tableName}
+	return &TypeStore[T]{sm: sm, mu: &sm.WriteMu, Table: tableName}
 }
 
 type TypeStore[T any] struct {
-	DB    *sql.DB
+	sm    *StoreManager
 	mu    *sync.Mutex
 	Table string
 }
@@ -92,13 +92,13 @@ func (ts *TypeStore[T]) Set(key string, value T) error {
 		return err
 	}
 
-	_, err = ts.DB.Exec(fmt.Sprintf("INSERT OR REPLACE INTO %s (key, value) VALUES (?, ?)", ts.Table), key, valueBytes)
+	_, err = ts.sm.DB.Exec(fmt.Sprintf("INSERT OR REPLACE INTO %s (key, value) VALUES (?, ?)", ts.Table), key, valueBytes)
 	return err
 }
 
 func (ts *TypeStore[T]) Get(key string) (T, error) {
 	var valueBytes []byte
-	err := ts.DB.QueryRow(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", ts.Table), key).Scan(&valueBytes)
+	err := ts.sm.DB.QueryRow(fmt.Sprintf("SELECT value FROM %s WHERE key = ?", ts.Table), key).Scan(&valueBytes)
 	if err != nil {
 		return *new(T), err
 	}
@@ -111,13 +111,13 @@ func (ts *TypeStore[T]) Get(key string) (T, error) {
 func (ts *TypeStore[T]) Del(key string) error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
-	_, err := ts.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE key = ?", ts.Table), key)
+	_, err := ts.sm.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE key = ?", ts.Table), key)
 	return err
 }
 
 // This should not be used to update/insert, it doesn't lock
 func (ts *TypeStore[T]) Exec(query string, args ...interface{}) ([]T, error) {
-	rows, err := ts.DB.Query(query, args...)
+	rows, err := ts.sm.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
