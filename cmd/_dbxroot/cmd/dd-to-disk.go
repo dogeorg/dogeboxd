@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/dogeorg/dogeboxd/cmd/_dbxroot/utils"
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -75,7 +76,11 @@ Example:
 
 		utils.RunCommand("sudo", "dd", "if="+bootMediaDisk.Name, "of="+targetDisk, "bs=8M", "status=progress")
 
+		time.Sleep(5 * time.Second)
+
 		utils.RunCommand("sudo", "partprobe", targetDisk)
+
+		time.Sleep(5 * time.Second)
 
 		// Once we've copied the data, we need to find the new partition, mount it, and set/remove some flags.
 		rootPartition, err := getWrittenRootPartition(targetDisk)

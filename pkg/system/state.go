@@ -77,6 +77,14 @@ func (s *StateManager) Get() dogeboxd.State {
 	}
 }
 
+func (s *StateManager) CloseDB() error {
+	return s.storeManager.CloseDB()
+}
+
+func (s *StateManager) OpenDB() error {
+	return s.storeManager.OpenDB()
+}
+
 func (s *StateManager) SetNetwork(ns dogeboxd.NetworkState) error {
 	s.network = ns
 	return s.netStore.Set(current, s.network)

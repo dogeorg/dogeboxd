@@ -14,6 +14,11 @@ func (t PupManager) CanPupStart(pupId string) (bool, error) {
 		return false, dogeboxd.ErrPupNotFound
 	}
 
+	// If the pup is disabled, don't let it start under any circumstances.
+	if !pup.Enabled {
+		return false, nil
+	}
+
 	report := t.GetPupHealthState(pup)
 
 	// If we still need config or deps, don't start.

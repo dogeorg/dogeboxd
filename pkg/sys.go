@@ -90,6 +90,8 @@ type State struct {
 
 type StateManager interface {
 	Get() State
+	CloseDB() error
+	OpenDB() error
 	SetNetwork(s NetworkState) error
 	SetDogebox(s DogeboxState) error
 	SetSources(s SourceState) error
