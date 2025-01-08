@@ -102,6 +102,10 @@ func RESTAPI(
 		"DELETE /source/{id}":     a.deleteSource,
 		"/ws/log/{PupID}":         a.getLogSocket,
 		"/ws/state/":              a.getUpdateSocket,
+
+		"GET /system/binary-caches":        a.getBinaryCaches,
+		"PUT /system/binary-cache":         a.addBinaryCache,
+		"DELETE /system/binary-cache/{id}": a.removeBinaryCache,
 	}
 
 	// We always want to load recovery routes.

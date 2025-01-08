@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 )
 
 func ImageBytesToWebBase64(imgBytes []byte, filename string) (string, error) {
@@ -86,4 +88,22 @@ func CopyFiles(source string, destination string) error {
 	})
 
 	return err
+}
+
+func GetNixSystemTemplateValues(dbxState dogeboxd.DogeboxState) dogeboxd.NixSystemTemplateValues {
+	binaryCacheSubs := []string{}
+	binaryCacheKeys := []string{}
+	for _, cache := range dbxState.BinaryCaches {
+		binaryCacheSubs = append(binaryCacheSubs, cache.Host)
+		binaryCacheKeys = append(binaryCacheKeys, cache.Key)
+	}
+
+	return dogeboxd.NixSystemTemplateValues{
+		SYSTEM_HOSTNAME:   dbxState.Hostname,
+		SSH_ENABLED:       dbxState.SSH.Enabled,
+		SSH_KEYS:          dbxState.SSH.Keys,
+		KEYMAP:            dbxState.KeyMap,
+		BINARY_CACHE_SUBS: binaryCacheSubs,
+		BINARY_CACHE_KEYS: binaryCacheKeys,
+	}
 }

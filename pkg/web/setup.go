@@ -15,9 +15,10 @@ import (
 )
 
 type InitialSystemBootstrapRequestBody struct {
-	ReflectorToken string `json:"reflectorToken"`
-	ReflectorHost  string `json:"reflectorHost"`
-	InitialSSHKey  string `json:"initialSSHKey"`
+	ReflectorToken           string `json:"reflectorToken"`
+	ReflectorHost            string `json:"reflectorHost"`
+	InitialSSHKey            string `json:"initialSSHKey"`
+	UseFoundationBinaryCache bool   `json:"useFoundationBinaryCache"`
 }
 
 type BootstrapFacts struct {
@@ -394,6 +395,19 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		if err := t.dbx.SystemUpdater.EnableSSH(log); err != nil {
 			log.Errf("Error enabling SSH: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error enabling SSH")
+			return
+		}
+	}
+
+	if requestBody.UseFoundationBinaryCache {
+		// This is a bit of a hack until we can dispatch and then block,
+		// until a job has finished through the queue.
+		if err := t.dbx.SystemUpdater.AddBinaryCache(dogeboxd.AddBinaryCache{
+			Host: "https://nix.dogecoin.org",
+			Key:  "nix.dogecoin.org:PeUX5ftpdp5W3h827irwXxMZZr/4PGfHvSmV+2o6rC4=",
+		}, log); err != nil {
+			log.Errf("Error adding foundation binary cache: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error adding foundation binary cache")
 			return
 		}
 	}
