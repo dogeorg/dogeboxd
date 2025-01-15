@@ -82,6 +82,7 @@ func (t server) Start() {
 	rest := web.RESTAPI(t.config, t.sm, dbx, pups, sourceManager, lifecycleManager, nixManager, dkm, wsh)
 	internalRouter := web.NewInternalRouter(t.config, dbx, pups, dkm)
 	ui := dogeboxd.ServeUI(t.config)
+	updateChecker := web.NewUpdateChecker(&dbx)
 
 	/* ----------------------------------------------------------------------- */
 	// Create a conductor to manage all the above services startup/shutdown
@@ -104,6 +105,7 @@ func (t server) Start() {
 	c.Service("UI Server", ui)
 	c.Service("System Updater", systemUpdater)
 	c.Service("WSock Relay", wsh)
+	c.Service("Update Checker", updateChecker)
 
 	if !t.config.Recovery {
 		c.Service("System Monitor", systemMonitor)

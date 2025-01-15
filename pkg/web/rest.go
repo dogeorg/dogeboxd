@@ -105,7 +105,7 @@ func RESTAPI(
 		"GET /sources/store":  a.getStoreList,
 		"DELETE /source/{id}": a.deleteSource,
 
-		"GET /system/updates": a.getSystemUpdates,
+		"GET /system/updates": a.getSystemUpdatesForWeb,
 		"POST /system/update": a.doSystemUpdate,
 
 		"/ws/log/{PupID}": a.getLogSocket,

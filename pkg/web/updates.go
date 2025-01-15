@@ -1,12 +1,15 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
+	"github.com/dogeorg/dogeboxd/pkg/conductor"
 	"github.com/dogeorg/dogeboxd/pkg/system"
 	"github.com/dogeorg/dogeboxd/pkg/version"
 	"golang.org/x/mod/semver"
@@ -34,12 +37,11 @@ type DoSystemUpdateRequest struct {
 	Version string `json:"version"`
 }
 
-func (t api) getSystemUpdates(w http.ResponseWriter, r *http.Request) {
+func GetSystemUpdates(dbx *dogeboxd.Dogeboxd) (map[string]SystemUpdatePackage, error) {
 	upgradableReleases, err := system.GetUpgradableReleases()
 	if err != nil {
 		log.Printf("Failed to get upgradable releases: %v", err)
-		sendErrorResponse(w, http.StatusInternalServerError, "Failed to get upgradable releases")
-		return
+		return nil, err
 	}
 
 	dbxRelease := version.GetDBXRelease()
@@ -67,6 +69,23 @@ func (t api) getSystemUpdates(w http.ResponseWriter, r *http.Request) {
 		}
 
 		packages["dogebox"] = pkg
+	}
+
+	// Check if any of the available packages have an update available.
+	for _, pkg := range packages {
+		if pkg.LatestUpdate != pkg.CurrentVersion {
+			dbx.SendSystemUpdateAvailable()
+		}
+	}
+
+	return packages, nil
+}
+
+func (t api) getSystemUpdatesForWeb(w http.ResponseWriter, r *http.Request) {
+	packages, err := GetSystemUpdates(&t.dbx)
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, "Failed to get upgradable releases")
+		return
 	}
 
 	sendResponse(w, GetSystemUpdatesResponse{
@@ -99,4 +118,46 @@ func (t api) doSystemUpdate(w http.ResponseWriter, r *http.Request) {
 
 	id := t.dbx.AddAction(update)
 	sendResponse(w, map[string]string{"id": id})
+}
+
+type UpdateChecker struct {
+	dbx *dogeboxd.Dogeboxd
+}
+
+func NewUpdateChecker(dbx *dogeboxd.Dogeboxd) conductor.Service {
+	return &UpdateChecker{
+		dbx: dbx,
+	}
+}
+
+func (uc *UpdateChecker) Run(started, stopped chan bool, stop chan context.Context) error {
+	checker := func() {
+		ticker := time.NewTicker(6 * time.Hour)
+		defer ticker.Stop()
+
+		for {
+			log.Println("Checking for system updates")
+			GetSystemUpdates(uc.dbx)
+			<-ticker.C
+		}
+	}
+
+	go func() {
+		started <- true
+
+		time.Sleep(30 * time.Second)
+
+		_, err := GetSystemUpdates(uc.dbx)
+		if err != nil {
+			log.Printf("Failed to get system upgrades: %v", err)
+		}
+
+		// Start checking every now and again.
+		go checker()
+
+		<-stop
+		stopped <- true
+	}()
+
+	return nil
 }
