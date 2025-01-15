@@ -59,14 +59,20 @@ func GetUpgradableReleases() ([]UpgradableRelease, error) {
 		return []UpgradableRelease{}, err
 	}
 
+	unsupportedUpgradesEnabled := os.Getenv("ENABLE_UNSUPPORTED_UPGRADES") == "true"
+
 	var upgradableTags []UpgradableRelease
 	for _, tag := range tags {
-		if semver.Compare(tag.Tag, dbxRelease.Release) > 0 {
-			upgradableTags = append(upgradableTags, UpgradableRelease{
-				Version:    tag.Tag,
-				ReleaseURL: fmt.Sprintf("https://github.com/dogeorg/dogebox/releases/tag/%s", tag.Tag),
-				Summary:    "Update for Dogeboxd / DKM / DPanel",
-			})
+		release := UpgradableRelease{
+			Version:    tag.Tag,
+			ReleaseURL: fmt.Sprintf("https://github.com/dogeorg/dogebox/releases/tag/%s", tag.Tag),
+			Summary:    "Update for Dogeboxd / DKM / DPanel",
+		}
+
+		// Allow any version to be displayed if the user has enabled unsupported upgrades.
+		// We probably want to limit this eventually, but for now it's useful for testing.
+		if unsupportedUpgradesEnabled || semver.Compare(tag.Tag, dbxRelease.Release) > 0 {
+			upgradableTags = append(upgradableTags, release)
 		}
 	}
 
@@ -96,7 +102,7 @@ func DoSystemUpdate(pkg string, updateVersion string) error {
 		return fmt.Errorf("Release %s is not available for %s", updateVersion, pkg)
 	}
 
-	cmd := exec.Command("sudo", "_dbxroot", "dbx-upgrade", "--release", updateVersion)
+	cmd := exec.Command("sudo", "_dbxroot", "dbx-upgrade", "--package", pkg, "--release", updateVersion)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	if err := cmd.Run(); err != nil {

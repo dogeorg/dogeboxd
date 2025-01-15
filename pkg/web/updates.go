@@ -8,13 +8,15 @@ import (
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
+	"github.com/dogeorg/dogeboxd/pkg/version"
 	"golang.org/x/mod/semver"
 )
 
 type SystemUpdatePackage struct {
-	Name         string                     `json:"name"`
-	Updates      []SystemUpdatePackageEntry `json:"updates"`
-	LatestUpdate string                     `json:"latestUpdate"`
+	Name           string                     `json:"name"`
+	Updates        []SystemUpdatePackageEntry `json:"updates"`
+	CurrentVersion string                     `json:"currentVersion"`
+	LatestUpdate   string                     `json:"latestUpdate"`
 }
 
 type SystemUpdatePackageEntry struct {
@@ -40,11 +42,14 @@ func (t api) getSystemUpdates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dbxRelease := version.GetDBXRelease()
+
 	packages := map[string]SystemUpdatePackage{
 		"dogebox": {
-			Name:         "Dogebox",
-			Updates:      []SystemUpdatePackageEntry{},
-			LatestUpdate: "",
+			Name:           "Dogebox",
+			Updates:        []SystemUpdatePackageEntry{},
+			CurrentVersion: dbxRelease.Release,
+			LatestUpdate:   "",
 		},
 	}
 
