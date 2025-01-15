@@ -424,6 +424,10 @@ func (t Dogeboxd) sendProgress(p ActionProgress) {
 	t.sendChange(Change{ID: p.ActionID, Type: "progress", Update: p})
 }
 
+func (t Dogeboxd) SendSystemUpdateAvailable() {
+	t.sendChange(Change{ID: "system", Type: "system-update-available", Update: true})
+}
+
 // helper to attach PupState to a job and send it to the SystemUpdater
 func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	p, _, err := t.Pups.GetPup(PupID)
