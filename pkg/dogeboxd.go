@@ -282,6 +282,9 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	case RemoveSSHKey:
 		t.enqueue(j)
 
+	case SystemUpdateRequest:
+		t.enqueue(j)
+
 	// Pup router actions
 	case UpdateMetrics:
 		t.Pups.UpdateMetrics(a)
@@ -419,6 +422,10 @@ func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
 // updates the client on the progress of any inflight actions
 func (t Dogeboxd) sendProgress(p ActionProgress) {
 	t.sendChange(Change{ID: p.ActionID, Type: "progress", Update: p})
+}
+
+func (t Dogeboxd) SendSystemUpdateAvailable() {
+	t.sendChange(Change{ID: "system", Type: "system-update-available", Update: true})
 }
 
 // helper to attach PupState to a job and send it to the SystemUpdater
