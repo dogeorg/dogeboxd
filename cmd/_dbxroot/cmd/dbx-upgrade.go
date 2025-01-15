@@ -52,7 +52,7 @@ Example:
 			os.Exit(1)
 		}
 
-		existingChannels := utils.RunCommand("nix-channel --list")
+		existingChannels := utils.RunCommand("nix-channel", "--list")
 
 		channels := map[string]string{}
 		for _, line := range strings.Split(strings.TrimSpace(existingChannels), "\n") {
@@ -76,10 +76,10 @@ Example:
 			}
 		}()
 
-		utils.RunCommand("nix-channel --remove dogebox")
-		utils.RunCommand(fmt.Sprintf("nix-channel --add https://github.com/dogeorg/dogeboxd/archive/refs/tags/%s.tar.gz dogebox", release))
-		utils.RunCommand("nix-channel --update dogebox")
-		utils.RunCommand("nixos-rebuild switch")
+		utils.RunCommand("nix-channel", "--remove", "dogebox")
+		utils.RunCommand("nix-channel", "--add", fmt.Sprintf("https://github.com/dogeorg/dogebox-nur-packages/archive/%s.tar.gz", release), "dogebox")
+		utils.RunCommand("nix-channel", "--update", "dogebox")
+		utils.RunCommand("nixos-rebuild", "switch")
 	},
 }
 
