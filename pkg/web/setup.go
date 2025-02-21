@@ -5,12 +5,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
 	"github.com/dogeorg/dogeboxd/pkg/system"
-	"github.com/dogeorg/dogeboxd/pkg/utils"
 	"github.com/dogeorg/dogeboxd/pkg/version"
 )
 
@@ -293,81 +291,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 	if err := nixPatch.Apply(); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
 		return
-	}
-
-	// This storage overlay stuff needs to happen _after_ we've init'd our system, as
-	// otherwise we end up in a position where we can't access the $datadir/nix/* files
-	// to copy back into our new overlay.. because the overlay is mounted as part of the
-	// system init. So we init, copy files, apply overlay, copy files back.
-	if dbxState.StorageDevice != "" {
-		// Before we do anything, close the DB so we don't have any
-		// issues with the overlay mount (ie. stuff not written yet)
-		if err := t.sm.CloseDB(); err != nil {
-			log.Errf("Error closing DB: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error closing DB")
-			return
-		}
-
-		tempDir, err := os.MkdirTemp("", "dbx-data-overlay")
-		if err != nil {
-			log.Errf("Error creating temporary directory: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error creating temporary directory")
-			return
-		}
-		log.Logf("Created temporary directory: %s", tempDir)
-		// defer os.RemoveAll(tempDir)
-
-		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
-
-		partitionName, err := system.InitStorageDevice(dbxState)
-		if err != nil {
-			log.Errf("Error initialising storage device: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")
-			return
-		}
-
-		// Copy all our existing data to our temp dir so we don't lose everything created already.
-		if err := utils.CopyFiles(t.config.DataDir, tempDir); err != nil {
-			log.Errf("Error copying data to temp dir: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data to temp dir")
-			return
-		}
-
-		// Apply our new overlay update.
-		overlayPatch := t.nix.NewPatch(log)
-		t.nix.UpdateStorageOverlay(overlayPatch, partitionName)
-
-		if err := overlayPatch.Apply(); err != nil {
-			log.Errf("Error applying overlay patch: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error applying overlay patch")
-			return
-		}
-
-		// Copy our data back from the temp dir to the new location.
-		if err := utils.CopyFiles(tempDir, t.config.DataDir); err != nil {
-			log.Errf("Error copying data back to %s: %v", t.config.DataDir, err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data back to data dir")
-			return
-		}
-
-		// This sucks, but because we wrote our storage-overlay file during the last rebuild,
-		// we don't actually have that in the tempDir we backed up. So we have to re-save this
-		// file into the overlay we now have mounted, but we don't actually have to rebuild.
-		reoverlayPatch := t.nix.NewPatch(log)
-		t.nix.UpdateStorageOverlay(reoverlayPatch, partitionName)
-		if err := reoverlayPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
-			DangerousNoRebuild: true,
-		}); err != nil {
-			log.Errf("Error re-applying overlay patch: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error re-applying overlay patch")
-			return
-		}
-
-		if err := t.sm.OpenDB(); err != nil {
-			log.Errf("Error re-opening store manager: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error re-opening store manager")
-			return
-		}
 	}
 
 	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
