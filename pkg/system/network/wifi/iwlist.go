@@ -12,7 +12,7 @@ var _ WifiScanner = &IWListScanner{}
 type IWListScanner struct{}
 
 func (s IWListScanner) Scan(interfaceName string) ([]ScannedWifiNetwork, error) {
-	cmd := exec.Command("iwlist", interfaceName, "scan")
+	cmd := exec.Command("sudo", "_dbxroot", "iwlist", interfaceName, "scan")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
