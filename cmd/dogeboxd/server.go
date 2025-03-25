@@ -103,10 +103,10 @@ func (t server) Start() {
 	c.Service("REST API", rest)
 	c.Service("UI Server", ui)
 	c.Service("System Updater", systemUpdater)
+	c.Service("WSock Relay", wsh)
 
 	if !t.config.Recovery {
 		c.Service("System Monitor", systemMonitor)
-		c.Service("WSock Relay", wsh)
 		c.Service("Pup Manager", pups)
 		c.Service("Internal Router", internalRouter)
 		c.Service("Admin Router", adminRouter)

@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	dogeboxd "github.com/dogeorg/dogeboxd/pkg"
@@ -18,11 +17,6 @@ type WSRelay struct {
 }
 
 func NewWSRelay(config dogeboxd.ServerConfig, relay chan dogeboxd.Change) WSRelay {
-	if config.Recovery {
-		log.Printf("In recovery mode: not initialising WSRelay")
-		return WSRelay{}
-	}
-
 	return WSRelay{
 		config: config,
 		socks:  []*WSCONN{},        // all current connections

@@ -84,6 +84,7 @@ func RESTAPI(
 		"GET /system/ssh/keys":        a.listSSHKeys,
 		"PUT /system/ssh/key":         a.addSSHKey,
 		"DELETE /system/ssh/key/{id}": a.removeSSHKey,
+		"/ws/recovery/":               a.getRecoverySocket,
 	}
 
 	// Normal routes are used when we are not in recovery mode.
