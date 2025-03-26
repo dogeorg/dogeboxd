@@ -160,9 +160,13 @@ func GetBuildType() (string, error) {
 	return strings.TrimSpace(string(buildType)), nil
 }
 
-func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {
+func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string, t dogeboxd.Dogeboxd) error {
 	if config.DevMode {
-		log.Printf("Dev mode enabled, skipping installation. You probably do not want to do this. re-run without dev mode if you do.")
+		t.Changes <- dogeboxd.Change{
+			ID:     "test-install",
+			Type:   "recovery",
+			Update: "Dev mode enabled, skipping installation. You probably do not want to do this. re-run without dev mode if you do.",
+		}
 		return nil
 	}
 
@@ -205,7 +209,7 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 
 	log.Printf("Starting to install to disk %s", name)
 
-	var installFn func(string) error
+	var installFn func(string, dogeboxd.Dogeboxd) error
 
 	installFn = dbxrootInstallToDisk
 
@@ -215,7 +219,7 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 		installFn = dbxrootDDToDisk
 	}
 
-	if err := installFn(name); err != nil {
+	if err := installFn(name, t); err != nil {
 		log.Printf("Failed to install to disk: %v", err)
 		return err
 	}
@@ -225,16 +229,40 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 	return nil
 }
 
-func dbxrootInstallToDisk(disk string) error {
+func dbxrootInstallToDisk(disk string, t dogeboxd.Dogeboxd) error {
+	var out bytes.Buffer
 	cmd := exec.Command("sudo", "_dbxroot", "install-to-disk", "--disk", disk, "--dbx-secret", DBXRootSecret)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Stdout = io.MultiWriter(&out, os.Stdout)
+	cmd.Stderr = io.MultiWriter(&out, os.Stderr)
+
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	t.Changes <- dogeboxd.Change{
+		ID:     "install-output",
+		Type:   "recovery",
+		Update: out.String(),
+	}
+	return nil
 }
 
-func dbxrootDDToDisk(toDisk string) error {
+func dbxrootDDToDisk(toDisk string, t dogeboxd.Dogeboxd) error {
+	var out bytes.Buffer
 	cmd := exec.Command("sudo", "_dbxroot", "dd-to-disk", "--target-disk", toDisk, "--dbx-secret", DBXRootSecret)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	cmd.Stdout = io.MultiWriter(&out, os.Stdout)
+	cmd.Stderr = io.MultiWriter(&out, os.Stderr)
+
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	t.Changes <- dogeboxd.Change{
+		ID:     "dd-output",
+		Type:   "recovery",
+		Update: out.String(),
+	}
+	return nil
 }

@@ -32,14 +32,6 @@ func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
 	t.ws.GetWSHandler(initialPayload).ServeHTTP(w, r)
 }
 
-// Handle incomming websocket connections for recovery updates
-func (t api) getRecoverySocket(w http.ResponseWriter, r *http.Request) {
-	initialPayload := func() any {
-		return dogeboxd.Change{ID: "internal", Error: "", Type: "bootstrap", Update: t.getRawBS()}
-	}
-	t.ws.GetWSHandler(initialPayload).ServeHTTP(w, r)
-}
-
 // Handle incomming websocket connections for log output
 func (t api) getLogSocket(w http.ResponseWriter, r *http.Request) {
 	PupID := r.PathValue("PupID")
