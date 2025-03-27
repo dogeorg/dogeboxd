@@ -39,7 +39,7 @@ type BootstrapResponse struct {
 func (t api) getRawBS() BootstrapResponse {
 	dbxState := t.sm.Get().Dogebox
 
-	installationMode, err := system.GetInstallationMode(dbxState)
+	installationMode, err := system.GetInstallationMode(t.dbx, dbxState)
 	if err != nil {
 		log.Printf("Could not determine installation mode: %v", err)
 		installationMode = dogeboxd.BootstrapInstallationModeCannotInstall
@@ -319,7 +319,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
 
-		partitionName, err := system.InitStorageDevice(dbxState)
+		partitionName, err := system.InitStorageDevice(t.dbx, dbxState)
 		if err != nil {
 			log.Errf("Error initialising storage device: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")

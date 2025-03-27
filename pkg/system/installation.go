@@ -2,11 +2,13 @@ package system
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/dell/csi-baremetal/pkg/base/linuxutils/lsblk"
@@ -17,12 +19,24 @@ import (
 
 const DBXRootSecret = "yes-i-will-destroy-everything-on-this-disk"
 
-func GetInstallationMode(dbxState dogeboxd.DogeboxState) (dogeboxd.BootstrapInstallationMode, error) {
-	// First, check if we're already installed.
-	if _, err := os.Stat("/opt/dbx-installed"); err == nil {
+func logToWebSocket(t dogeboxd.Dogeboxd, message string) {
+	log.Printf("logging to web socket: %s", message)
+	t.Changes <- dogeboxd.Change{
+		ID:     "recovery",
+		Type:   "recovery",
+		Update: message,
+	}
+}
+
+func GetInstallationMode(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (dogeboxd.BootstrapInstallationMode, error) {
+	logToWebSocket(t, "getting installation mode")
+	// Check if we're running on NixOS labeled disks
+	exists, err := checkNixOSDisksForFile(t, "/opt/dbx-installed")
+	if err != nil {
+		return "", fmt.Errorf("error checking for `nixos` labeled disks: %v", err)
+	}
+	if exists {
 		return dogeboxd.BootstrapInstallationModeIsInstalled, nil
-	} else if !os.IsNotExist(err) {
-		return "", fmt.Errorf("error checking for RO installation media: %v", err)
 	}
 
 	// If we're not already installed, but we've been configured, no install for you.
@@ -47,6 +61,109 @@ const (
 	three_hundred_gigabytes = 300 * one_gigabyte
 )
 
+func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, device, targetFile string) (bool, error) {
+	logToWebSocket(t, fmt.Sprintf("mounting and checking disk for file: %s", targetFile))
+	// Create a temporary mount point
+	mountPoint, err := os.MkdirTemp("", "tmp-mount")
+	if err != nil {
+		logToWebSocket(t, fmt.Sprintf("failed to create temporary mount point: %v", err))
+		return false, fmt.Errorf("failed to create temporary mount point: %v", err)
+	}
+	defer os.RemoveAll(mountPoint) // Clean up temp directory
+
+	// Mount the device
+	mountCmd := exec.Command("mount", device, mountPoint)
+	if err := mountCmd.Run(); err != nil {
+		logToWebSocket(t, fmt.Sprintf("failed to mount %s: %v", device, err))
+		return false, fmt.Errorf("failed to mount %s: %v", device, err)
+	}
+	defer func() {
+		// Ensure unmount happens even if file check fails
+		unmountCmd := exec.Command("umount", mountPoint)
+		if err := unmountCmd.Run(); err != nil {
+			logToWebSocket(t, fmt.Sprintf("warning: failed to unmount %s: %v", mountPoint, err))
+		}
+	}()
+
+	// Check for the target file
+	filePath := filepath.Join(mountPoint, targetFile)
+	_, err = os.Stat(filePath)
+	if os.IsNotExist(err) {
+		logToWebSocket(t, fmt.Sprintf("did not find file on disk: %s", filePath))
+		return false, nil
+	} else if err != nil {
+		logToWebSocket(t, fmt.Sprintf("error checking file %s: %v", filePath, err))
+		return false, fmt.Errorf("error checking file %s: %v", filePath, err)
+	}
+
+	logToWebSocket(t, fmt.Sprintf("found file on disk: %s", filePath))
+
+	return true, nil
+}
+
+func findNixOSDisks(t dogeboxd.Dogeboxd) ([]string, error) {
+	logToWebSocket(t, "finding nixos disks")
+	disks, err := GetSystemDisks()
+	logToWebSocket(t, "Found disks:")
+	for _, disk := range disks {
+		logToWebSocket(t, fmt.Sprintf("  - %s (Label: %s, Size: %s, Boot: %v)",
+			disk.Name, disk.Label, disk.SizePretty, disk.BootMedia))
+		if len(disk.Children) > 0 {
+			for _, child := range disk.Children {
+				logToWebSocket(t, fmt.Sprintf("    └─ %s (Label: %s)", child.Name, child.Label))
+			}
+		}
+	}
+	if err != nil {
+		logToWebSocket(t, fmt.Sprintf("error getting system disks: %v", err))
+		return nil, err
+	}
+
+	//return a string of all the disks that have the label 'nixos'
+	var nixosDisks []string
+	for _, disk := range disks {
+		// Check if the disk itself has the nixos label
+		if disk.Label == "nixos" {
+			nixosDisks = append(nixosDisks, disk.Name)
+			continue
+		}
+
+		// Check if any of the disk's children have the nixos label
+		for _, child := range disk.Children {
+			if child.Label == "nixos" {
+				nixosDisks = append(nixosDisks, child.Name)
+			}
+		}
+	}
+	logToWebSocket(t, fmt.Sprintf("found nixos disks: %v", nixosDisks))
+
+	return nixosDisks, nil
+}
+
+func checkNixOSDisksForFile(t dogeboxd.Dogeboxd, targetFile string) (bool, error) {
+	logToWebSocket(t, fmt.Sprintf("checking nixos disks for file: %s", targetFile))
+	// Find NixOS labeled disks
+	disks, err := findNixOSDisks(t)
+	if err != nil {
+		return false, err
+	}
+
+	// Check each disk for the target file
+	for _, disk := range disks {
+		exists, err := mountAndCheckDiskForFile(t, disk, targetFile)
+		if err != nil {
+			logToWebSocket(t, fmt.Sprintf("Error processing disk %s: %v", disk, err))
+			continue
+		}
+		if exists {
+			logToWebSocket(t, fmt.Sprintf("found file on disk: %s", disk))
+			return true, nil
+		}
+	}
+	logToWebSocket(t, "did not find file on any nixos disks")
+	return false, nil
+}
+
 func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	lsb := lsblk.NewLSBLK(logrus.New())
 
@@ -62,6 +179,38 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 			Name:       device.Name,
 			Size:       device.Size.Int64,
 			SizePretty: utils.PrettyPrintDiskSize(device.Size.Int64),
+		}
+
+		// Get label information using lsblk
+		cmd := exec.Command("lsblk", device.Name, "-o", "name,label", "--json")
+		output, err := cmd.Output()
+		if err != nil {
+			log.Printf("Warning: failed to get label for device %s: %v", device.Name, err)
+		} else {
+			var result struct {
+				Blockdevices []struct {
+					Name     string `json:"name"`
+					Label    string `json:"label"`
+					Children []struct {
+						Name  string `json:"name"`
+						Label string `json:"label"`
+					} `json:"children,omitempty"`
+				} `json:"blockdevices"`
+			}
+
+			if err := json.Unmarshal(output, &result); err != nil {
+				log.Printf("Warning: failed to parse lsblk output for device %s: %v", device.Name, err)
+			} else if len(result.Blockdevices) > 0 {
+				disk.Label = result.Blockdevices[0].Label
+
+				// Convert children to SystemDisk format
+				for _, child := range result.Blockdevices[0].Children {
+					disk.Children = append(disk.Children, dogeboxd.SystemDisk{
+						Name:  child.Name,
+						Label: child.Label,
+					})
+				}
+			}
 		}
 
 		// We will likely never see loop devices in the wild,
@@ -113,7 +262,7 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	return disks, nil
 }
 
-func InitStorageDevice(dbxState dogeboxd.DogeboxState) (string, error) {
+func InitStorageDevice(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (string, error) {
 	if dbxState.StorageDevice == "" || dbxState.InitialState.HasFullyConfigured {
 		return "", nil
 	}
@@ -160,7 +309,7 @@ func GetBuildType() (string, error) {
 	return strings.TrimSpace(string(buildType)), nil
 }
 
-func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string, t dogeboxd.Dogeboxd) error {
+func InstallToDisk(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {
 	t.Changes <- dogeboxd.Change{
 		ID:     "install-output",
 		Type:   "recovery",
@@ -179,7 +328,7 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 		return fmt.Errorf("installation can only be done in recovery mode")
 	}
 
-	installMode, err := GetInstallationMode(dbxState)
+	installMode, err := GetInstallationMode(t, dbxState)
 	if err != nil {
 		return err
 	}
