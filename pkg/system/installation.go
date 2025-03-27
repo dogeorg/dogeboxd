@@ -234,40 +234,50 @@ func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState,
 	return nil
 }
 
+type lineStreamWriter struct {
+	t        dogeboxd.Dogeboxd
+	changeID string
+	buf      []byte
+}
+
+func newLineStreamWriter(t dogeboxd.Dogeboxd, changeID string) *lineStreamWriter {
+	return &lineStreamWriter{
+		t:        t,
+		changeID: changeID,
+		buf:      make([]byte, 0),
+	}
+}
+
+func (w *lineStreamWriter) Write(p []byte) (n int, err error) {
+	for _, b := range p {
+		if b == '\n' || b == '\r' {
+			if len(w.buf) > 0 {
+				w.t.Changes <- dogeboxd.Change{
+					ID:     w.changeID,
+					Type:   "recovery",
+					Update: string(w.buf),
+				}
+				w.buf = w.buf[:0]
+			}
+		} else {
+			w.buf = append(w.buf, b)
+		}
+	}
+	return len(p), nil
+}
+
 func dbxrootInstallToDisk(disk string, t dogeboxd.Dogeboxd) error {
-	var out bytes.Buffer
 	cmd := exec.Command("sudo", "_dbxroot", "install-to-disk", "--disk", disk, "--dbx-secret", DBXRootSecret)
-	cmd.Stdout = io.MultiWriter(&out, os.Stdout)
-	cmd.Stderr = io.MultiWriter(&out, os.Stderr)
+	cmd.Stdout = newLineStreamWriter(t, "install-output")
+	cmd.Stderr = newLineStreamWriter(t, "install-output")
 
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-
-	t.Changes <- dogeboxd.Change{
-		ID:     "install-output",
-		Type:   "recovery",
-		Update: out.String(),
-	}
-	return nil
+	return cmd.Run()
 }
 
 func dbxrootDDToDisk(toDisk string, t dogeboxd.Dogeboxd) error {
-	var out bytes.Buffer
 	cmd := exec.Command("sudo", "_dbxroot", "dd-to-disk", "--target-disk", toDisk, "--dbx-secret", DBXRootSecret)
-	cmd.Stdout = io.MultiWriter(&out, os.Stdout)
-	cmd.Stderr = io.MultiWriter(&out, os.Stderr)
+	cmd.Stdout = newLineStreamWriter(t, "dd-output")
+	cmd.Stderr = newLineStreamWriter(t, "dd-output")
 
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-
-	t.Changes <- dogeboxd.Change{
-		ID:     "dd-output",
-		Type:   "recovery",
-		Update: out.String(),
-	}
-	return nil
+	return cmd.Run()
 }
