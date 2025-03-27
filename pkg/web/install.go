@@ -46,7 +46,7 @@ func (t api) installToDisk(w http.ResponseWriter, r *http.Request) {
 
 	dbxState := t.sm.Get().Dogebox
 
-	if err := system.InstallToDisk(t.config, dbxState, req.Disk, t.dbx); err != nil {
+	if err := system.InstallToDisk(t.dbx, t.config, dbxState, req.Disk); err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error installing to disk: "+err.Error())
 		return
 	}
