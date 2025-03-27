@@ -161,9 +161,14 @@ func GetBuildType() (string, error) {
 }
 
 func InstallToDisk(config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string, t dogeboxd.Dogeboxd) error {
+	t.Changes <- dogeboxd.Change{
+		ID:     "install-output",
+		Type:   "recovery",
+		Update: "Install to disk started",
+	}
 	if config.DevMode {
 		t.Changes <- dogeboxd.Change{
-			ID:     "test-install",
+			ID:     "warning",
 			Type:   "recovery",
 			Update: "Dev mode enabled, skipping installation. You probably do not want to do this. re-run without dev mode if you do.",
 		}

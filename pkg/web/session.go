@@ -128,11 +128,6 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 
 	tokenExtractor := getBearerToken
 
-	// Handle Websocket request authentication separately.
-	if strings.HasPrefix(route, "/ws/") {
-		tokenExtractor = getQueryToken
-	}
-
 	sessionHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, ok := getSession(r, tokenExtractor)
 
@@ -143,6 +138,31 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 
 		next.ServeHTTP(w, r)
 	})
+
+	// Helper function to handle system configuration check and authentication
+	handleConfigCheck := func(w http.ResponseWriter, r *http.Request) {
+		dbxis := sm.Get().Dogebox.InitialState
+
+		if !dbxis.HasFullyConfigured {
+			// We good.
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Still check authentication if system is configured
+		sessionHandler.ServeHTTP(w, r)
+	}
+
+	log.Println("checking connection")
+	log.Println("route:", route)
+	// Handle Websocket request authentication separately.
+	if strings.HasPrefix(route, "/ws/") {
+		tokenExtractor = getQueryToken
+		// Allow websocket connections to /ws/state/ without authentication if system is not configured
+		if route == "/ws/state/" {
+			return http.HandlerFunc(handleConfigCheck)
+		}
+	}
 
 	// We don't want a few routes to be locked down until the user has actually configured their system.
 	// Whitelist those here.
@@ -160,20 +180,8 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 		route == "GET /keys" ||
 		route == "POST /keys/create-master" ||
 		route == "POST /system/host/shutdown" ||
-		route == "POST /system/host/reboot" ||
-		route == "/ws/state/" {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			dbxis := sm.Get().Dogebox.InitialState
-
-			if !dbxis.HasFullyConfigured {
-				// We good.
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			// Still check.
-			sessionHandler.ServeHTTP(w, r)
-		})
+		route == "POST /system/host/reboot" {
+		return http.HandlerFunc(handleConfigCheck)
 	}
 
 	// Any other function should require an authed session
