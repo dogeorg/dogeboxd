@@ -153,15 +153,9 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 		sessionHandler.ServeHTTP(w, r)
 	}
 
-	log.Println("checking connection")
-	log.Println("route:", route)
 	// Handle Websocket request authentication separately.
 	if strings.HasPrefix(route, "/ws/") {
 		tokenExtractor = getQueryToken
-		// Allow websocket connections to /ws/state/ without authentication if system is not configured
-		if route == "/ws/state/" {
-			return http.HandlerFunc(handleConfigCheck)
-		}
 	}
 
 	// We don't want a few routes to be locked down until the user has actually configured their system.
@@ -180,7 +174,8 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 		route == "GET /keys" ||
 		route == "POST /keys/create-master" ||
 		route == "POST /system/host/shutdown" ||
-		route == "POST /system/host/reboot" {
+		route == "POST /system/host/reboot" ||
+		route == "/ws/state/" {
 		return http.HandlerFunc(handleConfigCheck)
 	}
 

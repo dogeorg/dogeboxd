@@ -102,7 +102,6 @@ func RESTAPI(
 		"GET /sources/store":      a.getStoreList,
 		"DELETE /source/{id}":     a.deleteSource,
 		"/ws/log/{PupID}":         a.getLogSocket,
-		"/ws/state/":              a.getUpdateSocket,
 	}
 
 	// We always want to load recovery routes.
