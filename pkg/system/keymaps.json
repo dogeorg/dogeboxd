@@ -1,0 +1,342 @@
+[
+  {
+    "name": "ANSI-dvorak",
+    "value": "ANSI Dvorak Layout"
+  },
+  {
+    "name": "adnw",
+    "value": "Alternate German Keyboard Layout (AdNW)"
+  },
+  {
+    "name": "amiga-de",
+    "value": "Amiga German Keyboard"
+  },
+  {
+    "name": "amiga-us",
+    "value": "Amiga US Keyboard"
+  },
+  {
+    "name": "apple-a1048-sv",
+    "value": "Apple Swedish A1048 Keyboard"
+  },
+  {
+    "name": "apple-a1243-sv",
+    "value": "Apple Swedish A1243 Keyboard"
+  },
+  {
+    "name": "atari-de",
+    "value": "Atari German Keyboard"
+  },
+  {
+    "name": "atari-se",
+    "value": "Atari Swedish Keyboard"
+  },
+  {
+    "name": "atari-uk-falcon",
+    "value": "Atari UK Falcon Keyboard"
+  },
+  {
+    "name": "atari-us",
+    "value": "Atari US Keyboard"
+  },
+  {
+    "name": "bashkir",
+    "value": "Bashkir Keyboard Layout"
+  },
+  {
+    "name": "be-latin1",
+    "value": "Belgian Latin-1 Keyboard"
+  },
+  {
+    "name": "bg-cp1251",
+    "value": "Bulgarian CP1251 Keyboard"
+  },
+  {
+    "name": "bg-cp855",
+    "value": "Bulgarian CP855 Keyboard"
+  },
+  {
+    "name": "bg_bds-cp1251",
+    "value": "Bulgarian BDS CP1251 Keyboard"
+  },
+  {
+    "name": "bg_bds-utf8",
+    "value": "Bulgarian BDS UTF-8 Keyboard"
+  },
+  {
+    "name": "bg_pho-cp1251",
+    "value": "Bulgarian Phonetic CP1251 Keyboard"
+  },
+  {
+    "name": "bg_pho-utf8",
+    "value": "Bulgarian Phonetic UTF-8 Keyboard"
+  },
+  {
+    "name": "br-abnt",
+    "value": "Brazilian ABNT Keyboard"
+  },
+  {
+    "name": "br-abnt2",
+    "value": "Brazilian ABNT2 Keyboard"
+  },
+  {
+    "name": "br-latin1-abnt2",
+    "value": "Brazilian Latin-1 ABNT2 Keyboard"
+  },
+  {
+    "name": "br-latin1-us",
+    "value": "Brazilian Latin-1 US Keyboard"
+  },
+  {
+    "name": "by",
+    "value": "Belarusian Keyboard Layout"
+  },
+  {
+    "name": "by-cp1251",
+    "value": "Belarusian CP1251 Keyboard"
+  },
+  {
+    "name": "ca",
+    "value": "Canadian Keyboard Layout"
+  },
+  {
+    "name": "colemak",
+    "value": "Colemak Keyboard Layout"
+  },
+  {
+    "name": "croat",
+    "value": "Croatian Keyboard Layout"
+  },
+  {
+    "name": "cz",
+    "value": "Czech Keyboard Layout"
+  },
+  {
+    "name": "cz-cp1250",
+    "value": "Czech CP1250 Keyboard"
+  },
+  {
+    "name": "cz-lat2",
+    "value": "Czech Latin-2 Keyboard"
+  },
+  {
+    "name": "cz-lat2-prog",
+    "value": "Czech Latin-2 Programmers Keyboard"
+  },
+  {
+    "name": "cz-qwertz",
+    "value": "Czech QWERTZ Keyboard"
+  },
+  {
+    "name": "cz-us-qwertz",
+    "value": "Czech US QWERTZ Keyboard"
+  },
+  {
+    "name": "de",
+    "value": "German Keyboard Layout"
+  },
+  {
+    "name": "de-latin1",
+    "value": "German Latin-1 Keyboard"
+  },
+  {
+    "name": "de-latin1-nodeadkeys",
+    "value": "German Latin-1 Keyboard (No Dead Keys)"
+  },
+  {
+    "name": "de-mobii",
+    "value": "German Mobii Keyboard"
+  },
+  {
+    "name": "dk",
+    "value": "Danish Keyboard Layout"
+  },
+  {
+    "name": "dk-latin1",
+    "value": "Danish Latin-1 Keyboard"
+  },
+  {
+    "name": "dvorak",
+    "value": "Dvorak Keyboard Layout"
+  },
+  {
+    "name": "dvorak-ca-fr",
+    "value": "Canadian French Dvorak Layout"
+  },
+  {
+    "name": "dvorak-de",
+    "value": "German Dvorak Layout"
+  },
+  {
+    "name": "dvorak-es",
+    "value": "Spanish Dvorak Layout"
+  },
+  {
+    "name": "dvorak-fr",
+    "value": "French Dvorak Layout"
+  },
+  {
+    "name": "dvorak-no",
+    "value": "Norwegian Dvorak Layout"
+  },
+  {
+    "name": "dvorak-sv-a1",
+    "value": "Swedish Dvorak A1 Layout"
+  },
+  {
+    "name": "dvorak-sv-a5",
+    "value": "Swedish Dvorak A5 Layout"
+  },
+  {
+    "name": "es",
+    "value": "Spanish Keyboard Layout"
+  },
+  {
+    "name": "es-cp850",
+    "value": "Spanish CP850 Keyboard"
+  },
+  {
+    "name": "es-olpc",
+    "value": "Spanish OLPC Keyboard"
+  },
+  {
+    "name": "et",
+    "value": "Estonian Keyboard Layout"
+  },
+  {
+    "name": "fi",
+    "value": "Finnish Keyboard Layout"
+  },
+  {
+    "name": "fr",
+    "value": "French Keyboard Layout"
+  },
+  {
+    "name": "fr-bepo",
+    "value": "French B\u00c9PO Keyboard"
+  },
+  {
+    "name": "fr-latin1",
+    "value": "French Latin-1 Keyboard"
+  },
+  {
+    "name": "fr-latin9",
+    "value": "French Latin-9 Keyboard"
+  },
+  {
+    "name": "gr",
+    "value": "Greek Keyboard Layout"
+  },
+  {
+    "name": "hu",
+    "value": "Hungarian Keyboard Layout"
+  },
+  {
+    "name": "ie",
+    "value": "Irish Keyboard Layout"
+  },
+  {
+    "name": "il",
+    "value": "Hebrew Keyboard Layout"
+  },
+  {
+    "name": "is-latin1",
+    "value": "Icelandic Latin-1 Keyboard"
+  },
+  {
+    "name": "it",
+    "value": "Italian Keyboard Layout"
+  },
+  {
+    "name": "it-ibm",
+    "value": "Italian IBM Keyboard"
+  },
+  {
+    "name": "jp106",
+    "value": "Japanese 106-Key Keyboard"
+  },
+  {
+    "name": "kazakh",
+    "value": "Kazakh Keyboard Layout"
+  },
+  {
+    "name": "lt",
+    "value": "Lithuanian Keyboard Layout"
+  },
+  {
+    "name": "lv",
+    "value": "Latvian Keyboard Layout"
+  },
+  {
+    "name": "mk",
+    "value": "Macedonian Keyboard Layout"
+  },
+  {
+    "name": "nl",
+    "value": "Dutch Keyboard Layout"
+  },
+  {
+    "name": "no",
+    "value": "Norwegian Keyboard Layout"
+  },
+  {
+    "name": "pl",
+    "value": "Polish Keyboard Layout"
+  },
+  {
+    "name": "pt-latin1",
+    "value": "Portuguese Latin-1 Keyboard"
+  },
+  {
+    "name": "pt-latin9",
+    "value": "Portuguese Latin-9 Keyboard"
+  },
+  {
+    "name": "ro",
+    "value": "Romanian Keyboard Layout"
+  },
+  {
+    "name": "ru",
+    "value": "Russian Keyboard Layout"
+  },
+  {
+    "name": "se-fi-ir209",
+    "value": "Swedish-Finnish IR209 Keyboard"
+  },
+  {
+    "name": "se-ir209",
+    "value": "Swedish IR209 Keyboard"
+  },
+  {
+    "name": "se-lat6",
+    "value": "Swedish Latin-6 Keyboard"
+  },
+  {
+    "name": "sk-qwertz",
+    "value": "Slovak QWERTZ Keyboard"
+  },
+  {
+    "name": "sr-cy",
+    "value": "Serbian Cyrillic Keyboard"
+  },
+  {
+    "name": "sr-latin",
+    "value": "Serbian Latin Keyboard"
+  },
+  {
+    "name": "tr_q-latin5",
+    "value": "Turkish Q Latin-5 Keyboard"
+  },
+  {
+    "name": "ua",
+    "value": "Ukrainian Keyboard Layout"
+  },
+  {
+    "name": "uk",
+    "value": "UK Keyboard Layout"
+  },
+  {
+    "name": "us",
+    "value": "US Keyboard Layout"
+  }
+]
