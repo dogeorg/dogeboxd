@@ -371,7 +371,6 @@ type SystemDisk struct {
 type BootstrapInstallationMode string
 
 const (
-	BootstrapInstallationModeIsInstalled   BootstrapInstallationMode = "isInstalled"
 	BootstrapInstallationModeCanInstall    BootstrapInstallationMode = "canInstall"
 	BootstrapInstallationModeMustInstall   BootstrapInstallationMode = "mustInstall"
 	BootstrapInstallationModeCannotInstall BootstrapInstallationMode = "cannotInstall"
