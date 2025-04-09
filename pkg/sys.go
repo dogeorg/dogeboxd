@@ -364,6 +364,7 @@ type SystemDisk struct {
 	Suitability SystemDiskSuitability `json:"suitability"`
 	BootMedia   bool                  `json:"bootMedia"`
 	Label       string                `json:"label"`
+	Path        string                `json:"path"`
 	Children    []SystemDisk          `json:"children,omitempty"`
 }
 

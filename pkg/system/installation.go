@@ -61,7 +61,7 @@ const (
 	three_hundred_gigabytes = 300 * one_gigabyte
 )
 
-func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, device, targetFile string) (bool, error) {
+func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, devicePath, targetFile string) (bool, error) {
 	logToWebSocket(t, fmt.Sprintf("mounting and checking disk for file: %s", targetFile))
 	// Create a temporary mount point
 	mountPoint, err := os.MkdirTemp("", "tmp-mount")
@@ -71,19 +71,27 @@ func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, device, targetFile string) (b
 	}
 	defer os.RemoveAll(mountPoint) // Clean up temp directory
 
-	// Mount the device
-	mountCmd := exec.Command("mount", device, mountPoint)
+	// Mount the device using the full path with sudo
+	mountCmd := exec.Command("sudo", "mount", devicePath, mountPoint)
 	if err := mountCmd.Run(); err != nil {
-		logToWebSocket(t, fmt.Sprintf("failed to mount %s: %v", device, err))
-		return false, fmt.Errorf("failed to mount %s: %v", device, err)
+		logToWebSocket(t, fmt.Sprintf("failed to mount %s: %v", devicePath, err))
+		return false, fmt.Errorf("failed to mount %s: %v", devicePath, err)
 	}
 	defer func() {
 		// Ensure unmount happens even if file check fails
-		unmountCmd := exec.Command("umount", mountPoint)
+		unmountCmd := exec.Command("sudo", "umount", mountPoint)
 		if err := unmountCmd.Run(); err != nil {
 			logToWebSocket(t, fmt.Sprintf("warning: failed to unmount %s: %v", mountPoint, err))
 		}
 	}()
+
+	// If this is install media and therefore has a file at /opt/ro-media, return false
+	roMediaPath := filepath.Join(mountPoint, "opt", "ro-media")
+	_, err = os.Stat(roMediaPath)
+	if os.IsNotExist(err) {
+		logToWebSocket(t, fmt.Sprintf("did not find file on disk: %s", roMediaPath))
+		return false, nil
+	}
 
 	// Check for the target file
 	filePath := filepath.Join(mountPoint, targetFile)
@@ -106,11 +114,11 @@ func findNixOSDisks(t dogeboxd.Dogeboxd) ([]string, error) {
 	disks, err := GetSystemDisks()
 	logToWebSocket(t, "Found disks:")
 	for _, disk := range disks {
-		logToWebSocket(t, fmt.Sprintf("  - %s (Label: %s, Size: %s, Boot: %v)",
-			disk.Name, disk.Label, disk.SizePretty, disk.BootMedia))
+		logToWebSocket(t, fmt.Sprintf("  - %s (Label: %s, Size: %s, Boot: %v, Path: %s)",
+			disk.Name, disk.Label, disk.SizePretty, disk.BootMedia, disk.Path))
 		if len(disk.Children) > 0 {
 			for _, child := range disk.Children {
-				logToWebSocket(t, fmt.Sprintf("    └─ %s (Label: %s)", child.Name, child.Label))
+				logToWebSocket(t, fmt.Sprintf("    └─ %s (Label: %s, Path: %s)", child.Name, child.Label, child.Path))
 			}
 		}
 	}
@@ -124,14 +132,14 @@ func findNixOSDisks(t dogeboxd.Dogeboxd) ([]string, error) {
 	for _, disk := range disks {
 		// Check if the disk itself has the nixos label
 		if disk.Label == "nixos" {
-			nixosDisks = append(nixosDisks, disk.Name)
+			nixosDisks = append(nixosDisks, disk.Path)
 			continue
 		}
 
 		// Check if any of the disk's children have the nixos label
 		for _, child := range disk.Children {
 			if child.Label == "nixos" {
-				nixosDisks = append(nixosDisks, child.Name)
+				nixosDisks = append(nixosDisks, child.Path)
 			}
 		}
 	}
@@ -159,6 +167,7 @@ func checkNixOSDisksForFile(t dogeboxd.Dogeboxd, targetFile string) (bool, error
 			logToWebSocket(t, fmt.Sprintf("found file on disk: %s", disk))
 			return true, nil
 		}
+		logToWebSocket(t, fmt.Sprintf("did not find file on disk: %s", disk))
 	}
 	logToWebSocket(t, "did not find file on any nixos disks")
 	return false, nil
@@ -182,7 +191,7 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 		}
 
 		// Get label information using lsblk
-		cmd := exec.Command("lsblk", device.Name, "-o", "name,label", "--json")
+		cmd := exec.Command("lsblk", device.Name, "-o", "name,label,path", "--json")
 		output, err := cmd.Output()
 		if err != nil {
 			log.Printf("Warning: failed to get label for device %s: %v", device.Name, err)
@@ -191,9 +200,11 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 				Blockdevices []struct {
 					Name     string `json:"name"`
 					Label    string `json:"label"`
+					Path     string `json:"path"`
 					Children []struct {
 						Name  string `json:"name"`
 						Label string `json:"label"`
+						Path  string `json:"path"`
 					} `json:"children,omitempty"`
 				} `json:"blockdevices"`
 			}
@@ -202,12 +213,14 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 				log.Printf("Warning: failed to parse lsblk output for device %s: %v", device.Name, err)
 			} else if len(result.Blockdevices) > 0 {
 				disk.Label = result.Blockdevices[0].Label
+				disk.Path = result.Blockdevices[0].Path
 
 				// Convert children to SystemDisk format
 				for _, child := range result.Blockdevices[0].Children {
 					disk.Children = append(disk.Children, dogeboxd.SystemDisk{
 						Name:  child.Name,
 						Label: child.Label,
+						Path:  child.Path,
 					})
 				}
 			}
