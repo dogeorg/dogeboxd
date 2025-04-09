@@ -28,18 +28,14 @@ func logToWebSocket(t dogeboxd.Dogeboxd, message string) {
 	}
 }
 
+func IsInstalled(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (bool, error) {
+	logToWebSocket(t, "checking if Dogebox OS is already installed")
+	return checkNixOSDisksForFile(t, "/opt/dbx-installed")
+}
+
 func GetInstallationMode(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (dogeboxd.BootstrapInstallationMode, error) {
 	logToWebSocket(t, "getting installation mode")
-	// Check if we're running on NixOS labeled disks
-	exists, err := checkNixOSDisksForFile(t, "/opt/dbx-installed")
-	if err != nil {
-		return "", fmt.Errorf("error checking for `nixos` labeled disks: %v", err)
-	}
-	if exists {
-		return dogeboxd.BootstrapInstallationModeIsInstalled, nil
-	}
-
-	// If we're not already installed, but we've been configured, no install for you.
+	// If we've been configured, no install for you.
 	if dbxState.InitialState.HasFullyConfigured {
 		return dogeboxd.BootstrapInstallationModeCannotInstall, nil
 	}
@@ -52,7 +48,7 @@ func GetInstallationMode(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (d
 	}
 
 	// Otherwise, the user can optionally install.
-	return dogeboxd.BootstrapInstallationModeCanInstalled, nil
+	return dogeboxd.BootstrapInstallationModeCanInstall, nil
 }
 
 const (
@@ -61,12 +57,10 @@ const (
 	three_hundred_gigabytes = 300 * one_gigabyte
 )
 
-func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, devicePath, targetFile string) (bool, error) {
-	logToWebSocket(t, fmt.Sprintf("mounting and checking disk for file: %s", targetFile))
+func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, devicePath, targetFile string, ignoreInstallMedia bool) (bool, error) {
 	// Create a temporary mount point
 	mountPoint, err := os.MkdirTemp("", "tmp-mount")
 	if err != nil {
-		logToWebSocket(t, fmt.Sprintf("failed to create temporary mount point: %v", err))
 		return false, fmt.Errorf("failed to create temporary mount point: %v", err)
 	}
 	defer os.RemoveAll(mountPoint) // Clean up temp directory
@@ -74,7 +68,6 @@ func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, devicePath, targetFile string
 	// Mount the device using the full path with sudo
 	mountCmd := exec.Command("sudo", "mount", devicePath, mountPoint)
 	if err := mountCmd.Run(); err != nil {
-		logToWebSocket(t, fmt.Sprintf("failed to mount %s: %v", devicePath, err))
 		return false, fmt.Errorf("failed to mount %s: %v", devicePath, err)
 	}
 	defer func() {
@@ -86,42 +79,33 @@ func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, devicePath, targetFile string
 	}()
 
 	// If this is install media and therefore has a file at /opt/ro-media, return false
-	roMediaPath := filepath.Join(mountPoint, "opt", "ro-media")
-	_, err = os.Stat(roMediaPath)
-	if os.IsNotExist(err) {
-		logToWebSocket(t, fmt.Sprintf("did not find file on disk: %s", roMediaPath))
-		return false, nil
+	if !ignoreInstallMedia {
+		roMediaPath := filepath.Join(mountPoint, "opt", "ro-media")
+		_, err = os.Stat(roMediaPath)
+		if os.IsNotExist(err) {
+			// File doesn't exist, continue with checks
+		} else if err != nil {
+			// Some other error occurred
+			return false, err
+		} else {
+			// File exists, this is install media
+			return false, nil
+		}
 	}
 
 	// Check for the target file
 	filePath := filepath.Join(mountPoint, targetFile)
 	_, err = os.Stat(filePath)
 	if os.IsNotExist(err) {
-		logToWebSocket(t, fmt.Sprintf("did not find file on disk: %s", filePath))
 		return false, nil
 	} else if err != nil {
-		logToWebSocket(t, fmt.Sprintf("error checking file %s: %v", filePath, err))
 		return false, fmt.Errorf("error checking file %s: %v", filePath, err)
 	}
-
-	logToWebSocket(t, fmt.Sprintf("found file on disk: %s", filePath))
-
 	return true, nil
 }
 
 func findNixOSDisks(t dogeboxd.Dogeboxd) ([]string, error) {
-	logToWebSocket(t, "finding nixos disks")
 	disks, err := GetSystemDisks()
-	logToWebSocket(t, "Found disks:")
-	for _, disk := range disks {
-		logToWebSocket(t, fmt.Sprintf("  - %s (Label: %s, Size: %s, Boot: %v, Path: %s)",
-			disk.Name, disk.Label, disk.SizePretty, disk.BootMedia, disk.Path))
-		if len(disk.Children) > 0 {
-			for _, child := range disk.Children {
-				logToWebSocket(t, fmt.Sprintf("    └─ %s (Label: %s, Path: %s)", child.Name, child.Label, child.Path))
-			}
-		}
-	}
 	if err != nil {
 		logToWebSocket(t, fmt.Sprintf("error getting system disks: %v", err))
 		return nil, err
@@ -143,13 +127,11 @@ func findNixOSDisks(t dogeboxd.Dogeboxd) ([]string, error) {
 			}
 		}
 	}
-	logToWebSocket(t, fmt.Sprintf("found nixos disks: %v", nixosDisks))
 
 	return nixosDisks, nil
 }
 
 func checkNixOSDisksForFile(t dogeboxd.Dogeboxd, targetFile string) (bool, error) {
-	logToWebSocket(t, fmt.Sprintf("checking nixos disks for file: %s", targetFile))
 	// Find NixOS labeled disks
 	disks, err := findNixOSDisks(t)
 	if err != nil {
@@ -158,18 +140,18 @@ func checkNixOSDisksForFile(t dogeboxd.Dogeboxd, targetFile string) (bool, error
 
 	// Check each disk for the target file
 	for _, disk := range disks {
-		exists, err := mountAndCheckDiskForFile(t, disk, targetFile)
+		exists, err := mountAndCheckDiskForFile(t, disk, targetFile, false)
 		if err != nil {
 			logToWebSocket(t, fmt.Sprintf("Error processing disk %s: %v", disk, err))
 			continue
 		}
 		if exists {
-			logToWebSocket(t, fmt.Sprintf("found file on disk: %s", disk))
+			logToWebSocket(t, fmt.Sprintf("found target file %s on disk: %s", targetFile, disk))
 			return true, nil
 		}
-		logToWebSocket(t, fmt.Sprintf("did not find file on disk: %s", disk))
+		logToWebSocket(t, fmt.Sprintf("did not find target file %s on disk: %s", targetFile, disk))
 	}
-	logToWebSocket(t, "did not find file on any nixos disks")
+	logToWebSocket(t, fmt.Sprintf("did not find target file %s on any nixos disks", targetFile))
 	return false, nil
 }
 
@@ -346,7 +328,7 @@ func InstallToDisk(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, dbxState d
 		return err
 	}
 
-	if installMode != dogeboxd.BootstrapInstallationModeMustInstall && installMode != dogeboxd.BootstrapInstallationModeCanInstalled {
+	if installMode != dogeboxd.BootstrapInstallationModeMustInstall && installMode != dogeboxd.BootstrapInstallationModeCanInstall {
 		return fmt.Errorf("installation is not possible with current system state: %s", installMode)
 	}
 

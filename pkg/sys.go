@@ -372,7 +372,7 @@ type BootstrapInstallationMode string
 
 const (
 	BootstrapInstallationModeIsInstalled   BootstrapInstallationMode = "isInstalled"
-	BootstrapInstallationModeCanInstalled  BootstrapInstallationMode = "canInstall"
+	BootstrapInstallationModeCanInstall    BootstrapInstallationMode = "canInstall"
 	BootstrapInstallationModeMustInstall   BootstrapInstallationMode = "mustInstall"
 	BootstrapInstallationModeCannotInstall BootstrapInstallationMode = "cannotInstall"
 )

@@ -22,6 +22,7 @@ type InitialSystemBootstrapRequestBody struct {
 
 type BootstrapFacts struct {
 	InstallationMode                 dogeboxd.BootstrapInstallationMode `json:"installationMode"`
+	IsInstalled                      bool                               `json:"isInstalled"`
 	HasGeneratedKey                  bool                               `json:"hasGeneratedKey"`
 	HasConfiguredNetwork             bool                               `json:"hasConfiguredNetwork"`
 	HasCompletedInitialConfiguration bool                               `json:"hasCompletedInitialConfiguration"`
@@ -44,6 +45,11 @@ func (t api) getRawBS() BootstrapResponse {
 		log.Printf("Could not determine installation mode: %v", err)
 		installationMode = dogeboxd.BootstrapInstallationModeCannotInstall
 	}
+	isInstalled, err := system.IsInstalled(t.dbx, dbxState)
+	if err != nil {
+		log.Printf("Could not determine if system is installed: %v", err)
+		isInstalled = false
+	}
 
 	return BootstrapResponse{
 		Version: version.GetDBXRelease(),
@@ -53,6 +59,7 @@ func (t api) getRawBS() BootstrapResponse {
 		Stats:   t.pups.GetStatsMap(),
 		SetupFacts: BootstrapFacts{
 			InstallationMode:                 installationMode,
+			IsInstalled:                      isInstalled,
 			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
 			HasConfiguredNetwork:             dbxState.InitialState.HasSetNetwork,
 			HasCompletedInitialConfiguration: dbxState.InitialState.HasFullyConfigured,
