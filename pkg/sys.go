@@ -365,13 +365,15 @@ type SystemDisk struct {
 	SizePretty  string                `json:"sizePretty"`
 	Suitability SystemDiskSuitability `json:"suitability"`
 	BootMedia   bool                  `json:"bootMedia"`
+	Label       string                `json:"label"`
+	Path        string                `json:"path"`
+	Children    []SystemDisk          `json:"children,omitempty"`
 }
 
 type BootstrapInstallationMode string
 
 const (
-	BootstrapInstallationModeIsInstalled   BootstrapInstallationMode = "isInstalled"
-	BootstrapInstallationModeCanInstalled  BootstrapInstallationMode = "canInstall"
+	BootstrapInstallationModeCanInstall    BootstrapInstallationMode = "canInstall"
 	BootstrapInstallationModeMustInstall   BootstrapInstallationMode = "mustInstall"
 	BootstrapInstallationModeCannotInstall BootstrapInstallationMode = "cannotInstall"
 )
