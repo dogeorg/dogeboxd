@@ -66,6 +66,8 @@ func (t NetworkManagerLinux) GetAvailableNetworks() []dogeboxd.NetworkConnection
 					Ssid:       n.SSID,
 					Bssid:      n.BSSID,
 					Encryption: n.Encryption,
+					Quality:    n.Quality,
+					Signal:     n.Signal,
 				})
 			}
 

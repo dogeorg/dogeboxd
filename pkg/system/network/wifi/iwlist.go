@@ -2,8 +2,11 @@ package network_wifi
 
 import (
 	"bytes"
+	"maps"
 	"os/exec"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -23,44 +26,80 @@ func (s IWListScanner) Scan(interfaceName string) ([]ScannedWifiNetwork, error) 
 	return parseIWListOutput(out.String()), nil
 }
 
-func parseIWListOutput(output string) []ScannedWifiNetwork {
+func parseIWListCell(cell string)  *ScannedWifiNetwork {
 	ssidRegex := regexp.MustCompile(`ESSID:"(.*?)"`)
 	addressRegex := regexp.MustCompile(`Address: ([0-9A-Fa-f:]+)`)
 	encryptionRegex := regexp.MustCompile(`Encryption key:(on|off)`)
 	wpaRegex := regexp.MustCompile(`IE: IEEE 802.11i/WPA2 Version`)
 	wpa2Regex := regexp.MustCompile(`IE: WPA Version 1`)
+	qualityRegex := regexp.MustCompile(`Quality=([0-9]+)/([0-9]+)`)
+	signalRegex := regexp.MustCompile(`Signal level=(-?[0-9]+ dBm)`)
 
-	var networks []ScannedWifiNetwork
+	ssid := ssidRegex.FindStringSubmatch(cell)
+	address := addressRegex.FindStringSubmatch(cell)
+	encryption := encryptionRegex.FindStringSubmatch(cell)
+	wpa := wpaRegex.FindString(cell)
+	wpa2 := wpa2Regex.FindString(cell)
+	quality := qualityRegex.FindStringSubmatch(cell)
+	signal := signalRegex.FindStringSubmatch(cell)
+
+	if len(ssid) > 1 && len(address) > 1 && len(encryption) > 1 {
+		var encryptionType string
+
+		if encryption[1] == "on" {
+			if wpa != "" {
+				encryptionType = "WPA2"
+			} else if wpa2 != "" {
+				encryptionType = "WPA"
+			} else {
+				encryptionType = "WEP"
+			}
+		}
+
+		qualityDividend, err := strconv.Atoi(quality[1])
+		if err != nil {
+			qualityDividend = 0
+		}
+		qualityDivisor, err := strconv.Atoi(quality[2])
+		if err != nil {
+			qualityDividend = 0
+			qualityDivisor = 1
+		}
+
+		network := ScannedWifiNetwork{
+			SSID:       ssid[1],
+			BSSID:      address[1],
+			Encryption: encryptionType,
+			Quality: float32(qualityDividend)/float32(qualityDivisor),
+			Signal: signal[1],
+		}
+		return &network
+	}
+
+	return nil
+}
+
+func parseIWListOutput(output string) []ScannedWifiNetwork {
+	networkMap := make(map[string]ScannedWifiNetwork)
 	cells := strings.Split(output, "Cell ")
 
 	for _, cell := range cells {
-		ssid := ssidRegex.FindStringSubmatch(cell)
-		address := addressRegex.FindStringSubmatch(cell)
-		encryption := encryptionRegex.FindStringSubmatch(cell)
-		wpa := wpaRegex.FindString(cell)
-		wpa2 := wpa2Regex.FindString(cell)
+		parsedNetwork := parseIWListCell(cell)
 
-		if len(ssid) > 1 && len(address) > 1 && len(encryption) > 1 {
-			var encryptionType string
+		if parsedNetwork == nil { continue }
 
-			if encryption[1] == "on" {
-				if wpa != "" {
-					encryptionType = "WPA2"
-				} else if wpa2 != "" {
-					encryptionType = "WPA"
-				} else {
-					encryptionType = "WEP"
-				}
+		if network, ok := networkMap[parsedNetwork.SSID]; ok {
+			if network.Quality < parsedNetwork.Quality {
+				networkMap[parsedNetwork.SSID] = *parsedNetwork
 			}
-
-			network := ScannedWifiNetwork{
-				SSID:       ssid[1],
-				BSSID:      address[1],
-				Encryption: encryptionType,
-			}
-			networks = append(networks, network)
+		} else {
+			networkMap[parsedNetwork.SSID] = *parsedNetwork
 		}
 	}
 
-	return networks
+	networks := maps.Values(networkMap)
+
+	return slices.SortedStableFunc(networks, func(a, b ScannedWifiNetwork) int {
+		return int(a.Quality - b.Quality)
+	})
 }

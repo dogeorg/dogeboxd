@@ -1,6 +1,6 @@
 module github.com/dogeorg/dogeboxd
 
-go 1.22.2
+go 1.23.0
 
 require (
 	github.com/Masterminds/semver v1.5.0

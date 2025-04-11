@@ -4,6 +4,8 @@ type ScannedWifiNetwork struct {
 	SSID       string
 	BSSID      string
 	Encryption string
+	Quality    float32
+	Signal     string
 }
 
 type WifiScanner interface {
