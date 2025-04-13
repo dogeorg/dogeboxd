@@ -20,10 +20,10 @@ import (
 const DBXRootSecret = "yes-i-will-destroy-everything-on-this-disk"
 
 const (
-	one_gigabyte            = 1024 * 1024 * 1024
-	ten_gigabytes           = 10 * one_gigabyte
-	three_hundred_gigabytes = 300 * one_gigabyte
-	installationMediaPath   = "/opt/ro-media"
+	one_gigabyte                    = 1024 * 1024 * 1024
+	ten_gigabytes                   = 10 * one_gigabyte
+	three_hundred_gigabytes         = 300 * one_gigabyte
+	isReadOnlyInstallationMediaFile = "/opt/ro-media"
 )
 
 func logToWebSocket(t dogeboxd.Dogeboxd, message string) {
@@ -47,11 +47,11 @@ func GetInstallationMode(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (d
 	}
 
 	// Check if we're running on RO installation media. If so, must install.
-	isInstallationMedia, err := isInstallationMedia(t, "")
+	isReadOnlyInstallationMedia, err := isReadOnlyInstallationMedia(t, "")
 	if err != nil {
 		return "", fmt.Errorf("error checking for RO installation media: %v", err)
 	}
-	if isInstallationMedia {
+	if isReadOnlyInstallationMedia {
 		return dogeboxd.BootstrapInstallationModeMustInstall, nil
 	}
 
@@ -59,15 +59,15 @@ func GetInstallationMode(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (d
 	return dogeboxd.BootstrapInstallationModeCanInstall, nil
 }
 
-func isInstallationMedia(t dogeboxd.Dogeboxd, mountPoint string) (bool, error) {
-	roMediaPath := filepath.Join(mountPoint, installationMediaPath)
-	_, err := os.Stat(roMediaPath)
+func isReadOnlyInstallationMedia(t dogeboxd.Dogeboxd, mountPoint string) (bool, error) {
+	roMediaPath := filepath.Join(mountPoint, isReadOnlyInstallationMediaFile)
 	var isMedia bool
-	if os.IsNotExist(err) {
+	if _, err := os.Stat(roMediaPath); err != nil {
+		if !os.IsNotExist(err) {
+			logToWebSocket(t, fmt.Sprintf("error checking installation media flag: %v", err))
+			return false, err
+		}
 		isMedia = false
-	} else if err != nil {
-		logToWebSocket(t, fmt.Sprintf("error checking installation media flag: %v", err))
-		return false, err
 	} else {
 		isMedia = true
 	}
@@ -99,7 +99,7 @@ func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, devicePath, targetFile string
 
 	// If this is install media and therefore has a file at /opt/ro-media, return false
 	if !ignoreInstallMedia {
-		isMedia, err := isInstallationMedia(t, mountPoint)
+		isMedia, err := isReadOnlyInstallationMedia(t, mountPoint)
 		if err != nil {
 			return false, err
 		}
