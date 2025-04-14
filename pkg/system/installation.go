@@ -35,9 +35,9 @@ func logToWebSocket(t dogeboxd.Dogeboxd, message string) {
 	}
 }
 
-func IsInstalled(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (bool, error) {
+func IsInstalled(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState) (bool, error) {
 	logToWebSocket(t, "checking if Dogebox OS is already installed")
-	return checkNixOSDisksForFile(t, "/opt/dbx-installed")
+	return checkNixOSDisksForFile(t, config, "/opt/dbx-installed")
 }
 
 func GetInstallationMode(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (dogeboxd.BootstrapInstallationMode, error) {
@@ -75,9 +75,9 @@ func isReadOnlyInstallationMedia(t dogeboxd.Dogeboxd, mountPoint string) (bool, 
 	return isMedia, nil
 }
 
-func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, devicePath, targetFile string, ignoreInstallMedia bool) (bool, error) {
+func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, devicePath, targetFile string, ignoreInstallMedia bool) (bool, error) {
 	// Create a temporary mount point
-	mountPoint, err := os.MkdirTemp("", "tmp-mount")
+	mountPoint, err := os.MkdirTemp(config.TmpDir, "tmp-mount")
 	if err != nil {
 		return false, fmt.Errorf("failed to create temporary mount point: %v", err)
 	}
@@ -146,7 +146,7 @@ func findNixOSDisks(t dogeboxd.Dogeboxd) ([]string, error) {
 	return nixosDisks, nil
 }
 
-func checkNixOSDisksForFile(t dogeboxd.Dogeboxd, targetFile string) (bool, error) {
+func checkNixOSDisksForFile(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, targetFile string) (bool, error) {
 	// Find NixOS labeled disks
 	disks, err := findNixOSDisks(t)
 	if err != nil {
@@ -157,7 +157,7 @@ func checkNixOSDisksForFile(t dogeboxd.Dogeboxd, targetFile string) (bool, error
 	// Check each disk for the target file
 	for _, disk := range disks {
 		logToWebSocket(t, fmt.Sprintf("checking disk %s for file %s", disk, targetFile))
-		exists, err := mountAndCheckDiskForFile(t, disk, targetFile, false)
+		exists, err := mountAndCheckDiskForFile(t, config, disk, targetFile, false)
 		if err != nil {
 			logToWebSocket(t, fmt.Sprintf("Error processing disk %s: %v", disk, err))
 			continue
