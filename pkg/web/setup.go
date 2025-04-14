@@ -69,7 +69,7 @@ func (t api) getRecoveryBS() BootstrapRecoveryResponse {
 		log.Printf("Could not determine installation mode: %v", err)
 		installationMode = dogeboxd.BootstrapInstallationModeCannotInstall
 	}
-	isInstalled, err := system.IsInstalled(t.dbx, dbxState)
+	isInstalled, err := system.IsInstalled(t.dbx, t.config, dbxState)
 	if err != nil {
 		log.Printf("Could not determine if system is installed: %v", err)
 		isInstalled = false
