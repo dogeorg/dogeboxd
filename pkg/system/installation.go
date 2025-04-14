@@ -273,7 +273,7 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	return disks, nil
 }
 
-func InitStorageDevice(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (string, error) {
+func InitStorageDevice(dbxState dogeboxd.DogeboxState) (string, error) {
 	if dbxState.StorageDevice == "" || dbxState.InitialState.HasFullyConfigured {
 		return "", nil
 	}

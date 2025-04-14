@@ -346,7 +346,7 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 
 		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
 
-		partitionName, err := system.InitStorageDevice(t.dbx, dbxState)
+		partitionName, err := system.InitStorageDevice(dbxState)
 		if err != nil {
 			log.Errf("Error initialising storage device: %v", err)
 			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")
