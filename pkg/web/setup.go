@@ -21,11 +21,9 @@ type InitialSystemBootstrapRequestBody struct {
 }
 
 type BootstrapFacts struct {
-	InstallationMode                 dogeboxd.BootstrapInstallationMode `json:"installationMode"`
-	IsInstalled                      bool                               `json:"isInstalled"`
-	HasGeneratedKey                  bool                               `json:"hasGeneratedKey"`
-	HasConfiguredNetwork             bool                               `json:"hasConfiguredNetwork"`
-	HasCompletedInitialConfiguration bool                               `json:"hasCompletedInitialConfiguration"`
+	HasGeneratedKey                  bool `json:"hasGeneratedKey"`
+	HasConfiguredNetwork             bool `json:"hasConfiguredNetwork"`
+	HasCompletedInitialConfiguration bool `json:"hasCompletedInitialConfiguration"`
 }
 
 type BootstrapResponse struct {
@@ -40,6 +38,32 @@ type BootstrapResponse struct {
 func (t api) getRawBS() BootstrapResponse {
 	dbxState := t.sm.Get().Dogebox
 
+	return BootstrapResponse{
+		Version: version.GetDBXRelease(),
+		DevMode: t.config.DevMode,
+		Assets:  t.pups.GetAssetsMap(),
+		States:  t.pups.GetStateMap(),
+		Stats:   t.pups.GetStatsMap(),
+		SetupFacts: BootstrapFacts{
+			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
+			HasConfiguredNetwork:             dbxState.InitialState.HasSetNetwork,
+			HasCompletedInitialConfiguration: dbxState.InitialState.HasFullyConfigured,
+		},
+	}
+}
+
+type RecoveryFacts struct {
+	InstallationMode dogeboxd.BootstrapInstallationMode `json:"installationMode"`
+	IsInstalled      bool                               `json:"isInstalled"`
+}
+
+type BootstrapRecoveryResponse struct {
+	RecoveryFacts RecoveryFacts `json:"recoveryFacts"`
+}
+
+func (t api) getRecoveryBS() BootstrapRecoveryResponse {
+	dbxState := t.sm.Get().Dogebox
+
 	installationMode, err := system.GetInstallationMode(t.dbx, dbxState)
 	if err != nil {
 		log.Printf("Could not determine installation mode: %v", err)
@@ -51,24 +75,20 @@ func (t api) getRawBS() BootstrapResponse {
 		isInstalled = false
 	}
 
-	return BootstrapResponse{
-		Version: version.GetDBXRelease(),
-		DevMode: t.config.DevMode,
-		Assets:  t.pups.GetAssetsMap(),
-		States:  t.pups.GetStateMap(),
-		Stats:   t.pups.GetStatsMap(),
-		SetupFacts: BootstrapFacts{
-			InstallationMode:                 installationMode,
-			IsInstalled:                      isInstalled,
-			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
-			HasConfiguredNetwork:             dbxState.InitialState.HasSetNetwork,
-			HasCompletedInitialConfiguration: dbxState.InitialState.HasFullyConfigured,
+	return BootstrapRecoveryResponse{
+		RecoveryFacts: RecoveryFacts{
+			InstallationMode: installationMode,
+			IsInstalled:      isInstalled,
 		},
 	}
 }
 
 func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, t.getRawBS())
+}
+
+func (t api) getRecoveryBootstrap(w http.ResponseWriter, r *http.Request) {
+	sendResponse(w, t.getRecoveryBS())
 }
 
 func (t api) hostReboot(w http.ResponseWriter, r *http.Request) {
