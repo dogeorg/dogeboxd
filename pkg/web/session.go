@@ -162,6 +162,7 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, next
 	// Whitelist those here.
 	// TODO: Don't hardcode these.
 	if route == "GET /system/bootstrap" ||
+		route == "GET /system/recovery-bootstrap" ||
 		route == "POST /system/bootstrap" ||
 		route == "GET /system/disks" ||
 		route == "GET /system/keymaps" ||

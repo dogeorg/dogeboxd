@@ -60,6 +60,15 @@ func GetInstallationMode(t dogeboxd.Dogeboxd, dbxState dogeboxd.DogeboxState) (d
 }
 
 func isReadOnlyInstallationMedia(t dogeboxd.Dogeboxd, mountPoint string) (bool, error) {
+
+	//ls contents of /opt directory within this mount mount point
+	optDir := filepath.Join(mountPoint, "opt")
+	contents, err := os.ReadDir(optDir)
+	if err != nil {
+		return false, fmt.Errorf("error reading opt directory: %v", err)
+	}
+	logToWebSocket(t, fmt.Sprintf("opt directory contents of mount point %s: %v", mountPoint, contents))
+
 	roMediaPath := filepath.Join(mountPoint, isReadOnlyInstallationMediaFile)
 	var isMedia bool
 	if _, err := os.Stat(roMediaPath); err != nil {
@@ -76,6 +85,20 @@ func isReadOnlyInstallationMedia(t dogeboxd.Dogeboxd, mountPoint string) (bool, 
 }
 
 func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, devicePath, targetFile string, ignoreInstallMedia bool) (bool, error) {
+	logToWebSocket(t, fmt.Sprintf("mounting and checking disk for file %s", targetFile))
+	// Log current user info
+	uid := os.Getuid()
+	gid := os.Getgid()
+	logToWebSocket(t, fmt.Sprintf("Current user UID: %d, GID: %d", uid, gid))
+
+	// Check if sudo is available
+	sudoCheck := exec.Command("which", "sudo")
+	if err := sudoCheck.Run(); err != nil {
+		logToWebSocket(t, "Warning: sudo command not found in PATH")
+	} else {
+		logToWebSocket(t, "sudo command is available")
+	}
+
 	// Create a temporary mount point
 	mountPoint, err := os.MkdirTemp(config.TmpDir, "tmp-mount")
 	if err != nil {
@@ -85,10 +108,19 @@ func mountAndCheckDiskForFile(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig,
 
 	// Mount the device using the full path with sudo
 	mountCmd := exec.Command("sudo", "mount", devicePath, mountPoint)
-	logToWebSocket(t, fmt.Sprintf("mounting device %s to %s", devicePath, mountPoint))
+	logToWebSocket(t, fmt.Sprintf("Attempting to mount device %s to %s with command: %s", devicePath, mountPoint, mountCmd.String()))
+
+	// Capture command output for better error reporting
+	var stdout, stderr bytes.Buffer
+	mountCmd.Stdout = &stdout
+	mountCmd.Stderr = &stderr
+
 	if err := mountCmd.Run(); err != nil {
+		logToWebSocket(t, fmt.Sprintf("Mount command failed. Stdout: %s, Stderr: %s", stdout.String(), stderr.String()))
 		return false, fmt.Errorf("failed to mount %s: %v", devicePath, err)
 	}
+	logToWebSocket(t, "Mount command executed successfully")
+
 	defer func() {
 		// Ensure unmount happens even if file check fails
 		unmountCmd := exec.Command("sudo", "umount", mountPoint)
