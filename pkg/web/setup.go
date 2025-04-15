@@ -21,10 +21,9 @@ type InitialSystemBootstrapRequestBody struct {
 }
 
 type BootstrapFacts struct {
-	InstallationMode                 dogeboxd.BootstrapInstallationMode `json:"installationMode"`
-	HasGeneratedKey                  bool                               `json:"hasGeneratedKey"`
-	HasConfiguredNetwork             bool                               `json:"hasConfiguredNetwork"`
-	HasCompletedInitialConfiguration bool                               `json:"hasCompletedInitialConfiguration"`
+	HasGeneratedKey                  bool `json:"hasGeneratedKey"`
+	HasConfiguredNetwork             bool `json:"hasConfiguredNetwork"`
+	HasCompletedInitialConfiguration bool `json:"hasCompletedInitialConfiguration"`
 }
 
 type BootstrapResponse struct {
@@ -39,12 +38,6 @@ type BootstrapResponse struct {
 func (t api) getRawBS() BootstrapResponse {
 	dbxState := t.sm.Get().Dogebox
 
-	installationMode, err := system.GetInstallationMode(dbxState)
-	if err != nil {
-		log.Printf("Could not determine installation mode: %v", err)
-		installationMode = dogeboxd.BootstrapInstallationModeCannotInstall
-	}
-
 	return BootstrapResponse{
 		Version: version.GetDBXRelease(),
 		DevMode: t.config.DevMode,
@@ -52,7 +45,6 @@ func (t api) getRawBS() BootstrapResponse {
 		States:  t.pups.GetStateMap(),
 		Stats:   t.pups.GetStatsMap(),
 		SetupFacts: BootstrapFacts{
-			InstallationMode:                 installationMode,
 			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
 			HasConfiguredNetwork:             dbxState.InitialState.HasSetNetwork,
 			HasCompletedInitialConfiguration: dbxState.InitialState.HasFullyConfigured,
@@ -60,8 +52,43 @@ func (t api) getRawBS() BootstrapResponse {
 	}
 }
 
+type RecoveryFacts struct {
+	InstallationMode dogeboxd.BootstrapInstallationMode `json:"installationMode"`
+	IsInstalled      bool                               `json:"isInstalled"`
+}
+
+type BootstrapRecoveryResponse struct {
+	RecoveryFacts RecoveryFacts `json:"recoveryFacts"`
+}
+
+func (t api) getRecoveryBS() BootstrapRecoveryResponse {
+	dbxState := t.sm.Get().Dogebox
+
+	installationMode, err := system.GetInstallationMode(t.dbx, dbxState)
+	if err != nil {
+		log.Printf("Could not determine installation mode: %v", err)
+		installationMode = dogeboxd.BootstrapInstallationModeCannotInstall
+	}
+	isInstalled, err := system.IsInstalled(t.dbx, t.config, dbxState)
+	if err != nil {
+		log.Printf("Could not determine if system is installed: %v", err)
+		isInstalled = false
+	}
+
+	return BootstrapRecoveryResponse{
+		RecoveryFacts: RecoveryFacts{
+			InstallationMode: installationMode,
+			IsInstalled:      isInstalled,
+		},
+	}
+}
+
 func (t api) getBootstrap(w http.ResponseWriter, r *http.Request) {
 	sendResponse(w, t.getRawBS())
+}
+
+func (t api) getRecoveryBootstrap(w http.ResponseWriter, r *http.Request) {
+	sendResponse(w, t.getRecoveryBS())
 }
 
 func (t api) hostReboot(w http.ResponseWriter, r *http.Request) {
