@@ -13,6 +13,7 @@
         devShells.default = if isLinux then
           pkgs.mkShell {
             buildInputs = [
+              pkgs.gnumake
               pkgs.systemd.dev
               pkgs.go_1_22
               pkgs.parted
@@ -33,6 +34,9 @@
               exit 1
             '';
           };
+
+        dbxSessionName = "dogeboxd";
+        dbxStartCommand = "make dev";
       }
     );
 }
