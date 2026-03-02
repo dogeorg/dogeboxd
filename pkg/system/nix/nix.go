@@ -53,7 +53,7 @@ func (nm nixManager) UpdateIncludesFile(patch dogeboxd.NixPatch, pups dogeboxd.P
 	installed := pups.GetStateMap()
 	var pupIDs []string
 	for id, state := range installed {
-		if state.Installation == dogeboxd.STATE_INSTALLING || state.Installation == dogeboxd.STATE_READY || state.Installation == dogeboxd.STATE_RUNNING {
+		if state.Installation == dogeboxd.STATE_INSTALLING || state.Installation == dogeboxd.STATE_READY {
 			pupIDs = append(pupIDs, id)
 		}
 	}

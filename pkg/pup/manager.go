@@ -172,7 +172,7 @@ func (t PupManager) Run(started, stopped chan bool, stop chan context.Context) e
 	return nil
 }
 
-func derivePupStatusFromProc(p dogeboxd.PupState, v dogeboxd.ProcStatus) string {
+func derivePupStatusFromProc(p dogeboxd.PupState, v dogeboxd.ProcStatus) dogeboxd.PupRunStatus {
 	// Prefer systemd’s view when available, because MainPID can be 0 during transitions.
 	switch v.ActiveState {
 	case "activating":

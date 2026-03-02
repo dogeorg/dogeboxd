@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package dogebox.v1;
+
+import "dogebox/v1/bootstrap.proto";
+import "dogebox/v1/types.proto";
+import "google/protobuf/struct.proto";
+
+enum ChangeType {
+  CHANGE_TYPE_UNSPECIFIED = 0;
+  CHANGE_TYPE_BOOTSTRAP = 1;
+  CHANGE_TYPE_PUP = 2;
+  CHANGE_TYPE_PUP_PURGED = 3;
+  CHANGE_TYPE_STATS = 4;
+  CHANGE_TYPE_ACTION = 5;
+  CHANGE_TYPE_PROMPT = 6;
+  CHANGE_TYPE_PROGRESS = 7;
+  CHANGE_TYPE_SYSTEM_UPDATE_AVAILABLE = 8;
+  CHANGE_TYPE_RECOVERY = 9;
+  CHANGE_TYPE_JOB_CREATED = 10;
+  CHANGE_TYPE_JOB_PROGRESS = 11;
+  CHANGE_TYPE_JOB_COMPLETED = 12;
+  CHANGE_TYPE_PUP_UPDATES_CHECKED = 13;
+  CHANGE_TYPE_JOB_CREATED_LEGACY = 14;
+  CHANGE_TYPE_JOB_UPDATED_LEGACY = 15;
+  CHANGE_TYPE_JOB_COMPLETED_LEGACY = 16;
+  CHANGE_TYPE_JOB_FAILED_LEGACY = 17;
+}
+
+message PupPurgedUpdate {
+  string pup_id = 1;
+}
+
+message StatsUpdate {
+  repeated PupStats stats = 1;
+}
+
+message Change {
+  string id = 1;
+  uint64 seq = 2;
+  int64 ts = 3;
+  string error = 4;
+  ChangeType type = 5;
+
+  oneof update {
+    BootstrapResponse bootstrap = 6;
+    JobsBootstrap jobs_bootstrap = 7;
+    PupState pup = 8;
+    StatsUpdate stats = 9;
+    ActionProgress progress = 10;
+    JobRecord job = 11;
+    PupPurgedUpdate pup_purged = 12;
+    PupUpdatesCheckedEvent pup_updates_checked = 13;
+    google.protobuf.Struct object_update = 14;
+    google.protobuf.Value value_update = 15;
+  }
+}

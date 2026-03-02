@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package dogebox.v1;
+
+import "dogebox/v1/types.proto";
+
+message DBXVersionInfoGit {
+  string commit = 1;
+  bool dirty = 2;
+}
+
+message DBXVersionInputTuple {
+  string rev = 1;
+  string hash = 2;
+}
+
+message DBXVersionInfo {
+  string release = 1;
+  map<string, DBXVersionInputTuple> packages = 2;
+  DBXVersionInfoGit git = 3;
+}
+
+message BootstrapFacts {
+  bool has_generated_key = 1;
+  bool has_configured_network = 2;
+  bool has_completed_initial_configuration = 3;
+}
+
+message BootstrapFlags {
+  bool is_first_time_welcome_complete = 1;
+  bool is_developer_mode = 2;
+}
+
+message SidebarPreferences {
+  repeated string sidebar_pups = 1;
+}
+
+message BootstrapResponse {
+  int64 ts = 1;
+  DBXVersionInfo version = 2;
+  bool dev_mode = 3;
+  map<string, PupAsset> assets = 4;
+  map<string, PupState> states = 5;
+  map<string, PupStats> stats = 6;
+  BootstrapFlags flags = 7;
+  BootstrapFacts setup_facts = 8;
+  SidebarPreferences sidebar_preferences = 9;
+}
+
+message JobsBootstrap {
+  repeated JobRecord jobs = 1;
+}

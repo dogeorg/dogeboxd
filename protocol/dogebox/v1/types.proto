@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+package dogebox.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+enum InstallationState {
+  INSTALLATION_STATE_UNSPECIFIED = 0;
+  INSTALLATION_STATE_INSTALLING = 1;
+  INSTALLATION_STATE_UPGRADING = 2;
+  INSTALLATION_STATE_READY = 3;
+  INSTALLATION_STATE_UNREADY = 4;
+  INSTALLATION_STATE_UNINSTALLING = 5;
+  INSTALLATION_STATE_UNINSTALLED = 6;
+  INSTALLATION_STATE_PURGING = 7;
+  INSTALLATION_STATE_BROKEN = 8;
+}
+
+enum PupRunStatus {
+  PUP_RUN_STATUS_UNSPECIFIED = 0;
+  PUP_RUN_STATUS_STOPPED = 1;
+  PUP_RUN_STATUS_STARTING = 2;
+  PUP_RUN_STATUS_RUNNING = 3;
+  PUP_RUN_STATUS_STOPPING = 4;
+}
+
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  JOB_STATUS_QUEUED = 1;
+  JOB_STATUS_IN_PROGRESS = 2;
+  JOB_STATUS_COMPLETED = 3;
+  JOB_STATUS_FAILED = 4;
+  JOB_STATUS_CANCELLED = 5;
+}
+
+message ManifestSourceConfiguration {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string location = 4;
+  string type = 5;
+}
+
+message PupManifest {
+  int32 manifest_version = 1;
+  PupManifestMeta meta = 2;
+  PupManifestConfigFields config = 3;
+  PupManifestContainer container = 4;
+  repeated PupManifestInterface interfaces = 5;
+  repeated PupManifestDependency dependencies = 6;
+  repeated PupManifestMetric metrics = 7;
+}
+
+message PupManifestMeta {
+  string name = 1;
+  string version = 2;
+  string logo_path = 3;
+  string short_description = 4;
+  string long_description = 5;
+  map<string, string> upstream_versions = 6;
+}
+
+message PupManifestContainer {
+  PupManifestBuild build = 1;
+  repeated PupManifestService services = 2;
+  repeated PupManifestExposeConfig exposes = 3;
+  bool requires_internet = 4;
+}
+
+message PupManifestBuild {
+  string nix_file = 1;
+  string nix_file_sha256 = 2;
+}
+
+message PupManifestService {
+  string name = 1;
+  PupManifestCommand command = 2;
+}
+
+message PupManifestCommand {
+  string exec = 1;
+  string cwd = 2;
+  map<string, string> env = 3;
+}
+
+message PupManifestExposeConfig {
+  string name = 1;
+  string type = 2;
+  int32 port = 3;
+  repeated string interfaces = 4;
+  bool listen_on_host = 5;
+  bool web_ui = 6;
+}
+
+message PupManifestInterface {
+  string name = 1;
+  string version = 2;
+  repeated PupManifestPermissionGroup permission_groups = 3;
+}
+
+message PupManifestPermissionGroup {
+  string name = 1;
+  string description = 2;
+  int32 severity = 3;
+  repeated string routes = 4;
+  int32 port = 5;
+}
+
+message PupManifestDependency {
+  string interface_name = 1;
+  string interface_version = 2;
+  repeated string permission_groups = 3;
+  PupManifestDependencySource source = 4;
+  bool optional = 5;
+}
+
+message PupManifestDependencySource {
+  string source_location = 1;
+  string pup_name = 2;
+  string pup_version = 3;
+  string pup_logo_base64 = 4;
+}
+
+message PupManifestConfigFields {
+  bool show_on_install = 1;
+  repeated PupManifestConfigSection sections = 2;
+}
+
+message PupManifestConfigSection {
+  string name = 1;
+  string label = 2;
+  repeated PupManifestConfigField fields = 3;
+}
+
+message PupManifestConfigField {
+  string label = 1;
+  string name = 2;
+  string type = 3;
+  bool required = 4;
+  string placeholder = 5;
+  string help = 6;
+  google.protobuf.Value default_value = 7;
+  optional double min = 8;
+  optional double max = 9;
+  optional double step = 10;
+}
+
+message PupManifestMetric {
+  string name = 1;
+  string label = 2;
+  string type = 3;
+  int32 history = 4;
+  string description = 5;
+}
+
+message PupHook {
+  int32 port = 1;
+  string path = 2;
+  string id = 3;
+}
+
+message PupWebUi {
+  string name = 1;
+  int32 port = 2;
+}
+
+message PupState {
+  string id = 1;
+  string logo_base64 = 2;
+  ManifestSourceConfiguration source = 3;
+  PupManifest manifest = 4;
+  map<string, string> config = 5;
+  bool config_saved = 6;
+  map<string, string> providers = 7;
+  repeated PupHook hooks = 8;
+  InstallationState installation = 9;
+  string broken_reason = 10;
+  bool enabled = 11;
+  bool needs_conf = 12;
+  bool needs_deps = 13;
+  string ip = 14;
+  string version = 15;
+  repeated PupWebUi web_uis = 16;
+  bool is_dev_mode_enabled = 17;
+  repeated string dev_mode_services = 18;
+  string skipped_version = 19;
+}
+
+message PupMetricSeries {
+  string name = 1;
+  string label = 2;
+  string type = 3;
+  repeated google.protobuf.Value values = 4;
+}
+
+message PupIssues {
+  repeated string deps_not_running = 1;
+  repeated string health_warnings = 2;
+  bool upgrade_available = 3;
+}
+
+message PupStats {
+  string id = 1;
+  PupRunStatus status = 2;
+  repeated PupMetricSeries system_metrics = 3;
+  repeated PupMetricSeries metrics = 4;
+  PupIssues issues = 5;
+}
+
+message PupLogos {
+  string main_logo_base64 = 1;
+}
+
+message PupAsset {
+  PupLogos logos = 1;
+}
+
+message JobRecord {
+  string id = 1;
+  google.protobuf.Timestamp started = 2;
+  optional google.protobuf.Timestamp finished = 3;
+  string display_name = 4;
+  string action = 5;
+  int32 progress = 6;
+  JobStatus status = 7;
+  string summary_message = 8;
+  string error_message = 9;
+  string pup_id = 10;
+}
+
+message ActionProgress {
+  string action_id = 1;
+  string pup_id = 2;
+  int32 progress = 3;
+  string step = 4;
+  string msg = 5;
+  bool error = 6;
+  google.protobuf.Duration step_taken = 7;
+}
+
+message PupUpdatesCheckedEvent {
+  int32 pups_checked = 1;
+  int32 updates_available = 2;
+  bool is_periodic_check = 3;
+}
