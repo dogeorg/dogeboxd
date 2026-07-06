@@ -6,6 +6,8 @@ import "dogebox/v1/bootstrap.proto";
 import "dogebox/v1/types.proto";
 import "google/protobuf/struct.proto";
 
+// Wire values are the ChangeType string constants in pkg/events.go,
+// e.g. CHANGE_TYPE_JOB_CREATED is "job:created" on the wire.
 enum ChangeType {
   CHANGE_TYPE_UNSPECIFIED = 0;
   CHANGE_TYPE_BOOTSTRAP = 1;
@@ -17,14 +19,19 @@ enum ChangeType {
   CHANGE_TYPE_PROGRESS = 7;
   CHANGE_TYPE_SYSTEM_UPDATE_AVAILABLE = 8;
   CHANGE_TYPE_RECOVERY = 9;
-  CHANGE_TYPE_JOB_CREATED = 10;
-  CHANGE_TYPE_JOB_PROGRESS = 11;
-  CHANGE_TYPE_JOB_COMPLETED = 12;
-  CHANGE_TYPE_PUP_UPDATES_CHECKED = 13;
-  CHANGE_TYPE_JOB_CREATED_LEGACY = 14;
-  CHANGE_TYPE_JOB_UPDATED_LEGACY = 15;
-  CHANGE_TYPE_JOB_COMPLETED_LEGACY = 16;
-  CHANGE_TYPE_JOB_FAILED_LEGACY = 17;
+  CHANGE_TYPE_PUP_UPDATES_CHECKED = 10;
+
+  // Job lifecycle events emitted by the JobManager ("job:*" on the wire).
+  CHANGE_TYPE_JOB_CREATED = 11;
+  CHANGE_TYPE_JOB_UPDATED = 12;
+  CHANGE_TYPE_JOB_COMPLETED = 13;
+  CHANGE_TYPE_JOB_FAILED = 14;
+  CHANGE_TYPE_JOB_ORPHANED = 15;
+  CHANGE_TYPE_JOB_DELETED = 16;
+
+  // Legacy "job_completed" underscore variant still emitted by the
+  // SystemUpdater completion path.
+  CHANGE_TYPE_JOB_COMPLETED_LEGACY = 17;
 }
 
 message PupPurgedUpdate {

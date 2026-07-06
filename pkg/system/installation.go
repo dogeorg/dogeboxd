@@ -32,7 +32,7 @@ func logToWebSocket(t dogeboxd.Dogeboxd, message string) {
 	log.Printf("logging to web socket: %s", message)
 	t.Changes <- dogeboxd.Change{
 		ID:     "recovery",
-		Type:   "recovery",
+		Type:   dogeboxd.ChangeTypeRecovery,
 		Update: message,
 	}
 }
@@ -391,13 +391,13 @@ func GetBuildType() (string, error) {
 func InstallToDisk(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, dbxState dogeboxd.DogeboxState, name string) error {
 	t.Changes <- dogeboxd.Change{
 		ID:     "install-output",
-		Type:   "recovery",
+		Type:   dogeboxd.ChangeTypeRecovery,
 		Update: "Install to disk started",
 	}
 	if config.DevMode {
 		t.Changes <- dogeboxd.Change{
 			ID:     "warning",
-			Type:   "recovery",
+			Type:   dogeboxd.ChangeTypeRecovery,
 			Update: "Dev mode enabled, skipping installation. You probably do not want to do this. re-run without dev mode if you do.",
 		}
 		return nil
@@ -463,7 +463,7 @@ func (w *lineStreamWriter) Write(p []byte) (n int, err error) {
 			if len(w.buf) > 0 {
 				w.t.Changes <- dogeboxd.Change{
 					ID:     w.changeID,
-					Type:   "recovery",
+					Type:   dogeboxd.ChangeTypeRecovery,
 					Update: string(w.buf),
 				}
 				w.buf = w.buf[:0]

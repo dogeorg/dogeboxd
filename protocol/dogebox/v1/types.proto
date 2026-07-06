@@ -33,6 +33,7 @@ enum JobStatus {
   JOB_STATUS_COMPLETED = 3;
   JOB_STATUS_FAILED = 4;
   JOB_STATUS_CANCELLED = 5;
+  JOB_STATUS_ORPHANED = 6;
 }
 
 message ManifestSourceConfiguration {
@@ -228,6 +229,7 @@ message JobRecord {
   string summary_message = 8;
   string error_message = 9;
   string pup_id = 10;
+  string target_version = 11;
 }
 
 message ActionProgress {
@@ -244,4 +246,30 @@ message PupUpdatesCheckedEvent {
   int32 pups_checked = 1;
   int32 updates_available = 2;
   bool is_periodic_check = 3;
+}
+
+message PupInterfaceVersion {
+  string interface_name = 1;
+  string old_version = 2;
+  string new_version = 3;
+  string change_type = 4; // "major", "minor", "patch"
+  repeated string affected_pups = 5;
+}
+
+message PupVersion {
+  string version = 1;
+  string release_notes = 2;
+  optional google.protobuf.Timestamp release_date = 3;
+  string release_url = 4;
+  repeated string breaking_changes = 5;
+  repeated PupInterfaceVersion interface_changes = 6;
+}
+
+message PupUpdateInfo {
+  string pup_id = 1;
+  string current_version = 2;
+  string latest_version = 3;
+  repeated PupVersion available_versions = 4;
+  bool update_available = 5;
+  google.protobuf.Timestamp last_checked = 6;
 }

@@ -5,23 +5,29 @@ import "time"
 type ChangeType string
 
 const (
-	ChangeTypeBootstrap          ChangeType = "bootstrap"
-	ChangeTypePup                ChangeType = "pup"
-	ChangeTypePupPurged          ChangeType = "pup_purged"
-	ChangeTypeStats              ChangeType = "stats"
-	ChangeTypeAction             ChangeType = "action"
-	ChangeTypePrompt             ChangeType = "prompt"
-	ChangeTypeProgress           ChangeType = "progress"
-	ChangeTypeSystemUpdate       ChangeType = "system-update-available"
-	ChangeTypeRecovery           ChangeType = "recovery"
-	ChangeTypeJobCreated         ChangeType = "job_created"
-	ChangeTypeJobProgress        ChangeType = "job_progress"
-	ChangeTypeJobCompleted       ChangeType = "job_completed"
-	ChangeTypePupUpdatesChecked  ChangeType = "pup-updates-checked"
-	ChangeTypeJobCreatedLegacy   ChangeType = "job:created"
-	ChangeTypeJobUpdatedLegacy   ChangeType = "job:updated"
-	ChangeTypeJobCompletedLegacy ChangeType = "job:completed"
-	ChangeTypeJobFailedLegacy    ChangeType = "job:failed"
+	ChangeTypeBootstrap         ChangeType = "bootstrap"
+	ChangeTypePup               ChangeType = "pup"
+	ChangeTypePupPurged         ChangeType = "pup_purged"
+	ChangeTypeStats             ChangeType = "stats"
+	ChangeTypeAction            ChangeType = "action"
+	ChangeTypePrompt            ChangeType = "prompt"
+	ChangeTypeProgress          ChangeType = "progress"
+	ChangeTypeSystemUpdate      ChangeType = "system-update-available"
+	ChangeTypeRecovery          ChangeType = "recovery"
+	ChangeTypePupUpdatesChecked ChangeType = "pup-updates-checked"
+
+	// Job lifecycle events emitted by the JobManager and consumed
+	// by dpanel's job channel.
+	ChangeTypeJobCreated   ChangeType = "job:created"
+	ChangeTypeJobUpdated   ChangeType = "job:updated"
+	ChangeTypeJobCompleted ChangeType = "job:completed"
+	ChangeTypeJobFailed    ChangeType = "job:failed"
+	ChangeTypeJobOrphaned  ChangeType = "job:orphaned"
+	ChangeTypeJobDeleted   ChangeType = "job:deleted"
+
+	// Legacy underscore variant still emitted by the SystemUpdater
+	// completion path and handled by dpanel's main channel.
+	ChangeTypeJobCompletedLegacy ChangeType = "job_completed"
 )
 
 // A Job is created when an Action is recieved by the system.
