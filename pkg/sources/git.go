@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
@@ -311,17 +310,7 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 		return r._cache, nil
 	}
 
-	repo, err := git.Clone(memory.NewStorage(), memfs.New(), &git.CloneOptions{
-		URL:          r.config.Location,
-		Depth:        1,
-		SingleBranch: true,
-		Tags:         git.AllTags,
-	})
-	if err != nil {
-		return dogeboxd.ManifestSourceList{}, err
-	}
-
-	iter, err := repo.Tags()
+	tags, err := r.GetAllGitTags(r.config.Location)
 	if err != nil {
 		return dogeboxd.ManifestSourceList{}, err
 	}
@@ -332,35 +321,37 @@ func (r *ManifestSourceGit) List(ignoreCache bool) (dogeboxd.ManifestSourceList,
 		err     error
 	}
 
-	resultChan := make(chan TagResult)
-	var tagCount int
-
-	err = iter.ForEach(func(p *plumbing.Reference) error {
-		tagRef := string(p.Name())
-		tagName := strings.Replace(tagRef, "refs/tags/", "", -1)
+	tagVersions := []string{}
+	for _, tagName := range tags {
 		if semver.IsValid(tagName) {
-			tagCount++
-			go func(ref, version string) {
-				entries, err := r.ensureTagValidAndGetPups(ref)
-				resultChan <- TagResult{
-					version: version,
-					entries: entries,
-					err:     err,
-				}
-			}(tagRef, tagName)
+			tagVersions = append(tagVersions, tagName)
 		}
+	}
 
-		return nil
-	})
-	if err != nil {
-		return dogeboxd.ManifestSourceList{}, err
+	resultChan := make(chan TagResult, len(tagVersions))
+	validationSlots := make(chan struct{}, 4)
+
+	for _, version := range tagVersions {
+		go func(version string) {
+			validationSlots <- struct{}{}
+			defer func() {
+				<-validationSlots
+			}()
+
+			entries, err := r.ensureTagValidAndGetPups("refs/tags/" + version)
+			resultChan <- TagResult{
+				version: version,
+				entries: entries,
+				err:     err,
+			}
+		}(version)
 	}
 
 	validPups := []dogeboxd.ManifestSourcePup{}
 
 	ownerRepo, isGitHub := pup.ParseGitHubOwnerRepo(r.config.Location)
 
-	for i := 0; i < tagCount; i++ {
+	for i := 0; i < len(tagVersions); i++ {
 		result := <-resultChan
 		if result.err != nil {
 			log.Printf("Error validating tag %s: %v", result.version, result.err)

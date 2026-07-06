@@ -5,12 +5,11 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
+	"strings"
 	"time"
 
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
 	"github.com/Dogebox-WG/dogeboxd/pkg/system"
-	"github.com/Dogebox-WG/dogeboxd/pkg/utils"
 	"github.com/Dogebox-WG/dogeboxd/pkg/version"
 )
 
@@ -23,9 +22,13 @@ type InitialSystemBootstrapRequestBody struct {
 }
 
 type BootstrapFacts struct {
-	HasGeneratedKey                  bool `json:"hasGeneratedKey"`
-	HasConfiguredNetwork             bool `json:"hasConfiguredNetwork"`
-	HasCompletedInitialConfiguration bool `json:"hasCompletedInitialConfiguration"`
+	HasGeneratedKey                  bool   `json:"hasGeneratedKey"`
+	HasConfiguredNetwork             bool   `json:"hasConfiguredNetwork"`
+	HasCompletedInitialConfiguration bool   `json:"hasCompletedInitialConfiguration"`
+	SetupSessionID                   string `json:"setupSessionId"`
+	ActiveBootstrapJobId             string `json:"activeBootstrapJobId,omitempty"`
+	ActiveSystemUpdateJobId          string `json:"activeSystemUpdateJobId,omitempty"`
+	ActiveSystemUpdateStatus         string `json:"activeSystemUpdateStatus,omitempty"`
 }
 
 type BootstrapFlags struct {
@@ -51,6 +54,26 @@ type BootstrapResponse struct {
 
 func (t api) getRawBS() BootstrapResponse {
 	dbxState := t.sm.Get().Dogebox
+	activeBootstrapJobID := ""
+	activeSystemUpdateJobID := ""
+	activeSystemUpdateStatus := ""
+
+	if t.dbx.JobManager != nil {
+		activeJobs, err := t.dbx.JobManager.GetActiveJobs()
+		if err != nil {
+			log.Printf("Could not determine active bootstrap job: %v", err)
+		} else {
+			for _, job := range activeJobs {
+				if job.Action == "initial-bootstrap" {
+					activeBootstrapJobID = job.ID
+				}
+				if job.Action == "system-update" {
+					activeSystemUpdateJobID = job.ID
+					activeSystemUpdateStatus = string(job.Status)
+				}
+			}
+		}
+	}
 
 	// Get sidebar pups from DogeboxState, ensuring non-nil slice for JSON
 	sidebarPups := dbxState.SidebarPups
@@ -73,6 +96,10 @@ func (t api) getRawBS() BootstrapResponse {
 			HasGeneratedKey:                  dbxState.InitialState.HasGeneratedKey,
 			HasConfiguredNetwork:             dbxState.InitialState.HasSetNetwork,
 			HasCompletedInitialConfiguration: dbxState.InitialState.HasFullyConfigured,
+			SetupSessionID:                   dbxState.InitialState.SetupSessionID,
+			ActiveBootstrapJobId:             activeBootstrapJobID,
+			ActiveSystemUpdateJobId:          activeSystemUpdateJobID,
+			ActiveSystemUpdateStatus:         activeSystemUpdateStatus,
 		},
 		SidebarPreferences: SidebarPreferencesResponse{SidebarPups: sidebarPups},
 	}
@@ -155,7 +182,7 @@ func (t api) installPupCollection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Process the collection installation
-	processPupCollections(t.sm, t.dbx, session.DKM_TOKEN, requestBody.CollectionName)
+	processPupCollections(t.sources, t.dbx, session.DKM_TOKEN, requestBody.CollectionName)
 
 	sendResponse(w, map[string]any{"success": true})
 }
@@ -169,10 +196,18 @@ func (t api) hostShutdown(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) getKeymap(w http.ResponseWriter, r *http.Request) {
-	keymap, err := system.GetKeymap()
-	if err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error getting current keymap")
-		return
+	keymap, err := t.nix.GetConfigValue("console.keyMap")
+	keymap = strings.TrimSpace(keymap)
+	if err != nil || keymap == "" {
+		if fb := strings.TrimSpace(t.sm.Get().Dogebox.KeyMap); fb != "" {
+			sendResponse(w, fb)
+			return
+		}
+		if err != nil {
+			log.Printf("getKeymap: nix eval failed: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error getting current keymap")
+			return
+		}
 	}
 
 	sendResponse(w, keymap)
@@ -198,10 +233,18 @@ func (t api) getKeymaps(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t api) getTimezone(w http.ResponseWriter, r *http.Request) {
-	timezone, err := system.GetTimezone()
-	if err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error getting current timezone")
-		return
+	timezone, err := t.nix.GetConfigValue("time.timeZone")
+	timezone = strings.TrimSpace(timezone)
+	if err != nil || timezone == "" {
+		if fb := strings.TrimSpace(t.sm.Get().Dogebox.Timezone); fb != "" {
+			sendResponse(w, fb)
+			return
+		}
+		if err != nil {
+			log.Printf("getTimezone: nix eval failed: %v", err)
+			sendErrorResponse(w, http.StatusInternalServerError, "Error getting current timezone")
+			return
+		}
 	}
 
 	sendResponse(w, timezone)
@@ -452,7 +495,6 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		sendErrorResponse(w, http.StatusForbidden, "Cannot initiate bootstrap in non-recovery mode.")
 		return
 	}
-	log := dogeboxd.NewConsoleSubLogger("internal", "initial setup")
 	dbxState := t.sm.Get().Dogebox
 
 	if dbxState.InitialState.HasFullyConfigured {
@@ -478,174 +520,15 @@ func (t api) initialBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := t.sm.SetDogebox(dbxState); err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
-		return
-	}
+	id := t.dbx.AddAction(dogeboxd.InitialBootstrap{
+		ReflectorToken:              requestBody.ReflectorToken,
+		ReflectorHost:               requestBody.ReflectorHost,
+		InitialSSHKey:               requestBody.InitialSSHKey,
+		UseFoundationOSBinaryCache:  requestBody.UseFoundationOSBinaryCache,
+		UseFoundationPupBinaryCache: requestBody.UseFoundationPupBinaryCache,
+	})
 
-	nixPatch := t.nix.NewPatch(log)
-
-	// This will try and connect to the pending network, and if
-	// that works, it will persist the network config to disk properly.
-	if err := t.dbx.NetworkManager.TryConnect(nixPatch); err != nil {
-		log.Errf("Error connecting to network: %v", err)
-		sendErrorResponse(w, http.StatusInternalServerError, "Error connecting to network")
-		return
-	}
-
-	t.nix.InitSystem(nixPatch, dbxState)
-
-	if err := nixPatch.Apply(); err != nil {
-		sendErrorResponse(w, http.StatusInternalServerError, "Error initialising system")
-		return
-	}
-
-	// This storage overlay stuff needs to happen _after_ we've init'd our system, as
-	// otherwise we end up in a position where we can't access the $datadir/nix/* files
-	// to copy back into our new overlay.. because the overlay is mounted as part of the
-	// system init. So we init, copy files, apply overlay, copy files back.
-	if dbxState.StorageDevice != "" {
-		// Before we do anything, close the DB so we don't have any
-		// issues with the overlay mount (ie. stuff not written yet)
-		if err := t.sm.CloseDB(); err != nil {
-			log.Errf("Error closing DB: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error closing DB")
-			return
-		}
-
-		tempDir, err := os.MkdirTemp("", "dbx-data-overlay")
-		if err != nil {
-			log.Errf("Error creating temporary directory: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error creating temporary directory")
-			return
-		}
-		log.Logf("Created temporary directory: %s", tempDir)
-		// defer os.RemoveAll(tempDir)
-
-		log.Logf("Initialising storage device: %s", dbxState.StorageDevice)
-
-		partitionName, err := system.InitStorageDevice(dbxState)
-		if err != nil {
-			log.Errf("Error initialising storage device: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error initialising storage device")
-			return
-		}
-
-		// Copy all our existing data to our temp dir so we don't lose everything created already.
-		if err := utils.CopyFiles(t.config.DataDir, tempDir); err != nil {
-			log.Errf("Error copying data to temp dir: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data to temp dir")
-			return
-		}
-
-		// Apply our new overlay update.
-		overlayPatch := t.nix.NewPatch(log)
-		t.nix.UpdateStorageOverlay(overlayPatch, partitionName)
-
-		if err := overlayPatch.Apply(); err != nil {
-			log.Errf("Error applying overlay patch: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error applying overlay patch")
-			return
-		}
-
-		// Copy our data back from the temp dir to the new location.
-		if err := utils.CopyFiles(tempDir, t.config.DataDir); err != nil {
-			log.Errf("Error copying data back to %s: %v", t.config.DataDir, err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error copying data back to data dir")
-			return
-		}
-
-		// This sucks, but because we wrote our storage-overlay file during the last rebuild,
-		// we don't actually have that in the tempDir we backed up. So we have to re-save this
-		// file into the overlay we now have mounted, but we don't actually have to rebuild.
-		reoverlayPatch := t.nix.NewPatch(log)
-		t.nix.UpdateStorageOverlay(reoverlayPatch, partitionName)
-		if err := reoverlayPatch.ApplyCustom(dogeboxd.NixPatchApplyOptions{
-			DangerousNoRebuild: true,
-		}); err != nil {
-			log.Errf("Error re-applying overlay patch: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error re-applying overlay patch")
-			return
-		}
-
-		if err := t.sm.OpenDB(); err != nil {
-			log.Errf("Error re-opening store manager: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error re-opening store manager")
-			return
-		}
-	}
-
-	if requestBody.ReflectorToken != "" && requestBody.ReflectorHost != "" {
-		if err := system.SaveReflectorTokenForReboot(t.config, requestBody.ReflectorHost, requestBody.ReflectorToken); err != nil {
-			log.Errf("Error saving reflector data: %v", err)
-		}
-	}
-
-	// Add our DogeOrg source in by default, for people to test things with.
-	if _, err := t.sources.AddSource("https://github.com/Dogebox-WG/pups.git"); err != nil {
-		log.Errf("Error adding initial dogeorg source: %v", err)
-		sendErrorResponse(w, http.StatusInternalServerError, "Error adding dogeorg source")
-		return
-	}
-
-	// If the user has provided an SSH key, we should add it to the system and enable SSH.
-	if requestBody.InitialSSHKey != "" {
-		if err := t.dbx.SystemUpdater.AddSSHKey(requestBody.InitialSSHKey, log); err != nil {
-			log.Errf("Error adding initial SSH key: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error adding initial SSH key")
-			return
-		}
-
-		if err := t.dbx.SystemUpdater.EnableSSH(log); err != nil {
-			log.Errf("Error enabling SSH: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error enabling SSH")
-			return
-		}
-	}
-
-	if requestBody.UseFoundationOSBinaryCache {
-		// This is a bit of a hack until we can dispatch and then block,
-		// until a job has finished through the queue.
-		if err := t.dbx.SystemUpdater.AddBinaryCache(dogeboxd.AddBinaryCache{
-			Host: "https://dbx.nix.dogecoin.org",
-			Key:  "dbx.nix.dogecoin.org:ODXaHC+9DNqXQ8ZTijaCT4JpieqmOatZeZBbdN51Obc=",
-		}, log); err != nil {
-			log.Errf("Error adding foundation OS binary cache: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error adding foundation OS binary cache")
-			return
-		}
-	}
-
-	if requestBody.UseFoundationPupBinaryCache {
-		// This is a bit of a hack until we can dispatch and then block,
-		// until a job has finished through the queue.
-		if err := t.dbx.SystemUpdater.AddBinaryCache(dogeboxd.AddBinaryCache{
-			Host: "https://pups.nix.dogecoin.org",
-			Key:  "pups.nix.dogecoin.org:hQx/w1TQlN423VyK+D/AnD10Ul8ovVxLcPrMRBt9T3Q=",
-		}, log); err != nil {
-			log.Errf("Error adding foundation pups binary cache: %v", err)
-			sendErrorResponse(w, http.StatusInternalServerError, "Error adding foundation pups binary cache")
-			return
-		}
-	}
-
-	dbxs := t.sm.Get().Dogebox
-	dbxs.InitialState.HasFullyConfigured = true
-	if err := t.sm.SetDogebox(dbxs); err != nil {
-		// What should we do here? We've already turned off AP mode so any errors
-		// won't get send back to the client. I guess we just reboot?
-		// That'll force recovery mode again. We can't even persist this error though.
-		sendErrorResponse(w, http.StatusInternalServerError, "Error persisting flags")
-	}
-
-	sendResponse(w, map[string]any{"status": "OK"})
-
-	log.Log("Dogebox successfully bootstrapped, rebooting in 5 seconds so we can boot into normal mode.")
-
-	go func() {
-		time.Sleep(5 * time.Second)
-		t.lifecycle.Reboot()
-	}()
+	sendResponse(w, map[string]any{"jobId": id})
 }
 
 // getSidebarPreferences returns the list of pups pinned to the sidebar

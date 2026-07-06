@@ -25,7 +25,7 @@ dogeboxd.Dogeboxd, especially as they relate to the operating system.
 
 */
 
-func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager dogeboxd.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager, stateManager dogeboxd.StateManager, dkm dogeboxd.DKMManager) SystemUpdater {
+func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.NetworkManager, nixManager dogeboxd.NixManager, sourceManager dogeboxd.SourceManager, pupManager dogeboxd.PupManager, stateManager dogeboxd.StateManager, lifecycle dogeboxd.LifecycleManager, dkm dogeboxd.DKMManager) SystemUpdater {
 	return SystemUpdater{
 		config:     config,
 		jobs:       make(chan dogeboxd.Job),
@@ -35,6 +35,7 @@ func NewSystemUpdater(config dogeboxd.ServerConfig, networkManager dogeboxd.Netw
 		sources:    sourceManager,
 		pupManager: pupManager,
 		sm:         stateManager,
+		lifecycle:  lifecycle,
 		dkm:        dkm,
 	}
 }
@@ -48,8 +49,11 @@ type SystemUpdater struct {
 	sources    dogeboxd.SourceManager
 	pupManager dogeboxd.PupManager
 	sm         dogeboxd.StateManager
+	lifecycle  dogeboxd.LifecycleManager
 	dkm        dogeboxd.DKMManager
 }
+
+var nixCacheUpdateTimeout = 60 * time.Second
 
 func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context) error {
 	go func() {
@@ -120,6 +124,13 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						}
 						t.done <- j
 
+					case dogeboxd.InitialBootstrap:
+						err := t.initialBootstrap(a, j)
+						if err != nil {
+							j.Err = err.Error()
+						}
+						t.done <- j
+
 					case dogeboxd.EnableSSH:
 						err := t.EnableSSH(j.Logger.Step("enable SSH"))
 						if err != nil {
@@ -171,7 +182,7 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 					case dogeboxd.SystemUpdate:
 						logger := j.Logger.Step("system update")
 						logger.Progress(5).Logf("Starting system update to %s", a.Version)
-						if err := DoSystemUpdate(a.Package, a.Version, logger); err != nil {
+						if err := t.DoSystemUpdate(a.Package, a.Version, logger); err != nil {
 							logger.Errf("System update failed: %v", err)
 							j.Err = err.Error()
 						} else {
@@ -190,6 +201,13 @@ func (t SystemUpdater) Run(started, stopped chan bool, stop chan context.Context
 						err := t.updateKeymap(a, j.Logger.Step("update keymap"))
 						if err != nil {
 							j.Err = "Failed to update keyboard layout"
+						}
+						t.done <- j
+
+					case dogeboxd.UpdateNixCache:
+						err := t.updateNixCache(j)
+						if err != nil {
+							j.Err = err.Error()
 						}
 						t.done <- j
 
@@ -717,6 +735,27 @@ func (t SystemUpdater) updateKeymap(a dogeboxd.UpdateKeymap, log dogeboxd.SubLog
 	}
 
 	log.Progress(100).Logf("Keyboard layout updated to %s", a.Keymap)
+	return nil
+}
+
+func (t SystemUpdater) updateNixCache(j dogeboxd.Job) error {
+	log := j.Logger.Step("update nix cache")
+	log.Log("Updating nix cache...")
+	ctx, cancel := context.WithTimeout(context.Background(), nixCacheUpdateTimeout)
+	defer cancel()
+
+	// These two sections should be a balance between pre-populating what
+	// we need and not eating too many resources to fetch.
+	if _, err := t.nix.GetConfigValueContext(ctx, "console"); err != nil {
+		log.Errf("Failed to get console section from nix config: %v", err)
+		return err
+	}
+
+	if _, err := t.nix.GetConfigValueContext(ctx, "time"); err != nil {
+		log.Errf("Failed to get time section from nix config: %v", err)
+		return err
+	}
+
 	return nil
 }
 

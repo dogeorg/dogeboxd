@@ -44,17 +44,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"sync/atomic"
+	"github.com/golanglibs/gocollections/set/hashset"
 )
 
 type syncQueue struct {
-	jobQueue      []Job
-	jobQLock      sync.Mutex
-	jobInProgress sync.Mutex
-	jobTimer      time.Time
+	jobQueue            []Job               // pending jobs waiting to be handed to SystemUpdater
+	nonQueuedActiveJobs hashset.Set[string] // runtime-active jobs that are not currently in jobQueue
+	currentSystemJobID  string              // the single job currently handed to SystemUpdater
+	jobQLock            sync.Mutex
+	jobInProgress       sync.Mutex
+	jobTimer            time.Time
 }
 
 type Dogeboxd struct {
@@ -94,9 +98,10 @@ func NewDogeboxd(
 	config *ServerConfig,
 ) Dogeboxd {
 	q := syncQueue{
-		jobQueue:      []Job{},
-		jobQLock:      sync.Mutex{},
-		jobInProgress: sync.Mutex{},
+		jobQueue:            []Job{},
+		nonQueuedActiveJobs: hashset.New[string](),
+		jobQLock:            sync.Mutex{},
+		jobInProgress:       sync.Mutex{},
 	}
 	s := Dogeboxd{
 		Pups:             pups,
@@ -136,6 +141,11 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 
 	go func() {
 		go func() {
+			queueTicker := time.NewTicker(100 * time.Millisecond)
+			orphanTicker := time.NewTicker(60 * time.Second)
+			defer queueTicker.Stop()
+			defer orphanTicker.Stop()
+
 			// Create channels once outside the loop
 			pupdateChannel := t.Pups.GetUpdateChannel()
 			statsChannel := t.Pups.GetStatsChannel()
@@ -158,14 +168,18 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
+					// Queue management: skip a nix cache update if the next queued
+					// job is already a nix cache update.
+					if t.shouldSkipJob(j) {
+						break dance
+					}
+
 					j.Start = time.Now() // start the job timer
 
-					// Create job record for tracking (skip routine operations like metrics)
-					if t.JobManager != nil && t.shouldTrackJob(j) {
-						record, err := t.JobManager.CreateJobRecord(j)
-						if err == nil {
-							t.sendChange(Change{ID: "internal", Type: "job:created", Update: record})
-						}
+					// Register tracked jobs in runtime state before persisting them so
+					// orphan detection never sees "active in DB, missing from runtime".
+					if record, err := t.createTrackedJobRecord(j); err == nil && record != nil {
+						t.SendChange(Change{ID: "internal", Type: "job:created", Update: record})
 					}
 
 					t.jobDispatcher(j)
@@ -177,9 +191,9 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					// Don't broadcast a purged pup as a normal pup state update, otherwise clients may resurrect it in their local model.
 					if p.Event == PUP_PURGED {
-						t.sendChange(Change{ID: "internal", Type: "pup_purged", Update: map[string]string{"pupId": p.State.ID}})
+						t.SendChange(Change{ID: "internal", Type: "pup_purged", Update: map[string]string{"pupId": p.State.ID}})
 					} else {
-						t.sendChange(Change{ID: "internal", Type: "pup", Update: p.State})
+						t.SendChange(Change{ID: "internal", Type: "pup", Update: p.State})
 					}
 
 				// Handle stats from PupManager
@@ -187,7 +201,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
-					t.sendChange(Change{ID: "internal", Type: "stats", Update: stats})
+					t.SendChange(Change{ID: "internal", Type: "stats", Update: stats})
 
 				// Handle pup update check events
 				case event, ok := <-eventChannel:
@@ -195,15 +209,13 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						break dance
 					}
 					// Send event to frontend so it can refresh its cache
-					t.sendChange(Change{ID: "internal", Type: "pup-updates-checked", Update: event})
+					t.SendChange(Change{ID: "internal", Type: "pup-updates-checked", Update: event})
 
 				// Handle completed jobs from SystemUpdater
 				case j, ok := <-updaterChannel:
 					if !ok {
 						break dance
 					}
-					// job is finished, unlock the queue for the next job
-					t.queue.jobInProgress.Unlock()
 					j.Logger.Step("queue").Progress(100).Log(fmt.Sprintf("finished in %.2fs, queued %.2fs", time.Since(t.queue.jobTimer).Seconds(), time.Since(j.Start).Seconds()))
 
 					// if this job was successful, AND it was a
@@ -256,15 +268,23 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						if err == nil {
 							jobRecord, getErr := t.JobManager.GetJob(j.ID)
 							if getErr == nil {
-								t.sendChange(Change{ID: "internal", Type: "job_completed", Update: jobRecord})
+								t.SendChange(Change{ID: "internal", Type: "job_completed", Update: jobRecord})
 							}
 						}
 					}
 
 					t.sendFinishedJob("action", j)
+					// Only clear this after completion so the orphaned job monitor
+					// doesn't mistakenly pick it up as missing from runtime state.
+					t.clearCurrentSystemJobID(j.ID)
+					t.queue.jobInProgress.Unlock()
 
-				case <-time.After(time.Millisecond * 100): // Periodic check
+				case <-queueTicker.C:
 					t.pumpQueue()
+				case <-orphanTicker.C:
+					if _, err := t.DetectAndMarkOrphanedJobs(); err != nil {
+						fmt.Printf("Warning: failed to detect orphaned jobs: %v\n", err)
+					}
 				}
 			}
 		}()
@@ -288,6 +308,7 @@ func (t *Dogeboxd) pumpQueue() {
 
 			job := t.queue.jobQueue[0]
 			t.queue.jobQueue = t.queue.jobQueue[1:]
+			t.queue.currentSystemJobID = job.ID
 			t.queue.jobQLock.Unlock()
 
 			job.Logger.Step("queue").Log(fmt.Sprintf("Queued, position %d\n", len(t.queue.jobQueue)))
@@ -304,7 +325,137 @@ func (t *Dogeboxd) pumpQueue() {
 func (t *Dogeboxd) enqueue(j Job) {
 	t.queue.jobQLock.Lock()
 	defer t.queue.jobQLock.Unlock()
+	t.queue.nonQueuedActiveJobs.Remove(j.ID)
 	t.queue.jobQueue = append(t.queue.jobQueue, j)
+}
+
+func (t *Dogeboxd) markNonQueuedActiveJob(jobID string) {
+	t.queue.jobQLock.Lock()
+	defer t.queue.jobQLock.Unlock()
+	t.queue.nonQueuedActiveJobs.Add(jobID)
+}
+
+func (t *Dogeboxd) clearNonQueuedActiveJob(jobID string) {
+	t.queue.jobQLock.Lock()
+	defer t.queue.jobQLock.Unlock()
+	t.queue.nonQueuedActiveJobs.Remove(jobID)
+}
+
+func (t *Dogeboxd) clearCurrentSystemJobID(jobID string) {
+	t.queue.jobQLock.Lock()
+	defer t.queue.jobQLock.Unlock()
+	if t.queue.currentSystemJobID == jobID {
+		t.queue.currentSystemJobID = ""
+	}
+}
+
+func (t *Dogeboxd) createTrackedJobRecord(j Job) (*JobRecord, error) {
+	if t.JobManager == nil || !t.shouldTrackJob(j) {
+		return nil, nil
+	}
+
+	t.markNonQueuedActiveJob(j.ID)
+
+	record, err := t.JobManager.CreateJobRecord(j)
+	if err != nil {
+		t.clearNonQueuedActiveJob(j.ID)
+		return nil, err
+	}
+
+	return record, nil
+}
+
+func (t *Dogeboxd) GetRuntimeJobIDs() []string {
+	t.queue.jobQLock.Lock()
+	defer t.queue.jobQLock.Unlock()
+
+	ids := make([]string, 0, len(t.queue.jobQueue)+t.queue.nonQueuedActiveJobs.Size()+1)
+	if t.queue.currentSystemJobID != "" {
+		ids = append(ids, t.queue.currentSystemJobID)
+	}
+	for _, job := range t.queue.jobQueue {
+		ids = append(ids, job.ID)
+	}
+	t.queue.nonQueuedActiveJobs.ForEach(func(jobID *string) {
+		ids = append(ids, *jobID)
+	})
+
+	return ids
+}
+
+func (t *Dogeboxd) RemoveFromQueue(jobID string) bool {
+	t.queue.jobQLock.Lock()
+	defer t.queue.jobQLock.Unlock()
+
+	for i, job := range t.queue.jobQueue {
+		if job.ID != jobID {
+			continue
+		}
+
+		t.queue.jobQueue = append(t.queue.jobQueue[:i], t.queue.jobQueue[i+1:]...)
+		t.queue.nonQueuedActiveJobs.Remove(jobID)
+		return true
+	}
+
+	return false
+}
+
+func (t Dogeboxd) shouldSkipJob(j Job) bool {
+	if _, ok := j.A.(UpdateNixCache); ok {
+		return t.shouldSkipQueuedNixCacheJob()
+	}
+
+	return false
+}
+
+// DetectAndMarkOrphanedJobs reconciles persisted active jobs against runtime state.
+// It is used on the periodic orphan scan and during WS bootstrap.
+func (t *Dogeboxd) DetectAndMarkOrphanedJobs() ([]string, error) {
+	if t.JobManager == nil {
+		return nil, nil
+	}
+
+	activeJobs, err := t.JobManager.GetActiveJobs()
+	if err != nil {
+		return nil, err
+	}
+
+	runtimeJobIDs := t.GetRuntimeJobIDs()
+	runtimeSet := make(map[string]struct{}, len(runtimeJobIDs))
+	for _, jobID := range runtimeJobIDs {
+		runtimeSet[jobID] = struct{}{}
+	}
+
+	orphaned := make([]string, 0)
+	for _, job := range activeJobs {
+		if _, ok := runtimeSet[job.ID]; ok {
+			continue
+		}
+		if err := t.JobManager.MarkJobOrphaned(job.ID); err != nil {
+			return orphaned, err
+		}
+		orphaned = append(orphaned, job.ID)
+	}
+
+	return orphaned, nil
+}
+
+func (t Dogeboxd) shouldSkipQueuedNixCacheJob() bool {
+	t.queue.jobQLock.Lock()
+	defer t.queue.jobQLock.Unlock()
+
+	if len(t.queue.jobQueue) == 0 {
+		return false
+	}
+
+	lastQueued := t.queue.jobQueue[len(t.queue.jobQueue)-1]
+	if _, ok := lastQueued.A.(UpdateNixCache); !ok {
+		return false
+	}
+
+	// Intentionally ignore the currently running job. Only skip when the
+	// next queued job is already a nix cache update.
+	return true
 }
 
 // Add an Action to the Action queue, returns a unique ID
@@ -337,7 +488,6 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 		for i, pup := range a {
 			pupJobID := fmt.Sprintf("%s-%d", j.ID, i+1)
 
-			// Create a separate job for each pup in the batch
 			pupJob := Job{
 				ID:      pupJobID,
 				A:       pup,
@@ -347,6 +497,11 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 				Logger:  NewActionLogger(Job{ID: pupJobID}, "", t),
 				State:   j.State,
 			}
+			// Create a separate tracked job for each pup in the batch.
+			if record, err := t.createTrackedJobRecord(pupJob); err == nil && record != nil {
+				t.SendChange(Change{ID: "internal", Type: "job:created", Update: record})
+			}
+
 			t.createPupFromManifest(pupJob, pup.PupName, pup.PupVersion, pup.SourceId, pup.Options)
 		}
 	case UninstallPup:
@@ -397,6 +552,9 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 	case UpdatePendingSystemNetwork:
 		t.enqueue(j)
 
+	case InitialBootstrap:
+		t.enqueue(j)
+
 	case EnableSSH:
 		t.enqueue(j)
 
@@ -425,6 +583,9 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 		t.enqueue(j)
 
 	case UpdateKeymap:
+		t.enqueue(j)
+
+	case UpdateNixCache:
 		t.enqueue(j)
 
 	// Pup router actions
@@ -659,8 +820,8 @@ func (t *Dogeboxd) checkPupUpdates(j Job, c CheckPupUpdates) {
 	}
 }
 
-// send changes without blocking if the channel is full
-func (t Dogeboxd) sendChange(c Change) {
+// SendChange sends a change to the websocket relay without blocking if the channel is full.
+func (t Dogeboxd) SendChange(c Change) {
 	// Attach ordering metadata for client-side staleness protection.
 	c.Seq = atomic.AddUint64(&globalChangeSeq, 1)
 	c.TS = time.Now().UnixMilli()
@@ -689,16 +850,19 @@ func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
 		if err == nil {
 			jobRecord, getErr := t.JobManager.GetJob(j.ID)
 			if getErr == nil {
-				t.sendChange(Change{ID: "internal", Type: "job:completed", Update: jobRecord})
+				t.SendChange(Change{ID: "internal", Type: "job:completed", Update: jobRecord})
 			}
 		}
 	}
+	// Keep direct-completion jobs runtime-visible until their DB row has left the
+	// active states, so concurrent orphan scans cannot observe a false orphan.
+	t.clearNonQueuedActiveJob(j.ID)
 
 	// Only send "action" event for jobs that were NOT already completed by JobManager
 	// Jobs completed by SystemUpdater (like upgrade) already send job:completed events
 	// and don't need a redundant "action" event
 	if t.JobManager == nil || !t.shouldTrackJob(j) || jobWasActive {
-		t.sendChange(Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success})
+		t.SendChange(Change{ID: j.ID, Error: j.Err, Type: changeType, Update: j.Success})
 	}
 }
 
@@ -712,6 +876,8 @@ func (t Dogeboxd) shouldTrackJob(j Job) bool {
 		return false // Config updates are instantaneous, don't need tracking
 	case UpdatePupHooks:
 		return false // Hook updates are instantaneous
+	case InstallPups:
+		return false // Individual sub-jobs are tracked separately in jobDispatcher
 	default:
 		return true // Track everything else
 	}
@@ -725,12 +891,12 @@ func (t Dogeboxd) sendProgress(p ActionProgress) {
 		if err == nil {
 			jobRecord, getErr := t.JobManager.GetJob(p.ActionID)
 			if getErr == nil {
-				t.sendChange(Change{ID: "internal", Type: "job:updated", Update: jobRecord})
+				t.SendChange(Change{ID: "internal", Type: "job:updated", Update: jobRecord})
 			}
 		}
 	}
 
-	t.sendChange(Change{ID: p.ActionID, Type: "progress", Update: p})
+	t.SendChange(Change{ID: p.ActionID, Type: "progress", Update: p})
 }
 
 // helper to attach PupState to a job and send it to the SystemUpdater
@@ -808,32 +974,149 @@ var allowedJournalServices = map[string]string{
 	"dkm": "dkm.service",
 }
 
-func (t Dogeboxd) GetLogChannel(PupID string) (context.CancelFunc, chan string, error) {
+type logSource struct {
+	journalService string
+	filePath       string
+}
+
+func (s logSource) usesJournal() bool {
+	return s.journalService != ""
+}
+
+func (t Dogeboxd) resolvePupLogSource(PupID string) (logSource, error) {
 	// We read dogeboxd and dkm from the host systemd journal,
 	// and read everything else (pups) from the container logs we export.
 	service, ok := allowedJournalServices[PupID]
 	if ok {
-		return t.JournalReader.GetJournalChannel(service)
+		return logSource{journalService: service}, nil
 	}
 
 	// Check that we've actually got a valid pup id.
 	_, _, err := t.Pups.GetPup(PupID)
 	if err != nil {
+		return logSource{}, err
+	}
+
+	return logSource{filePath: t.config.PupLogPath(PupID)}, nil
+}
+
+func (t Dogeboxd) resolveJobLogSource(JobID string) (logSource, error) {
+	_, err := t.JobManager.GetJob(JobID)
+	if err != nil {
+		return logSource{}, fmt.Errorf("job not found: %s", JobID)
+	}
+
+	return logSource{filePath: t.config.JobLogPath(JobID)}, nil
+}
+
+func (t Dogeboxd) getLogChannel(source logSource, resumeToken *string) (context.CancelFunc, chan string, error) {
+	if source.usesJournal() {
+		if resumeToken != nil {
+			return t.JournalReader.GetJournalChannelFromCursor(source.journalService, *resumeToken)
+		}
+		return t.JournalReader.GetJournalChannel(source.journalService)
+	}
+
+	if resumeToken != nil {
+		offset, err := parseLogOffsetResumeToken(*resumeToken)
+		if err != nil {
+			return nil, nil, err
+		}
+		return t.logtailer.GetChannelFromOffset(source.filePath, offset)
+	}
+
+	return t.logtailer.GetChannel(source.filePath)
+}
+
+func (t Dogeboxd) getLogPage(source logSource, before *string, limit int) (LogPage, error) {
+	if limit <= 0 {
+		return LogPage{}, fmt.Errorf("Log tail limit must be greater than zero")
+	}
+
+	if source.usesJournal() {
+		return t.JournalReader.GetJournalPage(source.journalService, before, limit)
+	}
+
+	if before != nil {
+		offset, err := parseLogOffsetResumeToken(*before)
+		if err != nil {
+			return LogPage{}, err
+		}
+		return t.logtailer.GetPage(source.filePath, &offset, limit)
+	}
+
+	return t.logtailer.GetPage(source.filePath, nil, limit)
+}
+
+func (t Dogeboxd) GetLogChannel(PupID string, resumeToken *string) (context.CancelFunc, chan string, error) {
+	source, err := t.resolvePupLogSource(PupID)
+	if err != nil {
 		return nil, nil, err
 	}
 
-	return t.logtailer.GetChannel(PupID)
+	return t.getLogChannel(source, resumeToken)
+}
+
+func (t Dogeboxd) GetLogTail(PupID string, limit int) ([]string, *string, error) {
+	page, err := t.GetLogPage(PupID, nil, limit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return page.Lines, page.ResumeToken, nil
+}
+
+func (t Dogeboxd) GetLogPage(PupID string, before *string, limit int) (LogPage, error) {
+	source, err := t.resolvePupLogSource(PupID)
+	if err != nil {
+		return LogPage{}, err
+	}
+
+	return t.getLogPage(source, before, limit)
 }
 
 // GetJobLogChannel returns a log channel for a specific job
 // Streams logs from the job's ActionLogger in real-time (same system as pup logs)
-func (t Dogeboxd) GetJobLogChannel(JobID string) (context.CancelFunc, chan string, error) {
-	// Verify job exists
-	_, err := t.JobManager.GetJob(JobID)
+func (t Dogeboxd) GetJobLogChannel(JobID string, resumeToken *string) (context.CancelFunc, chan string, error) {
+	source, err := t.resolveJobLogSource(JobID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("job not found: %s", JobID)
+		return nil, nil, err
 	}
 
-	// Get log channel from the action logger for this job
-	return t.logtailer.GetChannel(JobID)
+	return t.getLogChannel(source, resumeToken)
+}
+
+func (t Dogeboxd) GetJobLogTail(JobID string, limit int) ([]string, *string, error) {
+	page, err := t.GetJobLogPage(JobID, nil, limit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return page.Lines, page.ResumeToken, nil
+}
+
+func (t Dogeboxd) GetJobLogPage(JobID string, before *string, limit int) (LogPage, error) {
+	source, err := t.resolveJobLogSource(JobID)
+	if err != nil {
+		return LogPage{}, err
+	}
+
+	return t.getLogPage(source, before, limit)
+}
+
+func parseLogOffsetResumeToken(resumeToken string) (int64, error) {
+	offset, err := strconv.ParseInt(resumeToken, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid log resume token")
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	return offset, nil
+}
+
+func logOffsetResumeToken(offset int64) *string {
+	resumeToken := strconv.FormatInt(offset, 10)
+	return &resumeToken
 }

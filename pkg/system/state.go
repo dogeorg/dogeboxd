@@ -1,7 +1,10 @@
 package system
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log"
 
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
 )
@@ -12,6 +15,8 @@ var (
 )
 
 func NewStateManager(store *dogeboxd.StoreManager) dogeboxd.StateManager {
+	setupSessionID := generateSetupSessionID()
+
 	// Set initial state
 	s := &StateManager{
 		storeManager: store,
@@ -24,6 +29,7 @@ func NewStateManager(store *dogeboxd.StoreManager) dogeboxd.StateManager {
 		},
 		dogebox: dogeboxd.DogeboxState{
 			InitialState: dogeboxd.DogeboxStateInitialSetup{
+				SetupSessionID:     setupSessionID,
 				HasGeneratedKey:    false,
 				HasSetNetwork:      false,
 				HasFullyConfigured: false,
@@ -53,6 +59,13 @@ func NewStateManager(store *dogeboxd.StoreManager) dogeboxd.StateManager {
 		s.dogebox = dbx
 	}
 
+	if s.dogebox.InitialState.SetupSessionID == "" {
+		s.dogebox.InitialState.SetupSessionID = generateSetupSessionID()
+		if err := s.dbxStore.Set(current, s.dogebox); err != nil {
+			log.Printf(">> couldn't persist setup session id, using generated value in memory: %v", err)
+		}
+	}
+
 	src, err := s.srcStore.Get(current)
 	if err != nil {
 		fmt.Println(">> couldn't load src state, using default")
@@ -61,6 +74,15 @@ func NewStateManager(store *dogeboxd.StoreManager) dogeboxd.StateManager {
 	}
 
 	return s
+}
+
+func generateSetupSessionID() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return current
+	}
+
+	return hex.EncodeToString(buf)
 }
 
 type StateManager struct {

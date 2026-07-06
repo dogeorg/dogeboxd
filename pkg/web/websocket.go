@@ -34,21 +34,34 @@ func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
 
 // Handle incoming websocket connections for pup log output
 func (t api) getPupLogSocket(w http.ResponseWriter, r *http.Request) {
-	PupID := r.PathValue("PupID")
-	wh, err := GetLogHandler(PupID, t.dbx)
-	if err != nil {
-		sendErrorResponse(w, http.StatusBadRequest, "Error establishing pup log channel")
-		return
-	}
-	wh.ServeHTTP(w, r)
+	t.getLogSocket(w, r, "PupID", func(logID string, resumeToken *string) (*websocket.Server, error) {
+		return GetLogHandler(logID, resumeToken, t.dbx)
+	}, func(err error) string {
+		return "Error establishing pup log channel"
+	})
 }
 
 // Handle incoming websocket connections for job log output
 func (t api) getJobLogSocket(w http.ResponseWriter, r *http.Request) {
-	JobID := r.PathValue("JobID")
-	wh, err := GetJobLogHandler(JobID, t.dbx)
+	t.getLogSocket(w, r, "JobID", func(logID string, resumeToken *string) (*websocket.Server, error) {
+		return GetJobLogHandler(logID, resumeToken, t.dbx)
+	}, func(err error) string {
+		return "Error establishing job log channel: " + err.Error()
+	})
+}
+
+func (t api) getLogSocket(
+	w http.ResponseWriter,
+	r *http.Request,
+	pathValue string,
+	getHandler func(string, *string) (*websocket.Server, error),
+	getErrorMessage func(error) string,
+) {
+	logID := r.PathValue(pathValue)
+	resumeToken := parseLogResumeToken(r)
+	wh, err := getHandler(logID, resumeToken)
 	if err != nil {
-		sendErrorResponse(w, http.StatusBadRequest, "Error establishing job log channel: "+err.Error())
+		sendErrorResponse(w, http.StatusBadRequest, getErrorMessage(err))
 		return
 	}
 	wh.ServeHTTP(w, r)
@@ -58,4 +71,13 @@ func (t api) getJobLogSocket(w http.ResponseWriter, r *http.Request) {
 func (t api) getJobsSocket(w http.ResponseWriter, r *http.Request) {
 	wh := t.GetJobsHandler()
 	wh.ServeHTTP(w, r)
+}
+
+func parseLogResumeToken(r *http.Request) *string {
+	rawResumeToken := r.URL.Query().Get("resumeToken")
+	if rawResumeToken == "" {
+		return nil
+	}
+
+	return &rawResumeToken
 }

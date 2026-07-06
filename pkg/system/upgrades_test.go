@@ -3,8 +3,14 @@ package system
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
+	"time"
 
+	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"golang.org/x/mod/semver"
 )
 
@@ -408,6 +414,202 @@ func TestDoSystemUpdate_ErrorFromGetUpgradableReleases(t *testing.T) {
 	if err.Error() != "network error" {
 		t.Errorf("expected 'network error', got '%s'", err.Error())
 	}
+}
+
+func TestStageReleaseFlakeCreatesCloneInConfiguredTempDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	cloneFunc := func(destination, version string) error {
+		return createTestReleaseRepo(t, destination, version)
+	}
+
+	stagedPath, commitHash, err := stageReleaseFlakeWithClone(tmpDir, "v1.2.3", nil, cloneFunc)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	headHash, err := getRepositoryHeadHash(stagedPath)
+	if err == nil {
+		t.Fatalf("expected staged release to be a plain path, got readable Git hash %s", headHash)
+	}
+
+	expectedCommitHash := stagedCommitHash(t, cloneFunc, "v1.2.3")
+	expectedPath := buildStagedReleaseDirPath(tmpDir, "v1.2.3", expectedCommitHash)
+	if stagedPath != expectedPath {
+		t.Fatalf("expected staged path %q, got %q", expectedPath, stagedPath)
+	}
+	if commitHash != expectedCommitHash {
+		t.Fatalf("expected commit hash %q, got %q", expectedCommitHash, commitHash)
+	}
+
+	if _, err := os.Stat(filepath.Join(stagedPath, "flake.nix")); err != nil {
+		t.Fatalf("expected staged flake.nix to exist: %v", err)
+	}
+}
+
+func TestStageReleaseFlakeReplacesExistingHashNamedDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	cloneFunc := func(destination, version string) error {
+		return createTestReleaseRepo(t, destination, version)
+	}
+
+	firstStagedPath, _, err := stageReleaseFlakeWithClone(tmpDir, "v1.2.3", nil, cloneFunc)
+	if err != nil {
+		t.Fatalf("expected first staging run to succeed, got %v", err)
+	}
+
+	sentinelPath := filepath.Join(firstStagedPath, "stale.txt")
+	if err := os.WriteFile(sentinelPath, []byte("stale"), 0644); err != nil {
+		t.Fatalf("failed to create sentinel file: %v", err)
+	}
+
+	stagedPath, _, err := stageReleaseFlakeWithClone(tmpDir, "v1.2.3", nil, cloneFunc)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if stagedPath != firstStagedPath {
+		t.Fatalf("expected staged path %q, got %q", firstStagedPath, stagedPath)
+	}
+	if _, err := os.Stat(sentinelPath); !os.IsNotExist(err) {
+		t.Fatalf("expected sentinel file to be removed, stat err: %v", err)
+	}
+}
+
+func TestSystemUpdaterDoSystemUpdateUsesStagedFlakeDir(t *testing.T) {
+	originalFetcher := repoTagsFetcher
+	defer func() {
+		repoTagsFetcher = originalFetcher
+	}()
+
+	repoTagsFetcher = &MockRepoTagsFetcher{
+		tags: []RepositoryTag{{Tag: "v1.2.0"}},
+		err:  nil,
+	}
+
+	tempDir := setupMockVersioning(t, "v1.1.0")
+	defer os.RemoveAll(tempDir)
+
+	updateTmpDir := t.TempDir()
+	var stagedPath string
+	var capturedCloneVersion string
+	cloneFunc := func(destination, version string) error {
+		capturedCloneVersion = version
+		if err := createTestReleaseRepo(t, destination, version); err != nil {
+			return err
+		}
+
+		headHash, err := getRepositoryHeadHash(destination)
+		if err != nil {
+			return err
+		}
+		stagedPath = buildStagedReleaseDirPath(updateTmpDir, version, headHash)
+		return nil
+	}
+
+	var capturedName string
+	var capturedArgs []string
+	execCommand := func(name string, args ...string) *exec.Cmd {
+		capturedName = name
+		capturedArgs = append([]string{}, args...)
+		return exec.Command("sh", "-c", "exit 0")
+	}
+
+	updater := SystemUpdater{
+		config: dogeboxd.ServerConfig{
+			TmpDir: updateTmpDir,
+		},
+	}
+
+	if err := doSystemUpdateWithDependencies("os", "v1.2.0", updater.config.TmpDir, nil, cloneFunc, execCommand); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if capturedCloneVersion != "v1.2.0" {
+		t.Fatalf("expected clone version %q, got %q", "v1.2.0", capturedCloneVersion)
+	}
+
+	if capturedName != SUDO_COMMAND {
+		t.Fatalf("expected command %q, got %q", SUDO_COMMAND, capturedName)
+	}
+
+	expectedArgs := []string{
+		DBXROOT_WRAPPER_COMMAND,
+		"nix",
+		"rs",
+		"--systemd-run",
+		"--systemd-unit",
+		buildSystemUpdateUnitName("v1.2.0", stagedCommitHash(t, cloneFunc, "v1.2.0")),
+		"--flake-dir",
+		stagedPath,
+		"--cleanup-flake-dir",
+		"--set-release",
+		"v1.2.0",
+	}
+	if len(capturedArgs) != len(expectedArgs) {
+		t.Fatalf("expected args %v, got %v", expectedArgs, capturedArgs)
+	}
+	for i, expected := range expectedArgs {
+		if capturedArgs[i] != expected {
+			t.Fatalf("expected capturedArgs[%d] to be %q, got %q", i, expected, capturedArgs[i])
+		}
+	}
+
+	if _, err := os.Stat(stagedPath); err != nil {
+		t.Fatalf("expected staged flake dir %q to remain available for transient unit cleanup, stat err: %v", stagedPath, err)
+	}
+}
+
+func createTestReleaseRepo(t *testing.T, destination string, version string) error {
+	t.Helper()
+
+	repo, err := git.PlainInit(destination, false)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filepath.Join(destination, "flake.nix"), []byte("{ }"), 0644); err != nil {
+		return err
+	}
+
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	if _, err := worktree.Add("flake.nix"); err != nil {
+		return err
+	}
+
+	fixedTime := time.Date(2026, time.April, 30, 0, 0, 0, 0, time.UTC)
+	_, err = worktree.Commit("test "+version, &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  fixedTime,
+		},
+		Committer: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  fixedTime,
+		},
+	})
+	return err
+}
+
+func stagedCommitHash(t *testing.T, cloneFunc func(string, string) error, version string) string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	if err := cloneFunc(tmpDir, version); err != nil {
+		t.Fatalf("failed to create test release repo: %v", err)
+	}
+
+	hash, err := getRepositoryHeadHash(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to read test release hash: %v", err)
+	}
+
+	return hash
 }
 
 /* TODO : check if versioning file(s) were written out

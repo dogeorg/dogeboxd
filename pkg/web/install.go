@@ -12,8 +12,18 @@ type InstallToDiskRequest struct {
 	Secret string `json:"secret"`
 }
 
-func (t api) getInstallDisks(w http.ResponseWriter, r *http.Request) {
+func (t api) getSystemDisks(w http.ResponseWriter, r *http.Request) {
 	disks, err := system.GetSystemDisks()
+	if err != nil {
+		sendErrorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	sendResponse(w, disks)
+}
+
+func (t api) getInstallDisks(w http.ResponseWriter, r *http.Request) {
+	disks, err := system.GetInstallTargetDisks()
 	if err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, err.Error())
 		return

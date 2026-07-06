@@ -67,44 +67,47 @@ func GetLoopDeviceBackingFile(loopDevice string) (string, error) {
 	return "", fmt.Errorf("loop device %s not found", loopDevice)
 }
 
-func GetFlakePath() (string, error) {
+func buildFlakePath(baseDir string, buildType string, architecture string) string {
+	if baseDir == "" {
+		baseDir = "/etc/nixos"
+	}
+
+	baseDir = filepath.Clean(baseDir)
+	flakeName := fmt.Sprintf("dogeboxos-%s-%s", buildType, architecture)
+
+	return fmt.Sprintf("%s#%s", baseDir, flakeName)
+}
+
+func GetFlakePath(baseDir string) (string, error) {
 	// Get system architecture
-	archOutput := RunCommand("uname", "-m")
-	architecture := strings.TrimSpace(archOutput)
+	archOutput, err := exec.Command("uname", "-m").Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get system architecture: %w", err)
+	}
+	architecture := strings.TrimSpace(string(archOutput))
 
 	// Get build type
 	buildTypeBytes, err := os.ReadFile("/opt/build-type")
 	if err != nil {
-		log.Printf("Failed to read build type: %v", err)
-		os.Exit(1)
+		return "", fmt.Errorf("failed to read build type: %w", err)
 	}
 	buildType := strings.TrimSpace(string(buildTypeBytes))
 
-	flakeName := fmt.Sprintf("dogeboxos-%s-%s", buildType, architecture)
-	flakePath := fmt.Sprintf("/etc/nixos#%s", flakeName)
-
-	return flakePath, nil
+	return buildFlakePath(baseDir, buildType, architecture), nil
 }
 
-func GetRebuildCommand(action string, setRelease string) (string, []string, error) {
+func buildRebuildCommand(action string, setRelease string, flakePath string, versionInformation *version.DBXVersionInfo) (string, []string, error) {
 	// Action is allowed to be "boot" or "switch". Throw an error if it's not.
 	if action != "boot" && action != "switch" {
 		return "", nil, fmt.Errorf("invalid action: %s", action)
 	}
 
-	flakePath, err := GetFlakePath()
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to get flake path: %w", err)
-	}
-
 	commandArgs := []string{action, "--flake", flakePath, "--impure"}
-
-	versionInformation := version.GetDBXRelease()
 
 	for pkg, tuple := range versionInformation.Packages {
 		// Only support dogebox-wg thing for now.
 		repo := fmt.Sprintf("github:dogebox-wg/%s/%s", pkg, tuple.Rev)
-		// override release (for upgrade) if setRelease is set
+		// Override release (for upgrade) if setRelease is set.
 		if setRelease != "" {
 			repo = fmt.Sprintf("github:dogebox-wg/%s/%s", pkg, setRelease)
 		}
@@ -112,6 +115,16 @@ func GetRebuildCommand(action string, setRelease string) (string, []string, erro
 	}
 
 	return "nixos-rebuild", commandArgs, nil
+}
+
+func GetRebuildCommand(action string, setRelease string, flakeDir string) (string, []string, error) {
+	flakePath, err := GetFlakePath(flakeDir)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to get flake path: %w", err)
+	}
+
+	versionInformation := version.GetDBXRelease()
+	return buildRebuildCommand(action, setRelease, flakePath, versionInformation)
 }
 
 func CopyFiles(source string, destination string) error {

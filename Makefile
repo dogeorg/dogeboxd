@@ -33,15 +33,24 @@ multipassdev:
 
 dpanel-build:
 	@set -eu; \
+	ROLLUP_OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+	ROLLUP_ARCH=$$(uname -m | sed 's/x86_64/x64/' | sed 's/aarch64/arm64/'); \
+	NEED_INSTALL=0; \
+	if [ ! -x "$(DPANEL_DIR)/node_modules/.bin/vite" ]; then \
+		NEED_INSTALL=1; \
+	elif ! ls "$(DPANEL_DIR)/node_modules/@rollup/rollup-$${ROLLUP_OS}-$${ROLLUP_ARCH}"* >/dev/null 2>&1; then \
+		echo "dpanel: node_modules built for wrong platform, reinstalling..."; \
+		NEED_INSTALL=1; \
+	fi; \
 	if command -v npm >/dev/null 2>&1; then \
-		if [ ! -x "$(DPANEL_DIR)/node_modules/.bin/vite" ]; then \
+		if [ "$$NEED_INSTALL" = "1" ]; then \
 			npm --prefix "$(DPANEL_DIR)" ci; \
 		fi; \
 		npm --prefix "$(DPANEL_DIR)" run build; \
 	elif command -v nix >/dev/null 2>&1; then \
-		DPANEL_DIR="$(DPANEL_DIR)" nix shell nixpkgs#nodejs_22 --command sh -lc '\
+		DPANEL_DIR="$(DPANEL_DIR)" NEED_INSTALL="$$NEED_INSTALL" nix shell nixpkgs#nodejs_22 --command sh -lc '\
 			cd "$$DPANEL_DIR" && \
-			if [ ! -x node_modules/.bin/vite ]; then npm ci; fi && \
+			if [ "$$NEED_INSTALL" = "1" ]; then npm ci; fi && \
 			npm run build \
 		'; \
 	else \

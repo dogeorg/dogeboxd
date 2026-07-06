@@ -2,7 +2,9 @@ package dogeboxd
 
 import (
 	"bytes"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -232,6 +234,7 @@ func TestActionLoggerLineWriterCapturesOutput(t *testing.T) {
 	assert.Equal(t, "line2", captured[1])
 	assert.Equal(t, "line3", captured[2])
 }
+
 
 func TestActionLoggerLineWriterBuffersPartialLines(t *testing.T) {
 	var captured []string
@@ -563,4 +566,24 @@ func TestActionLoggerProgressOver100(t *testing.T) {
 	step.Progress(150).Log("Message")
 
 	assert.Equal(t, 150, step.progress)
+}
+
+func TestActionLoggerWritesJobLogsToJobPrefixedFile(t *testing.T) {
+	tempDir := t.TempDir()
+	job := createTestJob("InstallPup")
+	testDBX := &Dogeboxd{
+		Changes: make(chan Change, 100),
+		config:  &ServerConfig{ContainerLogDir: tempDir},
+	}
+	logger := NewActionLogger(job, "test-pup-id", *testDBX)
+
+	logger.Step("test-step").Log("Test message")
+
+	jobLogPath := filepath.Join(tempDir, "job-"+job.ID)
+	logData, err := os.ReadFile(jobLogPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(logData), "Test message")
+
+	_, err = os.Stat(filepath.Join(tempDir, "pup-"+job.ID))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }

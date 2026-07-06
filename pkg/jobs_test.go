@@ -1,9 +1,12 @@
 package dogeboxd
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/golanglibs/gocollections/set/hashset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,6 +89,21 @@ func TestJobCreationDisplayName(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "Install test-app", record.DisplayName)
+}
+
+func TestJobCreationStoresSystemUpdateTargetVersion(t *testing.T) {
+	jm, err := setupTestJobManager()
+	require.NoError(t, err)
+
+	job := Job{
+		ID:    "system-update-job",
+		Start: time.Now(),
+		A:     SystemUpdate{Package: "os", Version: "v0.9.0-rc.8"},
+	}
+	record, err := jm.CreateJobRecord(job)
+	require.NoError(t, err)
+
+	assert.Equal(t, "v0.9.0-rc.8", record.TargetVersion)
 }
 
 // ============================================================================
@@ -527,6 +545,122 @@ func TestClearAllJobsClearsActiveCache(t *testing.T) {
 	assert.Equal(t, 0, cacheLen)
 }
 
+func TestClearInterruptedSystemJobsMarksActiveSystemJobsFailed(t *testing.T) {
+	jm, err := setupTestJobManager()
+	require.NoError(t, err)
+
+	systemJob := Job{
+		ID:    "system-update-job",
+		Start: time.Now(),
+		A:     SystemUpdate{Package: "os", Version: "v0.9.0-rc.8"},
+	}
+	_, err = jm.CreateJobRecord(systemJob)
+	require.NoError(t, err)
+
+	installJob := createTestJob("InstallPup")
+	_, err = jm.CreateJobRecord(installJob)
+	require.NoError(t, err)
+
+	count, err := jm.ClearInterruptedSystemJobs()
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	systemRecord, err := jm.GetJob(systemJob.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusFailed, systemRecord.Status)
+	assert.Equal(t, "Job was interrupted by dogeboxd restart", systemRecord.ErrorMessage)
+	assert.NotNil(t, systemRecord.Finished)
+
+	installRecord, err := jm.GetJob(installJob.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusQueued, installRecord.Status)
+}
+
+func TestClearInterruptedSystemJobsAppendsMigrationRestartNoteToLog(t *testing.T) {
+	jm, testDBX, err := setupTestJobManagerWithDBX()
+	require.NoError(t, err)
+
+	logDir := t.TempDir()
+	testDBX.dbx.config.ContainerLogDir = logDir
+
+	legacyRecord := JobRecord{
+		ID:             "system-update-job",
+		Started:        time.Now(),
+		DisplayName:    "System Update",
+		Action:         "update",
+		Progress:       5,
+		Status:         JobStatusInProgress,
+		SummaryMessage: "Still active from an older build",
+	}
+	require.NoError(t, jm.store.Set(legacyRecord.ID, legacyRecord))
+	jm.activeJobs[legacyRecord.ID] = &legacyRecord
+
+	logPath := filepath.Join(logDir, "pup-"+legacyRecord.ID)
+	require.NoError(t, os.WriteFile(logPath, []byte("[2026-05-20 11:18:37] Starting system update to v0.9.0-rc.8\n"), 0644))
+
+	count, err := jm.ClearInterruptedSystemJobs()
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	logContents, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(logContents), "System update was interrupted by dogeboxd restart. This is expected when performing a 0.8.x to 0.9.x update; restart dogeboxd to continue phase 2.")
+}
+
+func TestReconcileCompletedSystemUpdateJobsMarksMatchingTargetCompleted(t *testing.T) {
+	jm, testDBX, err := setupTestJobManagerWithDBX()
+	require.NoError(t, err)
+
+	logDir := t.TempDir()
+	testDBX.dbx.config.ContainerLogDir = logDir
+
+	prevReadFile := reconciledReadFile
+	prevCurrentDBXRelease := reconciledCurrentDBXRelease
+	prevInstalledOSFlakePath := reconciledInstalledOSFlakePath
+	t.Cleanup(func() {
+		reconciledReadFile = prevReadFile
+		reconciledCurrentDBXRelease = prevCurrentDBXRelease
+		reconciledInstalledOSFlakePath = prevInstalledOSFlakePath
+	})
+
+	reconciledInstalledOSFlakePath = "/test/etc/nixos/flake.nix"
+	reconciledReadFile = func(path string) ([]byte, error) {
+		if path == reconciledInstalledOSFlakePath {
+			return []byte("dbxRelease = \"v0.9.0-rc.8\";\n"), nil
+		}
+		return nil, os.ErrNotExist
+	}
+	reconciledCurrentDBXRelease = func() string {
+		return "v0.9.0-rc.8"
+	}
+
+	systemJob := Job{
+		ID:    "system-update-job",
+		Start: time.Now(),
+		A:     SystemUpdate{Package: "os", Version: "v0.9.0-rc.8"},
+	}
+	_, err = jm.CreateJobRecord(systemJob)
+	require.NoError(t, err)
+
+	logPath := filepath.Join(logDir, "pup-"+systemJob.ID)
+	require.NoError(t, os.WriteFile(logPath, []byte("[2026-05-20 10:52:21] Running as unit: dogebox-system-update-v0-9-0-rc-8.service\n"), 0644))
+
+	count, err := jm.ReconcileCompletedSystemUpdateJobs()
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	record, err := jm.GetJob(systemJob.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusCompleted, record.Status)
+	assert.Equal(t, "Job completed successfully", record.SummaryMessage)
+	assert.NotNil(t, record.Finished)
+	assert.Equal(t, "", record.ErrorMessage)
+
+	logContents, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(logContents), "System update to v0.9.0-rc.8 completed after dogeboxd restart")
+}
+
 // ============================================================================
 // Test Suite: Display Name Generation
 // ============================================================================
@@ -783,4 +917,208 @@ func TestConcurrentJobUpdates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, JobStatusInProgress, updated.Status)
 	assert.NotEmpty(t, updated.SummaryMessage)
+}
+
+func TestMarkJobOrphaned(t *testing.T) {
+	jm, _, err := setupTestJobManagerWithDBX()
+	require.NoError(t, err)
+
+	job := createTestJob("InstallPup")
+	_, err = jm.CreateJobRecord(job)
+	require.NoError(t, err)
+
+	err = jm.MarkJobOrphaned(job.ID)
+	require.NoError(t, err)
+
+	orphanedJob, err := jm.GetJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusOrphaned, orphanedJob.Status)
+	assert.Equal(t, "Job marked as orphaned", orphanedJob.SummaryMessage)
+	assert.Equal(t, "Job is no longer being processed", orphanedJob.ErrorMessage)
+	assert.NotNil(t, orphanedJob.Finished)
+	assert.False(t, jm.IsJobActive(job.ID))
+}
+
+func TestMarkJobOrphanedSkipsTerminalJobs(t *testing.T) {
+	terminalStatuses := []JobStatus{
+		JobStatusCompleted,
+		JobStatusFailed,
+		JobStatusCancelled,
+		JobStatusOrphaned,
+	}
+
+	for _, status := range terminalStatuses {
+		t.Run(string(status), func(t *testing.T) {
+			jm, _, err := setupTestJobManagerWithDBX()
+			require.NoError(t, err)
+
+			job := createTestJob("InstallPup")
+			record, err := jm.CreateJobRecord(job)
+			require.NoError(t, err)
+
+			now := time.Now()
+			record.Status = status
+			record.Finished = &now
+			record.SummaryMessage = "Original summary"
+			record.ErrorMessage = "Original error"
+			delete(jm.activeJobs, job.ID)
+			err = jm.store.Set(record.ID, *record)
+			require.NoError(t, err)
+
+			err = jm.MarkJobOrphaned(job.ID)
+			require.NoError(t, err)
+
+			updatedJob, err := jm.GetJob(job.ID)
+			require.NoError(t, err)
+			assert.Equal(t, status, updatedJob.Status)
+			assert.Equal(t, "Original summary", updatedJob.SummaryMessage)
+			assert.Equal(t, "Original error", updatedJob.ErrorMessage)
+		})
+	}
+}
+
+func TestMarkJobOrphanedSkipsJobsCompletedAfterActiveSnapshot(t *testing.T) {
+	jm, _, err := setupTestJobManagerWithDBX()
+	require.NoError(t, err)
+
+	job := createTestJob("InstallPup")
+	_, err = jm.CreateJobRecord(job)
+	require.NoError(t, err)
+
+	activeJobs, err := jm.GetActiveJobs()
+	require.NoError(t, err)
+	require.Len(t, activeJobs, 1)
+
+	err = jm.CompleteJob(job.ID, "")
+	require.NoError(t, err)
+
+	err = jm.MarkJobOrphaned(activeJobs[0].ID)
+	require.NoError(t, err)
+
+	completedJob, err := jm.GetJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusCompleted, completedJob.Status)
+	assert.Equal(t, "Job completed successfully", completedJob.SummaryMessage)
+}
+
+func TestDetectAndMarkOrphanedJobs(t *testing.T) {
+	sm, err := NewStoreManager(":memory:")
+	require.NoError(t, err)
+
+	dbx := Dogeboxd{
+		queue: &syncQueue{
+			jobQueue:            []Job{},
+			nonQueuedActiveJobs: hashset.New[string](),
+		},
+		Changes: make(chan Change, 10),
+		config:  &ServerConfig{ContainerLogDir: ""},
+	}
+
+	jm := NewJobManager(sm, &dbx)
+	dbx.SetJobManager(jm)
+
+	job := createTestJob("InstallPup")
+	_, err = jm.CreateJobRecord(job)
+	require.NoError(t, err)
+
+	orphanedIDs, err := dbx.DetectAndMarkOrphanedJobs()
+	require.NoError(t, err)
+	assert.Equal(t, []string{job.ID}, orphanedIDs)
+
+	orphanedJob, err := jm.GetJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusOrphaned, orphanedJob.Status)
+}
+
+func TestDetectAndMarkOrphanedJobsSkipsRuntimeTrackedJobs(t *testing.T) {
+	sm, err := NewStoreManager(":memory:")
+	require.NoError(t, err)
+
+	dbx := Dogeboxd{
+		queue: &syncQueue{
+			jobQueue:            []Job{},
+			nonQueuedActiveJobs: hashset.New[string](),
+		},
+		Changes: make(chan Change, 10),
+		config:  &ServerConfig{ContainerLogDir: ""},
+	}
+
+	jm := NewJobManager(sm, &dbx)
+	dbx.SetJobManager(jm)
+
+	job := createTestJob("InstallPup")
+	dbx.markNonQueuedActiveJob(job.ID)
+	_, err = jm.CreateJobRecord(job)
+	require.NoError(t, err)
+
+	orphanedIDs, err := dbx.DetectAndMarkOrphanedJobs()
+	require.NoError(t, err)
+	assert.Empty(t, orphanedIDs)
+
+	activeJob, err := jm.GetJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusQueued, activeJob.Status)
+}
+
+func TestDetectAndMarkOrphanedJobsSkipsCurrentSystemJob(t *testing.T) {
+	sm, err := NewStoreManager(":memory:")
+	require.NoError(t, err)
+
+	dbx := Dogeboxd{
+		queue: &syncQueue{
+			jobQueue:            []Job{},
+			nonQueuedActiveJobs: hashset.New[string](),
+			currentSystemJobID:  "",
+		},
+		Changes: make(chan Change, 10),
+		config:  &ServerConfig{ContainerLogDir: ""},
+	}
+
+	jm := NewJobManager(sm, &dbx)
+	dbx.SetJobManager(jm)
+
+	job := createTestJob("InstallPup")
+	_, err = jm.CreateJobRecord(job)
+	require.NoError(t, err)
+
+	dbx.queue.jobQLock.Lock()
+	dbx.queue.currentSystemJobID = job.ID
+	dbx.queue.jobQLock.Unlock()
+
+	orphanedIDs, err := dbx.DetectAndMarkOrphanedJobs()
+	require.NoError(t, err)
+	assert.Empty(t, orphanedIDs)
+
+	activeJob, err := jm.GetJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusQueued, activeJob.Status)
+}
+
+func TestSendFinishedJobCompletesTrackedJobAndClearsRuntimeTracking(t *testing.T) {
+	sm, err := NewStoreManager(":memory:")
+	require.NoError(t, err)
+
+	dbx := Dogeboxd{
+		queue: &syncQueue{
+			jobQueue:            []Job{},
+			nonQueuedActiveJobs: hashset.New[string](),
+		},
+		Changes: make(chan Change, 10),
+		config:  &ServerConfig{ContainerLogDir: ""},
+	}
+
+	jm := NewJobManager(sm, &dbx)
+	dbx.SetJobManager(jm)
+
+	job := createTestJob("UpdatePupProviders")
+	_, err = jm.CreateJobRecord(job)
+	require.NoError(t, err)
+	dbx.markNonQueuedActiveJob(job.ID)
+
+	dbx.sendFinishedJob("action", job)
+
+	completedJob, err := jm.GetJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusCompleted, completedJob.Status)
+	assert.Empty(t, dbx.GetRuntimeJobIDs())
 }

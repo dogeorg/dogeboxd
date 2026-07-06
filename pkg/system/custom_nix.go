@@ -1,13 +1,114 @@
 package system
 
 import (
+	"crypto/sha256"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
 )
+
+func GetCustomNixPath(config dogeboxd.ServerConfig) string {
+	return filepath.Join(config.DataDir, "custom.nix")
+}
+
+func getLegacyCustomNixPath(config dogeboxd.ServerConfig) string {
+	return filepath.Join(config.NixDir, "custom.nix")
+}
+
+func hashFile(path string) ([sha256.Size]byte, error) {
+	var hash [sha256.Size]byte
+
+	file, err := os.Open(path)
+	if err != nil {
+		return hash, err
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return hash, err
+	}
+
+	copy(hash[:], hasher.Sum(nil))
+	return hash, nil
+}
+
+func moveFileWithVerification(sourcePath, destinationPath string) error {
+	sourceHash, err := hashFile(sourcePath)
+	if err != nil {
+		return err
+	}
+
+	sourceFile, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	destinationFile, err := os.OpenFile(destinationPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, sourceInfo.Mode().Perm())
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(destinationFile, sourceFile); err != nil {
+		destinationFile.Close()
+		_ = os.Remove(destinationPath)
+		return err
+	}
+
+	if err := destinationFile.Close(); err != nil {
+		_ = os.Remove(destinationPath)
+		return err
+	}
+
+	destinationHash, err := hashFile(destinationPath)
+	if err != nil {
+		_ = os.Remove(destinationPath)
+		return err
+	}
+	if sourceHash != destinationHash {
+		_ = os.Remove(destinationPath)
+		return errors.New("copied custom.nix hash mismatch")
+	}
+
+	return os.Remove(sourcePath)
+}
+
+func MigrateLegacyCustomNix(config dogeboxd.ServerConfig) error {
+	customNixPath := GetCustomNixPath(config)
+	legacyCustomNixPath := getLegacyCustomNixPath(config)
+
+	// If the new persistent file already exists, there is nothing to migrate.
+	if _, err := os.Stat(customNixPath); err == nil {
+		return nil
+	}
+
+	// If the legacy file does not exist either, there is also nothing to migrate.
+	// Any other stat error should still stop the request.
+	if _, err := os.Stat(legacyCustomNixPath); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	// Ensure the persistent parent directory exists before copying the file.
+	if err := os.MkdirAll(filepath.Dir(customNixPath), 0755); err != nil {
+		return err
+	}
+
+	// Copy the legacy file into its persistent location, verify the copied
+	// contents match, and only then remove the old file.
+	return moveFileWithVerification(legacyCustomNixPath, customNixPath)
+}
 
 // ValidateNix validates nix content using nix-instantiate --parse.
 // Returns nil if valid, otherwise returns the error message.
@@ -58,19 +159,18 @@ func (t SystemUpdater) SaveCustomNix(content string, l dogeboxd.SubLogger) error
 	l.Logf("Validation passed, saving configuration...")
 
 	// Save the file
-	customNixPath := filepath.Join(t.config.NixDir, "custom.nix")
+	customNixPath := GetCustomNixPath(t.config)
+	if err := os.MkdirAll(filepath.Dir(customNixPath), 0755); err != nil {
+		l.Errf("Failed to create custom.nix directory: %v", err)
+		return err
+	}
 	if err := os.WriteFile(customNixPath, []byte(content), 0644); err != nil {
 		l.Errf("Failed to write custom.nix: %v", err)
 		return err
 	}
 
-	// Ensure dogebox.nix includes custom.nix
-	l.Logf("Ensuring dogebox.nix includes custom.nix...")
-	if err := t.ensureCustomNixImport(l); err != nil {
-		l.Errf("Failed to update dogebox.nix: %v", err)
-		return err
-	}
-
+	// dogebox.nix now imports the data-dir custom.nix directly via the template,
+	// so saving the file is enough before triggering a rebuild.
 	l.Logf("Triggering system rebuild...")
 
 	// Trigger rebuild
@@ -81,66 +181,4 @@ func (t SystemUpdater) SaveCustomNix(content string, l dogeboxd.SubLogger) error
 
 	l.Logf("Custom configuration applied successfully")
 	return nil
-}
-
-// ensureCustomNixImport ensures dogebox.nix includes the custom.nix import
-func (t SystemUpdater) ensureCustomNixImport(l dogeboxd.SubLogger) error {
-	dogeboxNixPath := filepath.Join(t.config.NixDir, "dogebox.nix")
-
-	content, err := os.ReadFile(dogeboxNixPath)
-	if err != nil {
-		return err
-	}
-
-	contentStr := string(content)
-
-	// Check if custom.nix import already exists
-	if strings.Contains(contentStr, "custom.nix") {
-		l.Logf("custom.nix import already exists in dogebox.nix")
-		return nil
-	}
-
-	// The dogebox.nix format has imports ending with:
-	//   ++ lib.optionals (...) [ ... ]
-	//
-	//   ;
-	// }
-	// We need to insert before the standalone ";" line
-
-	customImport := "  ++ lib.optionals (builtins.pathExists ./custom.nix) [ ./custom.nix ]\n"
-
-	// Look for the pattern of whitespace + semicolon + newline + }
-	// This marks the end of the imports block
-	patterns := []string{
-		"\n  ;\n}", // Two space indent
-		"\n\t;\n}", // Tab indent
-		"\n;\n}",   // No indent
-		"  ;\n}",   // Two space at start
-	}
-
-	replaced := false
-	for _, pattern := range patterns {
-		if strings.Contains(contentStr, pattern) {
-			contentStr = strings.Replace(contentStr, pattern, "\n"+customImport+pattern[1:], 1)
-			replaced = true
-			break
-		}
-	}
-
-	if !replaced {
-		l.Errf("Could not find insertion point in dogebox.nix")
-		// As a fallback, try to find just "; followed by newline and }"
-		if idx := strings.LastIndex(contentStr, ";"); idx > 0 {
-			contentStr = contentStr[:idx] + "\n" + customImport + contentStr[idx:]
-			replaced = true
-		}
-	}
-
-	if !replaced {
-		l.Errf("Failed to modify dogebox.nix - no suitable insertion point found")
-		return nil // Don't fail the whole operation
-	}
-
-	l.Logf("Adding custom.nix import to dogebox.nix")
-	return os.WriteFile(dogeboxNixPath, []byte(contentStr), 0644)
 }

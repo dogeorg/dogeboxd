@@ -57,12 +57,23 @@ func GetDBXRelease() *DBXVersionInfo {
 		}
 	}
 
+	commit := versioninfo.Revision
+	buildState := versioninfo.DirtyBuild
+	if commit == "unknown" {
+		// In nix/non-git builds, Go won't embed vcs.revision.
+		// Fall back on dogeboxd's rev file if it exists and assume clean build.
+		if tuple, ok := packages["dogeboxd"]; ok && tuple.Rev != "" {
+			commit = tuple.Rev
+			buildState = false
+		}
+	}
+
 	return &DBXVersionInfo{
 		Release:  release,
 		Packages: packages,
 		Git: DBXVersionInfoGit{
-			Commit: versioninfo.Revision,
-			Dirty:  versioninfo.DirtyBuild,
+			Commit: commit,
+			Dirty:  buildState,
 		},
 	}
 }

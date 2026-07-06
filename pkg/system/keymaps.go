@@ -3,8 +3,6 @@ package system
 import (
 	_ "embed"
 	"encoding/json"
-
-	"github.com/Dogebox-WG/dogeboxd/pkg/system/nix"
 )
 
 type Keymap struct {
@@ -27,12 +25,4 @@ var (
 
 func GetKeymaps() ([]Keymap, error) {
 	return precompiled, nil
-}
-
-func GetKeymap() (string, error) {
-	keymapString, err := nix.GetConfigValue("console.keyMap")
-	if err != nil {
-		return "", err
-	}
-	return keymapString, nil
 }

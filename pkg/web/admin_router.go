@@ -31,7 +31,7 @@ func (t *AdminRouter) updateProxies() {
 	visited := map[string]bool{}
 	for pupid, pup := range t.pm.GetStateMap() {
 		for _, ui := range pup.WebUIs {
-			id := fmt.Sprintf("%s:%s", pupid, ui.Port)
+			id := fmt.Sprintf("%s:%d", pupid, ui.Port)
 			visited[id] = true
 			_, exists := t.prx[id]
 			if !exists {

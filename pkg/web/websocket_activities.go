@@ -11,6 +11,10 @@ import (
 // Sends initial jobs list, then streams job:created, job:updated, job:completed, job:failed events
 func (t api) GetJobsHandler() *websocket.Server {
 	initialPayload := func() any {
+		if _, err := t.dbx.DetectAndMarkOrphanedJobs(); err != nil {
+			fmt.Printf("failed to detect orphaned jobs during bootstrap: %v\n", err)
+		}
+
 		// Load all jobs from database as initial payload
 		jobs, err := t.dbx.JobManager.GetAllJobs()
 		if err != nil {
@@ -33,9 +37,9 @@ func (t api) GetJobsHandler() *websocket.Server {
 
 // GetJobLogHandler creates a WebSocket handler for streaming job logs
 // Uses the same log streaming mechanism as pup logs (ActionLogger)
-func GetJobLogHandler(JobID string, dbx dogeboxd.Dogeboxd) (*websocket.Server, error) {
+func GetJobLogHandler(JobID string, resumeToken *string, dbx dogeboxd.Dogeboxd) (*websocket.Server, error) {
 	// Get log channel for this job (same system as pup logs)
-	cancel, logChan, err := dbx.GetJobLogChannel(JobID)
+	cancel, logChan, err := dbx.GetJobLogChannel(JobID, resumeToken)
 	if err != nil {
 		return nil, err
 	}

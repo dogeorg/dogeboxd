@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"sync/atomic"
 	"time"
 
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
@@ -47,15 +48,30 @@ func (t server) Start() {
 
 	sourceManager := source.NewSourceManager(t.config, t.sm, pups)
 	pups.SetSourceManager(sourceManager)
-	nixManager := nix.NewNixManager(t.config, pups)
+
+	// Add hook to post nix rebuild
+	var dbxReady uint32
+	var dbx dogeboxd.Dogeboxd
+	postRebuild := func() {
+		if atomic.LoadUint32(&dbxReady) == 0 {
+			return
+		}
+		if !t.sm.Get().Dogebox.InitialState.HasFullyConfigured {
+			log.Printf("Skipping post-rebuild nix cache update because initial bootstrap will reboot shortly and would interrupt the cache warm") // Instead, we'll warm the cache on setup.
+			return
+		}
+		go dbx.AddAction(dogeboxd.UpdateNixCache{})
+	}
+
+	nixManager := nix.NewNixManager(t.config, pups, postRebuild)
 
 	// Set up our system interfaces so we can talk to the host OS
 	networkManager := network.NewNetworkManager(nixManager, t.sm)
 	lifecycleManager := lifecycle.NewLifecycleManager(t.config)
 
-	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups, t.sm, dkm)
+	systemUpdater := system.NewSystemUpdater(t.config, networkManager, nixManager, sourceManager, pups, t.sm, lifecycleManager, dkm)
 	journalReader := system.NewJournalReader(t.config)
-	logtailer := system.NewLogTailer(t.config)
+	logtailer := system.NewLogTailer()
 
 	/* ----------------------------------------------------------------------- */
 	// Set up PupManager and load the state for all installed pups
@@ -79,16 +95,36 @@ func (t server) Start() {
 	// Set up Dogeboxd, the beating heart of the beast
 
 	// Create Dogeboxd instance
-	dbx := dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, sourceManager, nixManager, logtailer, pups, &t.config)
+	dbx = dogeboxd.NewDogeboxd(t.sm, pups, systemUpdater, systemMonitor, journalReader, networkManager, sourceManager, nixManager, logtailer, pups, &t.config)
 
 	// Create JobManager
 	jobManager := dogeboxd.NewJobManager(t.store, &dbx)
 	dbx.SetJobManager(jobManager)
+	atomic.StoreUint32(&dbxReady, 1)
+
+	if reconciled, err := jobManager.ReconcileCompletedSystemUpdateJobs(); err == nil && reconciled > 0 {
+		log.Printf("Reconciled %d interrupted system update jobs to completed after restart", reconciled)
+	}
+
+	if cleared, err := jobManager.ClearInterruptedSystemJobs(); err == nil && cleared > 0 {
+		log.Printf("Cleaned up %d interrupted system jobs from previous run", cleared)
+	}
 
 	// Clean up any orphaned jobs from previous runs (stuck in queued/in_progress)
-	// Jobs older than 30 minutes are considered orphaned on startup
+	// before startup migrations inspect active work and decide whether to queue again.
 	if cleared, err := jobManager.ClearOrphanedJobs(30 * time.Minute); err == nil && cleared > 0 {
 		log.Printf("Cleaned up %d orphaned jobs from previous run", cleared)
+	}
+
+	if t.sm.Get().Dogebox.InitialState.HasFullyConfigured {
+		go func() {
+			if t.checkAndPerformPostUpgradeMigrations(dbx) {
+				return
+			}
+
+			jobID := dbx.AddAction(dogeboxd.UpdateNixCache{})
+			log.Printf("Queued startup nix cache update job: %s", jobID)
+		}()
 	}
 
 	//No need to show welcome screen if any pups are already installed (may have just done a system update or something similar)

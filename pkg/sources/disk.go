@@ -59,6 +59,13 @@ func (r ManifestSourceDisk) Config() dogeboxd.ManifestSourceConfiguration {
 }
 
 func (r ManifestSourceDisk) List(_ bool) (dogeboxd.ManifestSourceList, error) {
+	if _, err := os.Stat(r.config.Location); err != nil {
+		if os.IsNotExist(err) {
+			return dogeboxd.ManifestSourceList{}, fmt.Errorf("source path does not exist: %s", r.config.Location)
+		}
+		return dogeboxd.ManifestSourceList{}, fmt.Errorf("failed to access source path %s: %w", r.config.Location, err)
+	}
+
 	dogeboxPath := filepath.Join(r.config.Location, "dogebox.json")
 
 	pupLocations := []string{}

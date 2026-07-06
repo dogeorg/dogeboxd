@@ -7,8 +7,8 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func GetLogHandler(PupID string, dbx dogeboxd.Dogeboxd) (*websocket.Server, error) {
-	cancel, logChan, err := dbx.GetLogChannel(PupID)
+func GetLogHandler(PupID string, resumeToken *string, dbx dogeboxd.Dogeboxd) (*websocket.Server, error) {
+	cancel, logChan, err := dbx.GetLogChannel(PupID, resumeToken)
 	if err != nil {
 		fmt.Println("ERR", err)
 		return nil, err

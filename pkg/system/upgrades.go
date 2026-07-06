@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -13,12 +14,14 @@ import (
 	"github.com/Dogebox-WG/dogeboxd/pkg/version"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"golang.org/x/mod/semver"
 )
 
 var RELEASE_REPOSITORY = "https://github.com/dogebox-wg/os.git"
 var SUDO_COMMAND = "sudo"
+var DBXROOT_WRAPPER_COMMAND = "/run/wrappers/bin/_dbxroot"
 
 // semverSortTags sorts a slice of RepositoryTag by semver version
 // direction: "desc" for descending (highest first), "asc" for ascending (lowest first)
@@ -117,7 +120,10 @@ func GetUpgradableReleases(includePreReleases bool) ([]UpgradableRelease, error)
 
 func GetUpgradableReleasesWithFetcher(includePreReleases bool, fetcher RepoTagsFetcher) ([]UpgradableRelease, error) {
 	dbxRelease := version.GetDBXRelease()
+	return GetUpgradableReleasesForVersionWithFetcher(dbxRelease.Release, includePreReleases, fetcher)
+}
 
+func GetUpgradableReleasesForVersionWithFetcher(currentRelease string, includePreReleases bool, fetcher RepoTagsFetcher) ([]UpgradableRelease, error) {
 	tags, err := fetcher.GetRepoTags(RELEASE_REPOSITORY)
 	if err != nil {
 		return []UpgradableRelease{}, err
@@ -131,7 +137,7 @@ func GetUpgradableReleasesWithFetcher(includePreReleases bool, fetcher RepoTagsF
 			Summary:    "Update for Dogeboxd / DKM / DPanel",
 		}
 
-		if semver.Compare(tag.Tag, dbxRelease.Release) > 0 {
+		if semver.Compare(tag.Tag, currentRelease) > 0 {
 			// If not including pre-releases, filter out pre-release versions
 			if !includePreReleases && semver.Prerelease(tag.Tag) != "" {
 				continue
@@ -145,8 +151,144 @@ func GetUpgradableReleasesWithFetcher(includePreReleases bool, fetcher RepoTagsF
 	return upgradableTags, nil
 }
 
-func DoSystemUpdate(pkg string, updateVersion string, logger dogeboxd.SubLogger) error {
-	upgradableReleases, err := GetUpgradableReleases(false)
+func cloneReleaseRepository(destination, version string) error {
+	_, err := git.PlainClone(destination, false, &git.CloneOptions{
+		URL:           RELEASE_REPOSITORY,
+		ReferenceName: plumbing.NewTagReferenceName(version),
+		SingleBranch:  true,
+		Depth:         1,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to clone OS release %s: %w", version, err)
+	}
+
+	return nil
+}
+
+func getRepositoryHeadHash(repoDir string) (string, error) {
+	repo, err := git.PlainOpen(repoDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to open cloned repository %s: %w", repoDir, err)
+	}
+
+	head, err := repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("failed to read cloned repository HEAD: %w", err)
+	}
+
+	return head.Hash().String(), nil
+}
+
+func buildStagedReleaseDirPath(tmpDir string, updateVersion string, commitHash string) string {
+	return filepath.Join(tmpDir, fmt.Sprintf("os-upgrade-%s-%s", updateVersion, commitHash))
+}
+
+func sanitizeSystemdUnitComponent(value string) string {
+	sanitizer := strings.NewReplacer(".", "-", "/", "-", " ", "-", ":", "-", "@", "-", "+", "-", "=", "-")
+	return sanitizer.Replace(value)
+}
+
+func shortCommitHash(commitHash string) string {
+	if len(commitHash) <= 8 {
+		return commitHash
+	}
+
+	return commitHash[:8]
+}
+
+func buildSystemUpdateUnitName(updateVersion string, commitHash string) string {
+	unitName := fmt.Sprintf("dogebox-system-update-%s", sanitizeSystemdUnitComponent(updateVersion))
+	if commitHash != "" {
+		unitName = fmt.Sprintf("%s-%s", unitName, sanitizeSystemdUnitComponent(shortCommitHash(commitHash)))
+	}
+	return unitName
+}
+
+func buildSystemUpdateCommandArgs(stagedFlakeDir string, updateVersion string, unitName string) []string {
+	return []string{
+		DBXROOT_WRAPPER_COMMAND,
+		"nix",
+		"rs",
+		"--systemd-run",
+		"--systemd-unit",
+		unitName,
+		"--flake-dir",
+		stagedFlakeDir,
+		// Activation reads the staged flake after dogeboxd may have been
+		// stopped, so cleanup must happen inside _dbxroot's transient unit.
+		"--cleanup-flake-dir",
+		"--set-release",
+		updateVersion,
+	}
+}
+
+func stageReleaseFlake(tmpDir, updateVersion string, logger dogeboxd.SubLogger) (string, string, error) {
+	return stageReleaseFlakeWithClone(tmpDir, updateVersion, logger, cloneReleaseRepository)
+}
+
+func stageReleaseFlakeWithClone(tmpDir, updateVersion string, logger dogeboxd.SubLogger, cloneFunc func(string, string) error) (string, string, error) {
+	if tmpDir == "" {
+		tmpDir = os.TempDir()
+	}
+
+	cloneDir, err := os.MkdirTemp(tmpDir, "os-upgrade-*")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create temp dir for OS release %s: %w", updateVersion, err)
+	}
+
+	if logger != nil {
+		logger.Logf("Cloning OS release %s into %s", updateVersion, cloneDir)
+	}
+
+	if err := cloneFunc(cloneDir, updateVersion); err != nil {
+		_ = os.RemoveAll(cloneDir)
+		return "", "", err
+	}
+
+	flakePath := filepath.Join(cloneDir, "flake.nix")
+	if _, err := os.Stat(flakePath); err != nil {
+		_ = os.RemoveAll(cloneDir)
+		return "", "", fmt.Errorf("staged OS release %s is missing flake.nix: %w", updateVersion, err)
+	}
+
+	commitHash, err := getRepositoryHeadHash(cloneDir)
+	if err != nil {
+		_ = os.RemoveAll(cloneDir)
+		return "", "", err
+	}
+
+	if err := os.RemoveAll(filepath.Join(cloneDir, ".git")); err != nil {
+		_ = os.RemoveAll(cloneDir)
+		return "", "", fmt.Errorf("failed to strip Git metadata from staged OS release: %w", err)
+	}
+
+	finalDir := buildStagedReleaseDirPath(tmpDir, updateVersion, commitHash)
+	if err := os.RemoveAll(finalDir); err != nil {
+		_ = os.RemoveAll(cloneDir)
+		return "", "", fmt.Errorf("failed to clear existing staged OS release dir %s: %w", finalDir, err)
+	}
+
+	if err := os.Rename(cloneDir, finalDir); err != nil {
+		_ = os.RemoveAll(cloneDir)
+		return "", "", fmt.Errorf("failed to move staged OS release into %s: %w", finalDir, err)
+	}
+
+	return finalDir, commitHash, nil
+}
+
+func doSystemUpdate(pkg string, updateVersion string, tmpDir string, logger dogeboxd.SubLogger) error {
+	return doSystemUpdateWithDependencies(pkg, updateVersion, tmpDir, logger, cloneReleaseRepository, exec.Command)
+}
+
+func doSystemUpdateWithDependencies(
+	pkg string,
+	updateVersion string,
+	tmpDir string,
+	logger dogeboxd.SubLogger,
+	cloneFunc func(string, string) error,
+	execCommand func(string, ...string) *exec.Cmd,
+) error {
+	upgradableReleases, err := GetUpgradableReleases(true)
 	if err != nil {
 		return err
 	}
@@ -168,7 +310,12 @@ func DoSystemUpdate(pkg string, updateVersion string, logger dogeboxd.SubLogger)
 		return UpdateVersionUnavailableError{Package: pkg, Version: updateVersion}
 	}
 
-	cmd := exec.Command(SUDO_COMMAND, "_dbxroot", "nix", "rs", "--set-release", updateVersion)
+	stagedFlakeDir, commitHash, err := stageReleaseFlakeWithClone(tmpDir, updateVersion, logger, cloneFunc)
+	if err != nil {
+		return err
+	}
+
+	cmd := execCommand(SUDO_COMMAND, buildSystemUpdateCommandArgs(stagedFlakeDir, updateVersion, buildSystemUpdateUnitName(updateVersion, commitHash))...)
 	if logger != nil {
 		logger.Logf("Running command: %s %s", cmd.Path, strings.Join(cmd.Args[1:], " "))
 		cmd.Stdout = io.MultiWriter(os.Stdout, dogeboxd.NewLineWriter(func(s string) {
@@ -187,4 +334,16 @@ func DoSystemUpdate(pkg string, updateVersion string, logger dogeboxd.SubLogger)
 
 	// We probably won't even get here if dogeboxd is restarted/upgraded during this process.
 	return err
+}
+
+func (t SystemUpdater) DoSystemUpdate(pkg string, updateVersion string, logger dogeboxd.SubLogger) error {
+	if err := MigrateLegacyCustomNix(t.config); err != nil {
+		return err
+	}
+
+	return doSystemUpdate(pkg, updateVersion, t.config.TmpDir, logger)
+}
+
+func DoSystemUpdate(pkg string, updateVersion string, logger dogeboxd.SubLogger) error {
+	return doSystemUpdate(pkg, updateVersion, "", logger)
 }

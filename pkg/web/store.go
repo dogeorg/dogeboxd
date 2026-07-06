@@ -37,6 +37,13 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A manual store refresh should also refresh installed-pup update info
+	// so "upgrade available" state is visible without toggling enabled state.
+	if forceRefresh {
+		jobID := t.dbx.AddAction(dogeboxd.CheckPupUpdates{PupID: ""})
+		log.Printf("getStoreList: queued CheckPupUpdates for store refresh (jobID: %s)", jobID)
+	}
+
 	response := map[string]StoreListSourceEntry{}
 
 	for k, entry := range available {
@@ -76,21 +83,6 @@ func (t api) getStoreList(w http.ResponseWriter, r *http.Request) {
 			}
 
 			pups[availablePup.Name] = pupEntry
-		}
-
-		// Override any entry in the listing with what we actually have installed.
-		// We want to show that is _actually_ installed, rather than what might have been removed or updated underneath us.
-		// nb. We don't let you remove a source if you have a pup installed from it, so this should be safe here.
-		for _, installedPup := range t.dbx.Pups.GetStateMap() {
-			if installedPup.Source.Location == entry.Config.Location && installedPup.Source.Name == entry.Config.Name {
-				if _, ok := pups[installedPup.Manifest.Meta.Name]; !ok {
-					pups[installedPup.Manifest.Meta.Name] = StoreListSourceEntryPup{
-						Versions: map[string]dogeboxd.PupManifest{},
-					}
-				}
-
-				pups[installedPup.Manifest.Meta.Name].Versions[installedPup.Version] = installedPup.Manifest
-			}
 		}
 
 		response[k] = StoreListSourceEntry{

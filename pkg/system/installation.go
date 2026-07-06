@@ -13,9 +13,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dell/csi-baremetal/pkg/base/linuxutils/lsblk"
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
 	"github.com/Dogebox-WG/dogeboxd/pkg/utils"
+	"github.com/dell/csi-baremetal/pkg/base/linuxutils/lsblk"
 	"github.com/sirupsen/logrus"
 )
 
@@ -292,6 +292,36 @@ func GetSystemDisks() ([]dogeboxd.SystemDisk, error) {
 	return disks, nil
 }
 
+func GetInstallTargetDisks() ([]dogeboxd.SystemDisk, error) {
+	disks, err := GetSystemDisks()
+	if err != nil {
+		return []dogeboxd.SystemDisk{}, err
+	}
+
+	installDisks := make([]dogeboxd.SystemDisk, 0, len(disks))
+	for _, disk := range disks {
+		if IsInstallTargetDisk(disk) {
+			installDisks = append(installDisks, disk)
+		}
+	}
+
+	return installDisks, nil
+}
+
+func IsInstallTargetDisk(disk dogeboxd.SystemDisk) bool {
+	if !disk.Suitability.Install.Usable || !disk.Suitability.Install.SizeOK {
+		return false
+	}
+
+	// Never offer install targets that correspond to the device we are
+	// currently running from.
+	if disk.BootMedia {
+		return false
+	}
+
+	return true
+}
+
 func IsDiskNixRoot(disk dogeboxd.SystemDisk) bool {
 	nixRootMountPoints := []string{"/", "/nix/store", "/nix/.ro-store"}
 
@@ -377,22 +407,22 @@ func InstallToDisk(t dogeboxd.Dogeboxd, config dogeboxd.ServerConfig, dbxState d
 		return fmt.Errorf("installation can only be done in recovery mode")
 	}
 
-	disks, err := GetSystemDisks()
+	disks, err := GetInstallTargetDisks()
 	if err != nil {
 		return err
 	}
 
-	// Check if the specified disk name exists in possibleDisks
+	// Check if the specified disk name exists in the filtered list of install target disks
 	diskExists := false
 	for _, disk := range disks {
-		if disk.Name == name && disk.Suitability.Install.Usable {
+		if disk.Name == name {
 			diskExists = true
 			break
 		}
 	}
 
 	if !diskExists {
-		return fmt.Errorf("specified disk '%s' not found in list of possible install disks", name)
+		return fmt.Errorf("specified disk '%s' not found in list of install target disks", name)
 	}
 
 	buildType, err := GetBuildType()

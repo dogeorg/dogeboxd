@@ -147,6 +147,10 @@ func (np *nixPatch) ApplyCustom(options dogeboxd.NixPatchApplyOptions) error {
 			// Roll back our changes.
 			np.log.Errf("[patch-%s] Failed to rebuild, rolling back.. %v", np.id, err)
 			return np.triggerRollback(err)
+		} else {
+			if np.nm.postRebuild != nil {
+				go np.nm.postRebuild()
+			}
 		}
 	} else {
 		np.log.Logf("[patch-%s] Applied all patch operations, but not rebuilding as requested.", np.id)

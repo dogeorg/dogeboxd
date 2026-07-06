@@ -81,12 +81,15 @@ Example:
 			os.Exit(1)
 		}
 
-		// Ensure target disk exists in disks
+		// Track whether the requested disk exists at all, and whether it is a
+		// valid install target under the shared install-target policy.
 		var targetDiskExists bool
+		var targetDiskIsInstallTarget bool
 		var bootMediaDisk dogeboxd.SystemDisk
 		for _, d := range disks {
 			if d.Name == disk {
 				targetDiskExists = true
+				targetDiskIsInstallTarget = system.IsInstallTargetDisk(d)
 			}
 			if d.BootMedia && bootMediaDisk.Name == "" {
 				bootMediaDisk = d
@@ -95,6 +98,10 @@ Example:
 
 		if !targetDiskExists {
 			log.Printf("Target disk %s not found in system disks", disk)
+			os.Exit(1)
+		}
+		if !targetDiskIsInstallTarget {
+			log.Printf("Target disk %s is not a valid install target", disk)
 			os.Exit(1)
 		}
 
@@ -108,7 +115,7 @@ Example:
 			os.Exit(1)
 		}
 
-		log.Printf("Using %s as source boot media", bootMediaDisk)
+		log.Printf("Using %s as source boot media", bootMediaDisk.Name)
 		log.Printf("Installing to target disk: %s", disk)
 
 		hasPartitionPrefix := strings.HasPrefix(disk, "/dev/nvme") || strings.HasPrefix(disk, "/dev/mmcblk")

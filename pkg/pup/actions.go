@@ -285,6 +285,7 @@ func (t PupManager) nextAvailablePorts(howMany int) []int {
 			_, exists := consumed[port]
 			if !exists && t.isPortAvailable(port) {
 				out = append(out, port)
+				consumed[port] = struct{}{}
 				fmt.Printf("Allocated port %d (available on system)\n", port)
 				break
 			}

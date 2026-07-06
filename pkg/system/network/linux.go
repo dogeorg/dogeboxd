@@ -34,11 +34,6 @@ type WiFiNetwork struct {
 	Frequency string
 }
 
-var physicalInterfaceLabels = map[string]string{
-	"enP4p65s0": "ETH1",
-	"enP2p33s0": "ETH2",
-}
-
 func (t NetworkManagerLinux) GetAvailableNetworks() []dogeboxd.NetworkConnection {
 	availableNetworkConnections := []dogeboxd.NetworkConnection{}
 	wifiInterfaceNames := []string{}
@@ -121,7 +116,6 @@ outer:
 		availableNetworkConnections = append(availableNetworkConnections, dogeboxd.NetworkEthernet{
 			Type:      "ethernet",
 			Interface: systemInterface.Name,
-			Label:     physicalInterfaceLabels[systemInterface.Name],
 			Active:    interfaceHasCarrier(systemInterface.Name),
 		})
 	}

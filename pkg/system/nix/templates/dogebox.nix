@@ -10,8 +10,8 @@
       ./system_container_config.nix
     ]
     # Optional custom configuration (only if it has been created)
-    ++ lib.optionals (builtins.pathExists ./custom.nix) [
-      ./custom.nix
+    ++ lib.optionals (builtins.pathExists {{ .DATA_DIR }}/custom.nix) [
+      {{ .DATA_DIR }}/custom.nix
     ]
     # Optional storage overlay (only if present in the nix dir)
     ++ lib.optionals (builtins.pathExists "{{ .NIX_DIR }}/storage-overlay.nix") [

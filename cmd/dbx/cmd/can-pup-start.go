@@ -84,15 +84,19 @@ var canPupStartCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		log.Println("Can start: false")
-		utils.ExitBad(systemd)
+		if pupState, ok := pupManager.GetStateMap()[pupId]; ok && !pupState.Enabled {
+			log.Println("Can start: false (pup is disabled)")
+		} else {
+			log.Println("Can start: false")
+		}
+		os.Exit(1)
 	},
 }
 
 func init() {
 	canPupStartCmd.Flags().StringP("pup-id", "p", "", "id of pup to check")
 	canPupStartCmd.Flags().StringP("data-dir", "d", "/opt/dogebox", "dogebox data dir")
-	canPupStartCmd.Flags().BoolP("systemd", "", false, "Exits with 255 instead of 1 if in recovery mode.")
+	canPupStartCmd.Flags().BoolP("systemd", "", false, "Uses systemd-specific exit codes for ExecCondition.")
 	canPupStartCmd.MarkFlagRequired("data-dir")
 	canPupStartCmd.MarkFlagRequired("pup-id")
 	rootCmd.AddCommand(canPupStartCmd)

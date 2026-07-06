@@ -81,7 +81,7 @@ func main() {
 
 	store, err := dogeboxd.NewStoreManager(fmt.Sprintf("%s/dogebox.db", dataDir))
 	if err != nil {
-		log.Fatalf("couldn't open store-manager db", err)
+		log.Fatalf("couldn't open store-manager db: %v", err)
 	}
 
 	stateManager := system.NewStateManager(store)

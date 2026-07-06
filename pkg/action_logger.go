@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -95,7 +94,7 @@ func (t *stepLogger) writeToLogFile(msg string) {
 	if t.l.dbx.config != nil {
 		logDir := t.l.dbx.config.ContainerLogDir
 		if logDir != "" {
-			logFile := filepath.Join(logDir, "pup-"+t.l.Job.ID)
+			logFile := t.l.dbx.config.JobLogPath(t.l.Job.ID)
 
 			// Use lumberjack for log rotation
 			writer := &lumberjack.Logger{
