@@ -40,6 +40,10 @@
                 pkgs.git
                 pkgs.libxkbcommon
                 pkgs.rsync
+                # Protobuf toolchain for `make sync-api`
+                pkgs.buf
+                pkgs.protoc-gen-go
+                pkgs.protoc-gen-connect-go
               ];
             }
           else

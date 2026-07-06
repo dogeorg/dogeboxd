@@ -90,4 +90,6 @@ dbxdev:
 dbxsetup:
 	DEV_SEED_WORD_INDEX=1 DEV_DIR=~/data/dev DBX_SOCKET=~/data/dbx-socket go run ./cmd/dbx setup
 
+# Regenerate Go code from the protobuf schemas in ./protocol
 sync-api:
+	cd protocol && buf generate
