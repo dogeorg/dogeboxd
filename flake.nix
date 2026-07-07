@@ -21,7 +21,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         isLinux = builtins.match ".*-linux$" system != null;
-        dogeboxdVendorHash = "sha256-jMbFOuc+hodDXNWNn21bcLmAJ4j729eiklrcGRUwOUk=";
+        dogeboxdVendorHash = "sha256-+qcaRRI3KEDaqQs5xMpcc1YNjp4OwGxFCBMGUgzm64Y=";
       in
       {
         devShells.default =
