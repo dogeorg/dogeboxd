@@ -3,11 +3,30 @@ package system
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
 	"github.com/Dogebox-WG/dogeboxd/pkg/utils"
 )
+
+const initialBootstrapMarkerPath = "/run/dogebox/initial-bootstrap-in-progress"
+
+func markInitialBootstrapInProgress(markerPath string) (func() error, error) {
+	if err := os.MkdirAll(filepath.Dir(markerPath), 0o700); err != nil {
+		return nil, fmt.Errorf("creating initial bootstrap marker directory: %w", err)
+	}
+	if err := os.WriteFile(markerPath, nil, 0o600); err != nil {
+		return nil, fmt.Errorf("creating initial bootstrap marker: %w", err)
+	}
+
+	return func() error {
+		if err := os.Remove(markerPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing initial bootstrap marker: %w", err)
+		}
+		return nil
+	}, nil
+}
 
 func (t SystemUpdater) initialBootstrap(a dogeboxd.InitialBootstrap, j dogeboxd.Job) error {
 	log := j.Logger.Step("initial-bootstrap")
@@ -20,6 +39,16 @@ func (t SystemUpdater) initialBootstrap(a dogeboxd.InitialBootstrap, j dogeboxd.
 	if !dbxState.InitialState.HasGeneratedKey || !dbxState.InitialState.HasSetNetwork {
 		return fmt.Errorf("system not ready to initialise")
 	}
+
+	clearBootstrapMarker, err := markInitialBootstrapInProgress(initialBootstrapMarkerPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := clearBootstrapMarker(); err != nil {
+			log.Errf("Error clearing initial bootstrap marker: %v", err)
+		}
+	}()
 
 	nixPatch := t.nix.NewPatch(j.Logger.Step("bootstrap-network").Progress(15))
 

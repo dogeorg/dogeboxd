@@ -82,3 +82,23 @@ func TestGetRebuildCommandUsesVersionOverridesWhenNoFlakeDirIsProvided(t *testin
 		}
 	}
 }
+
+func TestGetRebuildCommandUsesInstalledSourcesForInitialSetup(t *testing.T) {
+	versionInfo := testVersionInfo()
+	versionInfo.Packages["dkm"] = version.DBXVersionInputTuple{
+		Rev:    "local-only-rev",
+		Hash:   "dkm-hash",
+		Source: "/nix/store/local-dkm-source",
+	}
+
+	_, args, err := buildRebuildCommand("switch", "", "/etc/nixos#dogeboxos-qemu-aarch64", versionInfo)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	joinedArgs := strings.Join(args, " ")
+	expected := "--override-input dkm path:/nix/store/local-dkm-source?rev=local-only-rev"
+	if !strings.Contains(joinedArgs, expected) {
+		t.Fatalf("expected rebuild args to contain %q, got %q", expected, joinedArgs)
+	}
+}

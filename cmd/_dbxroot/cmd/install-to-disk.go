@@ -150,11 +150,15 @@ Example:
 
 		// Install
 		utils.RunCommand("nixos-install", "--system", strings.TrimSpace(systemClosure), "--no-root-passwd", "--root", "/mnt")
-		// TODO (ando - 28/07/2025) - Figure out if we need umount here, since
-		//                            it did break iso install with `target busy`
-		if variant != builderIso {
-			utils.RunCommand("umount", "/mnt")
+
+		// Normal installations leave both the ESP and swap active. Release them
+		// before the root filesystem so the target disk can be cleanly detached.
+		if variant != builderT6 {
+			swapPartition := fmt.Sprintf("%s%s2", disk, partitionPrefix)
+			utils.RunCommand("swapoff", swapPartition)
+			utils.RunCommand("umount", "/mnt/boot")
 		}
+		utils.RunCommand("umount", "/mnt")
 
 		log.Println("Finished installing. Please remove installation media and reboot.")
 	},
@@ -231,7 +235,7 @@ func create_normal_boot(disk string, partitionPrefix string) {
 	// Format partitions
 	utils.RunCommand("mkfs.ext4", "-L", "nixos", rootPartition)
 	utils.RunCommand("mkswap", "-L", "swap", swapPartition)
-	utils.RunCommand("mkfs.fat", "-F", "32", "-n", "boot", espPartition)
+	utils.RunCommand("mkfs.fat", "-F", "32", "-n", "ESP", espPartition)
 
 	// Mount everything up
 	utils.RunCommand("mount", rootPartition, "/mnt")

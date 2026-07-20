@@ -14,8 +14,9 @@ type DBXVersionInfoGit struct {
 }
 
 type DBXVersionInputTuple struct {
-	Rev  string `json:"rev"`
-	Hash string `json:"hash"`
+	Rev    string `json:"rev"`
+	Hash   string `json:"hash"`
+	Source string `json:"-"`
 }
 
 type DBXVersionInfo struct {
@@ -50,6 +51,10 @@ func GetDBXRelease() *DBXVersionInfo {
 
 				if hashData, err := os.ReadFile(filepath.Join(versionPath, pkgName, "hash")); err == nil {
 					tuple.Hash = strings.TrimSpace(string(hashData))
+				}
+
+				if sourcePath, err := filepath.EvalSymlinks(filepath.Join(versionPath, pkgName, "source")); err == nil {
+					tuple.Source = sourcePath
 				}
 
 				packages[pkgName] = tuple

@@ -107,6 +107,9 @@ func buildRebuildCommand(action string, setRelease string, flakePath string, ver
 	for pkg, tuple := range versionInformation.Packages {
 		// Only support dogebox-wg thing for now.
 		repo := fmt.Sprintf("github:dogebox-wg/%s/%s", pkg, tuple.Rev)
+		if tuple.Source != "" {
+			repo = fmt.Sprintf("path:%s?rev=%s", tuple.Source, tuple.Rev)
+		}
 		// Override release (for upgrade) if setRelease is set.
 		if setRelease != "" {
 			repo = fmt.Sprintf("github:dogebox-wg/%s/%s", pkg, setRelease)
