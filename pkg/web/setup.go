@@ -22,9 +22,9 @@ type InitialSystemBootstrapRequestBody struct {
 }
 
 type BootstrapFacts struct {
-	HasGeneratedKey                  bool `json:"hasGeneratedKey"`
-	HasConfiguredNetwork             bool `json:"hasConfiguredNetwork"`
-	HasCompletedInitialConfiguration bool `json:"hasCompletedInitialConfiguration"`
+	HasGeneratedKey                  bool   `json:"hasGeneratedKey"`
+	HasConfiguredNetwork             bool   `json:"hasConfiguredNetwork"`
+	HasCompletedInitialConfiguration bool   `json:"hasCompletedInitialConfiguration"`
 	SetupSessionID                   string `json:"setupSessionId"`
 	ActiveBootstrapJobId             string `json:"activeBootstrapJobId,omitempty"`
 	ActiveSystemUpdateJobId          string `json:"activeSystemUpdateJobId,omitempty"`

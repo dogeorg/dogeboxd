@@ -2,6 +2,34 @@ package dogeboxd
 
 import "time"
 
+type ChangeType string
+
+const (
+	ChangeTypeBootstrap         ChangeType = "bootstrap"
+	ChangeTypePup               ChangeType = "pup"
+	ChangeTypePupPurged         ChangeType = "pup_purged"
+	ChangeTypeStats             ChangeType = "stats"
+	ChangeTypeAction            ChangeType = "action"
+	ChangeTypePrompt            ChangeType = "prompt"
+	ChangeTypeProgress          ChangeType = "progress"
+	ChangeTypeSystemUpdate      ChangeType = "system-update-available"
+	ChangeTypeRecovery          ChangeType = "recovery"
+	ChangeTypePupUpdatesChecked ChangeType = "pup-updates-checked"
+
+	// Job lifecycle events emitted by the JobManager and consumed
+	// by dpanel's job channel.
+	ChangeTypeJobCreated   ChangeType = "job:created"
+	ChangeTypeJobUpdated   ChangeType = "job:updated"
+	ChangeTypeJobCompleted ChangeType = "job:completed"
+	ChangeTypeJobFailed    ChangeType = "job:failed"
+	ChangeTypeJobOrphaned  ChangeType = "job:orphaned"
+	ChangeTypeJobDeleted   ChangeType = "job:deleted"
+
+	// Legacy underscore variant still emitted by the SystemUpdater
+	// completion path and handled by dpanel's main channel.
+	ChangeTypeJobCompletedLegacy ChangeType = "job_completed"
+)
+
 // A Job is created when an Action is recieved by the system.
 // Jobs are passed through the Dogeboxd service and result in
 // a Change being send to the client via websockets.
@@ -28,10 +56,10 @@ type Change struct {
 	// It is assigned server-side when the Change is emitted.
 	Seq uint64 `json:"seq"`
 	// TS is the server timestamp in milliseconds since epoch, assigned when emitted.
-	TS     int64  `json:"ts"`
-	Error  string `json:"error"`
-	Type   string `json:"type"`
-	Update Update `json:"update"`
+	TS     int64      `json:"ts"`
+	Error  string     `json:"error"`
+	Type   ChangeType `json:"type"`
+	Update Update     `json:"update"`
 }
 
 // Represents some information about an action underway

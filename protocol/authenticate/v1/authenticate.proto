@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package authenticate.v1;
+
+import "buf/validate/validate.proto";
+
+message AuthenticateRequest {
+    string password = 1 [(buf.validate.field).string = {min_len: 1 }];
+}
+
+message AuthenticateResponse {
+    string token = 1 [(buf.validate.field).string = {min_len: 1, max_len: 100}];
+}
+
+service AuthenticateService {
+    rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) {}
+}

@@ -9,20 +9,28 @@ import (
 	"time"
 )
 
-// Pup states
+type InstallationState string
+
+type PupRunStatus string
+
+// Pup installation states
 const (
-	STATE_INSTALLING   string = "installing"
-	STATE_UPGRADING    string = "upgrading"
-	STATE_READY        string = "ready"
-	STATE_UNREADY      string = "unready"
-	STATE_UNINSTALLING string = "uninstalling"
-	STATE_UNINSTALLED  string = "uninstalled"
-	STATE_PURGING      string = "purging"
-	STATE_BROKEN       string = "broken"
-	STATE_STOPPED      string = "stopped"
-	STATE_STARTING     string = "starting"
-	STATE_RUNNING      string = "running"
-	STATE_STOPPING     string = "stopping"
+	STATE_INSTALLING   InstallationState = "installing"
+	STATE_UPGRADING    InstallationState = "upgrading"
+	STATE_READY        InstallationState = "ready"
+	STATE_UNREADY      InstallationState = "unready"
+	STATE_UNINSTALLING InstallationState = "uninstalling"
+	STATE_UNINSTALLED  InstallationState = "uninstalled"
+	STATE_PURGING      InstallationState = "purging"
+	STATE_BROKEN       InstallationState = "broken"
+)
+
+// Pup runtime statuses
+const (
+	STATE_STOPPED  PupRunStatus = "stopped"
+	STATE_STARTING PupRunStatus = "starting"
+	STATE_RUNNING  PupRunStatus = "running"
+	STATE_STOPPING PupRunStatus = "stopping"
 )
 
 // Pup broken reasons
@@ -76,7 +84,7 @@ type PupState struct {
 	ConfigSaved  bool                        `json:"configSaved"`  // Has config been saved at least once?
 	Providers    map[string]string           `json:"providers"`    // providers of interface dependencies
 	Hooks        []PupHook                   `json:"hooks"`        // webhooks
-	Installation string                      `json:"installation"` // see table above and constants
+	Installation InstallationState           `json:"installation"` // see table above and constants
 	BrokenReason string                      `json:"brokenReason"` // reason for being in a broken state
 	Enabled      bool                        `json:"enabled"`      // Is this pup supposed to be running?
 	NeedsConf    bool                        `json:"needsConf"`    // Has all required config been provided?
@@ -116,7 +124,7 @@ type PupMetrics[T any] struct {
 // stats for the pup process, ie: disk, CPU, etc.
 type PupStats struct {
 	ID            string            `json:"id"`
-	Status        string            `json:"status"`
+	Status        PupRunStatus      `json:"status"`
 	SystemMetrics []PupMetrics[any] `json:"systemMetrics"`
 	Metrics       []PupMetrics[any] `json:"metrics"`
 	Issues        PupIssues         `json:"issues"`
@@ -280,7 +288,7 @@ type PupManager interface {
 	ClearCacheEntry(pupID string)
 }
 
-func SetPupInstallation(state string) func(*PupState, *[]Pupdate) {
+func SetPupInstallation(state InstallationState) func(*PupState, *[]Pupdate) {
 	return func(p *PupState, pu *[]Pupdate) {
 		p.Installation = state
 		*pu = append(*pu, Pupdate{

@@ -90,7 +90,7 @@ func loadPupState(path string) (dogeboxd.PupState, error) {
 
 func getStatusDisplay(pup dogeboxd.PupState) string {
 	// Primary status is based on Installation field
-	status := pup.Installation
+	status := string(pup.Installation)
 
 	// Add running state if enabled
 	if pup.Installation == dogeboxd.STATE_READY && pup.Enabled {
@@ -112,4 +112,3 @@ func init() {
 
 	listCmd.Flags().String("dataDir", "/opt/dogebox", "Path to dogeboxd data directory")
 }
-

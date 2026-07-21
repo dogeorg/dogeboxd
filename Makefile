@@ -1,6 +1,6 @@
 default: build
 
-.PHONY: clean mkbuild build multipassdev dpanel-build dev recovery test dbxdev
+.PHONY: clean mkbuild build multipassdev dpanel-build dev recovery test dbxdev sync-api
 
 DPANEL_DIR ?= ../dpanel
 DPANEL_DIST ?= $(DPANEL_DIR)/dist
@@ -89,3 +89,7 @@ dbxdev:
 
 dbxsetup:
 	DEV_SEED_WORD_INDEX=1 DEV_DIR=~/data/dev DBX_SOCKET=~/data/dbx-socket go run ./cmd/dbx setup
+
+# Regenerate Go code from the protobuf schemas in ./protocol
+sync-api:
+	cd protocol && buf generate

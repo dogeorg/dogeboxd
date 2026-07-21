@@ -188,7 +188,7 @@ func (t api) deleteJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.dbx.SendChange(dogeboxd.Change{ID: "internal", Type: "job:deleted", Update: job})
+	t.dbx.SendChange(dogeboxd.Change{ID: "internal", Type: dogeboxd.ChangeTypeJobDeleted, Update: job})
 
 	sendResponse(w, map[string]interface{}{
 		"success": true,
@@ -240,7 +240,7 @@ func (t api) createOrphanCandidateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.dbx.SendChange(dogeboxd.Change{ID: "internal", Type: "job:created", Update: record})
+	t.dbx.SendChange(dogeboxd.Change{ID: "internal", Type: dogeboxd.ChangeTypeJobCreated, Update: record})
 
 	sendResponse(w, map[string]interface{}{
 		"success": true,

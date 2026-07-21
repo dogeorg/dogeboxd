@@ -20,14 +20,14 @@ func (t api) GetJobsHandler() *websocket.Server {
 		if err != nil {
 			return dogeboxd.Change{
 				ID:     "internal",
-				Type:   "bootstrap",
+				Type:   dogeboxd.ChangeTypeBootstrap,
 				Update: map[string]interface{}{"jobs": []dogeboxd.JobRecord{}},
 			}
 		}
 
 		return dogeboxd.Change{
 			ID:     "internal",
-			Type:   "bootstrap",
+			Type:   dogeboxd.ChangeTypeBootstrap,
 			Update: map[string]interface{}{"jobs": jobs},
 		}
 	}

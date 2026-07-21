@@ -27,7 +27,7 @@ func (t *WSCONN) Close() {
 // Handle incomming websocket connections for general updates
 func (t api) getUpdateSocket(w http.ResponseWriter, r *http.Request) {
 	initialPayload := func() any {
-		return dogeboxd.Change{ID: "internal", Error: "", Type: "bootstrap", Update: t.getRawBS()}
+		return dogeboxd.Change{ID: "internal", Error: "", Type: dogeboxd.ChangeTypeBootstrap, Update: t.getRawBS()}
 	}
 	t.ws.GetWSHandler(initialPayload).ServeHTTP(w, r)
 }

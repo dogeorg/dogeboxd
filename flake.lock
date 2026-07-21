@@ -7,17 +7,16 @@
         "playwright": "playwright"
       },
       "locked": {
-        "lastModified": 1760930320,
-        "narHash": "sha256-Of3hd2AsvoDsGJoJuROPMIrgKY9qYnumjRDz5WpLpY0=",
-        "owner": "dogeorg",
+        "lastModified": 1769990844,
+        "narHash": "sha256-X8ckutiA4cjvrwPmDU34POHyNH3pinaHzF0xkhGaY4E=",
+        "owner": "Dogebox-WG",
         "repo": "dpanel",
-        "rev": "427fdcafd2d5dcf14cb6ab9edb09315b5818152b",
+        "rev": "70b058ea01636fea53403f8f914e761bcf0deb3a",
         "type": "github"
       },
       "original": {
-        "owner": "dogeorg",
+        "owner": "Dogebox-WG",
         "repo": "dpanel",
-        "rev": "427fdcafd2d5dcf14cb6ab9edb09315b5818152b",
         "type": "github"
       }
     },

@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package dogebox.v1;
+
+import "dogebox/v1/types.proto";
+
+message DBXVersionInfoGit {
+  string commit = 1;
+  bool dirty = 2;
+}
+
+message DBXVersionInputTuple {
+  string rev = 1;
+  string hash = 2;
+}
+
+message DBXVersionInfo {
+  string release = 1;
+  map<string, DBXVersionInputTuple> packages = 2;
+  DBXVersionInfoGit git = 3;
+}
+
+message BootstrapFacts {
+  bool has_generated_key = 1;
+  bool has_configured_network = 2;
+  bool has_completed_initial_configuration = 3;
+  string setup_session_id = 4;
+  string active_bootstrap_job_id = 5;
+  string active_system_update_job_id = 6;
+  // Stringified JobStatus of the active system update, if any.
+  string active_system_update_status = 7;
+}
+
+message BootstrapFlags {
+  bool is_first_time_welcome_complete = 1;
+  bool is_developer_mode = 2;
+}
+
+message SidebarPreferences {
+  repeated string sidebar_pups = 1;
+}
+
+message BootstrapResponse {
+  int64 ts = 1;
+  DBXVersionInfo version = 2;
+  bool dev_mode = 3;
+  map<string, PupAsset> assets = 4;
+  map<string, PupState> states = 5;
+  map<string, PupStats> stats = 6;
+  BootstrapFlags flags = 7;
+  BootstrapFacts setup_facts = 8;
+  SidebarPreferences sidebar_preferences = 9;
+}
+
+message JobsBootstrap {
+  repeated JobRecord jobs = 1;
+}
+
+// Recovery bootstrap, served by GET /system/recovery-bootstrap.
+
+enum BootstrapInstallationBootMedia {
+  BOOTSTRAP_INSTALLATION_BOOT_MEDIA_UNSPECIFIED = 0;
+  BOOTSTRAP_INSTALLATION_BOOT_MEDIA_READ_ONLY = 1; // "ro" - SD or ISO
+  BOOTSTRAP_INSTALLATION_BOOT_MEDIA_READ_WRITE = 2; // "rw" - installed to permanent storage
+}
+
+enum BootstrapInstallationState {
+  BOOTSTRAP_INSTALLATION_STATE_UNSPECIFIED = 0;
+  BOOTSTRAP_INSTALLATION_STATE_UNCONFIGURED = 1;
+  BOOTSTRAP_INSTALLATION_STATE_NOT_INSTALLED = 2;
+  BOOTSTRAP_INSTALLATION_STATE_CONFIGURED = 3;
+}
+
+message RecoveryFacts {
+  BootstrapInstallationBootMedia installation_boot_media = 1;
+  BootstrapInstallationState installation_state = 2;
+}
+
+message BootstrapRecoveryResponse {
+  RecoveryFacts recovery_facts = 1;
+}

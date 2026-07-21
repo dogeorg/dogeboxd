@@ -1,45 +1,59 @@
 {
   inputs = {
-    nixpkgs.url     = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
 
     dpanel = {
-      url = "github:dogeorg/dpanel/427fdcafd2d5dcf14cb6ab9edb09315b5818152b";
+      url = "github:Dogebox-WG/dpanel";
     };
   };
 
-  outputs = { self, dpanel, nixpkgs, flake-utils, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      dpanel,
+      nixpkgs,
+      flake-utils,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs { inherit system; };
         isLinux = builtins.match ".*-linux$" system != null;
-        dogeboxdVendorHash = "sha256-cy4rWoE/u8+n0YtGp5Bf70W7nV8RW3rI/yt5vxhL5qU=";
-      in {
-        devShells.default = if isLinux then
-          pkgs.mkShell {
-            buildInputs = [
-              pkgs.gnumake
-              pkgs.systemd.dev
-              pkgs.go_1_25
-              pkgs.parted
-              pkgs.util-linux
-              pkgs.e2fsprogs
-              pkgs.dosfstools
-              pkgs.nixos-install-tools
-              pkgs.nix
-              pkgs.git
-              pkgs.libxkbcommon
-              pkgs.rsync
-            ];
-          }
-        else
-          pkgs.mkShell {
-            shellHook = ''
-              echo "🚫 Unsupported system: ${system}"
-              echo "Dogeboxd development relies on systemd headers, which are only available on Linux. Please run in a VM."
-              exit 1
-            '';
-          };
+        dogeboxdVendorHash = "sha256-+qcaRRI3KEDaqQs5xMpcc1YNjp4OwGxFCBMGUgzm64Y=";
+      in
+      {
+        devShells.default =
+          if isLinux then
+            pkgs.mkShell {
+              buildInputs = [
+                pkgs.gnumake
+                pkgs.systemd.dev
+                pkgs.go_1_25
+                pkgs.parted
+                pkgs.util-linux
+                pkgs.e2fsprogs
+                pkgs.dosfstools
+                pkgs.nixos-install-tools
+                pkgs.nix
+                pkgs.git
+                pkgs.libxkbcommon
+                pkgs.rsync
+                # Protobuf toolchain for `make sync-api`
+                pkgs.buf
+                pkgs.protoc-gen-go
+                pkgs.protoc-gen-connect-go
+              ];
+            }
+          else
+            pkgs.mkShell {
+              shellHook = ''
+                echo "🚫 Unsupported system: ${system}"
+                echo "Dogeboxd development relies on systemd headers, which are only available on Linux. Please run in a VM."
+                exit 1
+              '';
+            };
 
         packages = rec {
           dogeboxd = pkgs.buildGoModule {
@@ -59,14 +73,14 @@
             '';
 
             nativeBuildInputs = [ pkgs.go_1_25 ];
-            buildInputs       = [ pkgs.systemd.dev ];
+            buildInputs = [ pkgs.systemd.dev ];
 
             meta = with pkgs.lib; {
               description = "Dogebox OS system manager service";
-              homepage    = "https://github.com/dogebox-wg/dogeboxd";
-              license     = licenses.mit;
+              homepage = "https://github.com/dogebox-wg/dogeboxd";
+              license = licenses.mit;
               maintainers = with maintainers; [ dogecoinfoundation ];
-              platforms   = platforms.linux;
+              platforms = platforms.linux;
             };
           };
 

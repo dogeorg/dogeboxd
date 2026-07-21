@@ -126,4 +126,3 @@ func init() {
 	writeConfigCmd.Flags().StringP("config", "c", "", "JSON object with config key-value pairs (required)")
 	writeConfigCmd.MarkFlagRequired("config")
 }
-

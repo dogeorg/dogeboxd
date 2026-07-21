@@ -179,7 +179,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					// Register tracked jobs in runtime state before persisting them so
 					// orphan detection never sees "active in DB, missing from runtime".
 					if record, err := t.createTrackedJobRecord(j); err == nil && record != nil {
-						t.SendChange(Change{ID: "internal", Type: "job:created", Update: record})
+						t.SendChange(Change{ID: "internal", Type: ChangeTypeJobCreated, Update: record})
 					}
 
 					t.jobDispatcher(j)
@@ -191,9 +191,9 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					}
 					// Don't broadcast a purged pup as a normal pup state update, otherwise clients may resurrect it in their local model.
 					if p.Event == PUP_PURGED {
-						t.SendChange(Change{ID: "internal", Type: "pup_purged", Update: map[string]string{"pupId": p.State.ID}})
+						t.SendChange(Change{ID: "internal", Type: ChangeTypePupPurged, Update: map[string]string{"pupId": p.State.ID}})
 					} else {
-						t.SendChange(Change{ID: "internal", Type: "pup", Update: p.State})
+						t.SendChange(Change{ID: "internal", Type: ChangeTypePup, Update: p.State})
 					}
 
 				// Handle stats from PupManager
@@ -201,7 +201,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 					if !ok {
 						break dance
 					}
-					t.SendChange(Change{ID: "internal", Type: "stats", Update: stats})
+					t.SendChange(Change{ID: "internal", Type: ChangeTypeStats, Update: stats})
 
 				// Handle pup update check events
 				case event, ok := <-eventChannel:
@@ -209,7 +209,7 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						break dance
 					}
 					// Send event to frontend so it can refresh its cache
-					t.SendChange(Change{ID: "internal", Type: "pup-updates-checked", Update: event})
+					t.SendChange(Change{ID: "internal", Type: ChangeTypePupUpdatesChecked, Update: event})
 
 				// Handle completed jobs from SystemUpdater
 				case j, ok := <-updaterChannel:
@@ -268,12 +268,12 @@ func (t Dogeboxd) Run(started, stopped chan bool, stop chan context.Context) err
 						if err == nil {
 							jobRecord, getErr := t.JobManager.GetJob(j.ID)
 							if getErr == nil {
-								t.SendChange(Change{ID: "internal", Type: "job_completed", Update: jobRecord})
+								t.SendChange(Change{ID: "internal", Type: ChangeTypeJobCompletedLegacy, Update: jobRecord})
 							}
 						}
 					}
 
-					t.sendFinishedJob("action", j)
+					t.sendFinishedJob(ChangeTypeAction, j)
 					// Only clear this after completion so the orphaned job monitor
 					// doesn't mistakenly pick it up as missing from runtime state.
 					t.clearCurrentSystemJobID(j.ID)
@@ -499,7 +499,7 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 			}
 			// Create a separate tracked job for each pup in the batch.
 			if record, err := t.createTrackedJobRecord(pupJob); err == nil && record != nil {
-				t.SendChange(Change{ID: "internal", Type: "job:created", Update: record})
+				t.SendChange(Change{ID: "internal", Type: ChangeTypeJobCreated, Update: record})
 			}
 
 			t.createPupFromManifest(pupJob, pup.PupName, pup.PupVersion, pup.SourceId, pup.Options)
@@ -512,7 +512,7 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 		// Flip Enabled=true immediately (before job executes) so frontend refreshes mid-job show intended state
 		if _, err := t.Pups.UpdatePup(a.PupID, PupEnabled(true)); err != nil {
 			j.Err = fmt.Sprintf("Failed to set enabled=true: %v", err)
-			t.sendFinishedJob("action", j)
+			t.sendFinishedJob(ChangeTypeAction, j)
 			return
 		}
 		t.sendSystemJobWithPupDetails(j, a.PupID)
@@ -520,7 +520,7 @@ func (t Dogeboxd) jobDispatcher(j Job) {
 		// Flip Enabled=false immediately (before job executes) so frontend refreshes mid-job show intended state
 		if _, err := t.Pups.UpdatePup(a.PupID, PupEnabled(false)); err != nil {
 			j.Err = fmt.Sprintf("Failed to set enabled=false: %v", err)
-			t.sendFinishedJob("action", j)
+			t.sendFinishedJob(ChangeTypeAction, j)
 			return
 		}
 		t.sendSystemJobWithPupDetails(j, a.PupID)
@@ -609,7 +609,7 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceId st
 	manifest, source, err := t.sources.GetSourceManifest(sourceId, pupName, pupVersion)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup, no manifest: %s", err)
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
@@ -617,7 +617,7 @@ func (t *Dogeboxd) createPupFromManifest(j Job, pupName, pupVersion, sourceId st
 	pupID, err := t.Pups.AdoptPup(manifest, source, pupOptions)
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldn't create pup: %s", err)
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
@@ -636,14 +636,14 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 	newState, err := t.Pups.UpdatePup(u.PupID, SetPupConfig(u.Payload))
 	if err != nil {
 		j.Err = fmt.Sprintf("couldn't update config for %s: %v", u.PupID, err)
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
 	// Write config to secure storage (inside pup container, not exposed on host)
 	if err := WritePupConfigToStorage(t.config.DataDir, u.PupID, newState.Config, log); err != nil {
 		j.Err = fmt.Sprintf("failed to write config to storage: %v", err)
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
@@ -657,7 +657,7 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 		newState, err = t.Pups.UpdatePup(u.PupID, PupEnabled(true))
 		if err != nil {
 			j.Err = fmt.Sprintf("failed to enable pup after config: %v", err)
-			t.sendFinishedJob("action", j)
+			t.sendFinishedJob(ChangeTypeAction, j)
 			return
 		}
 	}
@@ -669,12 +669,12 @@ func (t *Dogeboxd) updatePupConfig(j Job, u UpdatePupConfig) {
 
 	if err := nixPatch.Apply(); err != nil {
 		j.Err = fmt.Sprintf("failed to apply configuration: %v", err)
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
 	j.Success = newState
-	t.sendFinishedJob("action", j)
+	t.sendFinishedJob(ChangeTypeAction, j)
 }
 
 // Handle an UpdatePupProviders action
@@ -683,7 +683,7 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 	_, err := t.Pups.UpdatePup(u.PupID, SetPupProviders(u.Payload))
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
@@ -691,14 +691,14 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 	j.Success = pupState
 	if err != nil {
 		j.Err = err.Error()
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
 	canPupStart, err := t.Pups.CanPupStart(u.PupID)
 	if err != nil {
 		j.Err = err.Error()
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
@@ -712,12 +712,12 @@ func (t *Dogeboxd) updatePupProviders(j Job, u UpdatePupProviders) {
 
 		if err := nixPatch.Apply(); err != nil {
 			j.Err = fmt.Sprintf("Failed to apply nix patch: %v", err)
-			t.sendFinishedJob("action", j)
+			t.sendFinishedJob(ChangeTypeAction, j)
 			return
 		}
 	}
 
-	t.sendFinishedJob("action", j)
+	t.sendFinishedJob(ChangeTypeAction, j)
 }
 
 // Handle an UpdatePupHooks action
@@ -725,17 +725,17 @@ func (t *Dogeboxd) updatePupHooks(j Job, u UpdatePupHooks) {
 	_, err := t.Pups.UpdatePup(u.PupID, SetPupHooks(u.Payload))
 	if err != nil {
 		j.Err = fmt.Sprintf("Couldnt update: %s", u.PupID)
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 
 	j.Success, _, err = t.Pups.GetPup(u.PupID)
 	if err != nil {
 		j.Err = err.Error()
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
-	t.sendFinishedJob("action", j)
+	t.sendFinishedJob(ChangeTypeAction, j)
 }
 
 // Handle a CheckPupUpdates action
@@ -743,7 +743,7 @@ func (t *Dogeboxd) checkPupUpdates(j Job, c CheckPupUpdates) {
 	log := j.Logger.Step("check-pup-updates")
 
 	// Handle errors and send result (deferred to avoid duplication)
-	defer func() { t.sendFinishedJob("action", j) }()
+	defer func() { t.sendFinishedJob(ChangeTypeAction, j) }()
 
 	if c.PupID == "" {
 		// Check all pups
@@ -835,7 +835,7 @@ func (t Dogeboxd) SendChange(c Change) {
 }
 
 // helper to report a completed job back to the client
-func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
+func (t Dogeboxd) sendFinishedJob(changeType ChangeType, j Job) {
 	if j.Err != "" {
 		j.Logger.Step("queue").Err(j.Err)
 	}
@@ -850,7 +850,7 @@ func (t Dogeboxd) sendFinishedJob(changeType string, j Job) {
 		if err == nil {
 			jobRecord, getErr := t.JobManager.GetJob(j.ID)
 			if getErr == nil {
-				t.SendChange(Change{ID: "internal", Type: "job:completed", Update: jobRecord})
+				t.SendChange(Change{ID: "internal", Type: ChangeTypeJobCompleted, Update: jobRecord})
 			}
 		}
 	}
@@ -891,12 +891,12 @@ func (t Dogeboxd) sendProgress(p ActionProgress) {
 		if err == nil {
 			jobRecord, getErr := t.JobManager.GetJob(p.ActionID)
 			if getErr == nil {
-				t.SendChange(Change{ID: "internal", Type: "job:updated", Update: jobRecord})
+				t.SendChange(Change{ID: "internal", Type: ChangeTypeJobUpdated, Update: jobRecord})
 			}
 		}
 	}
 
-	t.SendChange(Change{ID: p.ActionID, Type: "progress", Update: p})
+	t.SendChange(Change{ID: p.ActionID, Type: ChangeTypeProgress, Update: p})
 }
 
 // helper to attach PupState to a job and send it to the SystemUpdater
@@ -904,7 +904,7 @@ func (t Dogeboxd) sendSystemJobWithPupDetails(j Job, PupID string) {
 	p, _, err := t.Pups.GetPup(PupID)
 	if err != nil {
 		j.Err = err.Error()
-		t.sendFinishedJob("action", j)
+		t.sendFinishedJob(ChangeTypeAction, j)
 		return
 	}
 

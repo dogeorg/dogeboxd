@@ -219,9 +219,9 @@ func (jm *JobManager) CompleteJob(jobID string, err string) error {
 
 	// Emit WebSocket event for job completion
 	if jm.dbx != nil {
-		eventType := "job:completed"
+		eventType := ChangeTypeJobCompleted
 		if err != "" {
-			eventType = "job:failed"
+			eventType = ChangeTypeJobFailed
 		}
 		jm.dbx.SendChange(Change{ID: "internal", Type: eventType, Update: record})
 	}
@@ -260,7 +260,7 @@ func (jm *JobManager) MarkJobOrphaned(jobID string) error {
 	}
 
 	if jm.dbx != nil {
-		jm.dbx.SendChange(Change{ID: "internal", Type: "job:orphaned", Update: record})
+		jm.dbx.SendChange(Change{ID: "internal", Type: ChangeTypeJobOrphaned, Update: record})
 	}
 
 	return nil

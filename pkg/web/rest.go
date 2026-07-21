@@ -9,10 +9,30 @@ import (
 	"net/http"
 	"os"
 
+	"connectrpc.com/connect"
+	"connectrpc.com/validate"
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
 	"github.com/Dogebox-WG/dogeboxd/pkg/conductor"
+	"github.com/Dogebox-WG/dogeboxd/protocol/gen/authenticate/v1/authenticatev1connect"
 	"github.com/rs/cors"
 )
+
+type AuthState int
+
+const (
+	RequireAuth AuthState = iota
+	ConfiguredAuth
+	NoAuth
+)
+
+type RestHandlerFunc struct {
+	auth_state AuthState
+	handler    http.HandlerFunc
+}
+
+func rhf(a AuthState, h http.HandlerFunc) RestHandlerFunc {
+	return RestHandlerFunc{auth_state: a, handler: h}
+}
 
 func RESTAPI(
 	config dogeboxd.ServerConfig,
@@ -56,114 +76,116 @@ func RESTAPI(
 		sources:   sources,
 	}
 
-	routes := map[string]http.HandlerFunc{}
+	routes := map[string]RestHandlerFunc{}
 
+	authenticator := &AuthenticateServer{a}
+	authenticatePath, authenticateHandler := authenticatev1connect.NewAuthenticateServiceHandler(authenticator, connect.WithInterceptors(validate.NewInterceptor()))
 	// Recovery routes are the _only_ routes loaded in recovery mode.
-	recoveryRoutes := map[string]http.HandlerFunc{
-		"POST /authenticate":    a.authenticate,
-		"POST /logout":          a.logout,
-		"POST /change-password": a.changePassword,
+	recoveryRoutes := map[string]RestHandlerFunc{
+		authenticatePath:        rhf(NoAuth, authenticateHandler.ServeHTTP),
+		"POST /logout":          rhf(RequireAuth, a.logout),
+		"POST /change-password": rhf(RequireAuth, a.changePassword),
 
-		"GET /system/bootstrap":          a.getBootstrap,
-		"GET /system/recovery-bootstrap": a.getRecoveryBootstrap,
-		"GET /system/keymap":             a.getKeymap,
-		"GET /system/keymaps":            a.getKeymaps,
-		"POST /system/keymap":            a.setKeyMap,
-		"GET /system/timezone":           a.getTimezone,
-		"GET /system/timezones":          a.getTimezones,
-		"POST /system/timezone":          a.setTimezone,
-		"GET /system/disks":              a.getSystemDisks,
-		"GET /system/install-disks":      a.getInstallDisks,
-		"POST /system/hostname":          a.setHostname,
-		"POST /system/storage":           a.setStorageDevice,
-		"POST /system/install":           a.installToDisk,
+		"GET /system/bootstrap":          rhf(ConfiguredAuth, a.getBootstrap),
+		"GET /system/recovery-bootstrap": rhf(ConfiguredAuth, a.getRecoveryBootstrap),
+		"GET /system/keymap":             rhf(RequireAuth, a.getKeymap),
+		"GET /system/keymaps":            rhf(ConfiguredAuth, a.getKeymaps),
+		"POST /system/keymap":            rhf(ConfiguredAuth, a.setKeyMap),
+		"GET /system/timezone":           rhf(RequireAuth, a.getTimezone),
+		"GET /system/timezones":          rhf(ConfiguredAuth, a.getTimezones),
+		"POST /system/timezone":          rhf(ConfiguredAuth, a.setTimezone),
+		"GET /system/disks":              rhf(ConfiguredAuth, a.getSystemDisks),
+		"GET /system/install-disks":      rhf(ConfiguredAuth, a.getInstallDisks),
+		"POST /system/hostname":          rhf(ConfiguredAuth, a.setHostname),
+		"POST /system/storage":           rhf(ConfiguredAuth, a.setStorageDevice),
+		"POST /system/install":           rhf(ConfiguredAuth, a.installToDisk),
 
-		"GET /system/network/list":        a.getNetwork,
-		"PUT /system/network/set-pending": a.setPendingNetwork,
-		"POST /system/network/test":       a.testConnectNetwork,
-		"POST /system/network/connect":    a.connectNetwork,
-		"POST /system/host/shutdown":      a.hostShutdown,
-		"POST /system/host/reboot":        a.hostReboot,
-		"POST /keys/create-master":        a.createMasterKey,
-		"GET /keys":                       a.listKeys,
-		"POST /system/bootstrap":          a.initialBootstrap,
+		"GET /system/network/list":        rhf(ConfiguredAuth, a.getNetwork),
+		"PUT /system/network/set-pending": rhf(ConfiguredAuth, a.setPendingNetwork),
+		"POST /system/network/test":       rhf(ConfiguredAuth, a.testConnectNetwork),
+		"POST /system/network/connect":    rhf(ConfiguredAuth, a.connectNetwork),
+		"POST /system/host/shutdown":      rhf(ConfiguredAuth, a.hostShutdown),
+		"POST /system/host/reboot":        rhf(ConfiguredAuth, a.hostReboot),
+		"POST /keys/create-master":        rhf(ConfiguredAuth, a.createMasterKey),
+		"GET /keys":                       rhf(ConfiguredAuth, a.listKeys),
+		"POST /system/bootstrap":          rhf(ConfiguredAuth, a.initialBootstrap),
 
-		"GET /system/ssh/state":               a.getSSHState,
-		"PUT /system/ssh/state":               a.setSSHState,
-		"GET /system/ssh/keys":                a.listSSHKeys,
-		"PUT /system/ssh/key":                 a.addSSHKey,
-		"DELETE /system/ssh/key/{id}":         a.removeSSHKey,
-		"GET /system/custom-nix":              a.getCustomNix,
-		"PUT /system/custom-nix":              a.saveCustomNix,
-		"POST /system/custom-nix/validate":    a.validateCustomNix,
-		"POST /system/import-blockchain-data": a.importBlockchainData,
-		"/ws/state/":                          a.getUpdateSocket,
-		"/ws/jobs":                            a.getJobsSocket,
-		"/ws/log/job/{JobID}":                 a.getJobLogSocket,
+		"GET /system/ssh/state":               rhf(RequireAuth, a.getSSHState),
+		"PUT /system/ssh/state":               rhf(RequireAuth, a.setSSHState),
+		"GET /system/ssh/keys":                rhf(RequireAuth, a.listSSHKeys),
+		"PUT /system/ssh/key":                 rhf(RequireAuth, a.addSSHKey),
+		"DELETE /system/ssh/key/{id}":         rhf(RequireAuth, a.removeSSHKey),
+		"GET /system/custom-nix":              rhf(RequireAuth, a.getCustomNix),
+		"PUT /system/custom-nix":              rhf(RequireAuth, a.saveCustomNix),
+		"POST /system/custom-nix/validate":    rhf(RequireAuth, a.validateCustomNix),
+		"POST /system/import-blockchain-data": rhf(RequireAuth, a.importBlockchainData),
+		"/ws/state/":                          rhf(NoAuth, a.getUpdateSocket),
+		"/ws/jobs":                            rhf(RequireAuth, a.getJobsSocket),
+		"/ws/log/job/{JobID}":                 rhf(RequireAuth, a.getJobLogSocket),
 	}
 
 	// Normal routes are used when we are not in recovery mode.
 	// nb. These are used in _addition_ to recovery routes.
-	normalRoutes := map[string]http.HandlerFunc{
-		"GET /pup/{ID}/metrics":               a.getPupMetrics,
-		"POST /pup/{ID}/{action}":             a.pupAction,
-		"PUT /pup":                            a.installPup,
-		"PUT /pups":                           a.installPups,
-		"POST /config/{PupID}":                a.updateConfig,
-		"POST /providers/{PupID}":             a.updateProviders,
-		"GET /providers/{PupID}":              a.getPupProviders,
-		"POST /hooks/{PupID}":                 a.updateHooks,
-		"GET /sources":                        a.getSources,
-		"PUT /source":                         a.createSource,
-		"GET /sources/store":                  a.getStoreList,
-		"DELETE /source/{id}":                 a.deleteSource,
-		"GET /log/pup/{PupID}/download":       a.downloadPupLog,
-		"GET /log/job/{JobID}/download":       a.downloadJobLog,
-		"GET /log/pup/{PupID}/tail":           a.getPupLogTail,
-		"GET /log/job/{JobID}/tail":           a.getJobLogTail,
-		"/ws/log/pup/{PupID}":                 a.getPupLogSocket,
-		"/ws/log/job/{JobID}":                 a.getJobLogSocket,
-		"POST /system/welcome-complete":       a.setWelcomeComplete,
-		"POST /system/install-pup-collection": a.installPupCollection,
-		"GET /missing-deps/{PupID}":           a.getMissingDeps,
+	normalRoutes := map[string]RestHandlerFunc{
+		"GET /pup/{ID}/metrics":               rhf(RequireAuth, a.getPupMetrics),
+		"POST /pup/{ID}/{action}":             rhf(RequireAuth, a.pupAction),
+		"PUT /pup":                            rhf(RequireAuth, a.installPup),
+		"PUT /pups":                           rhf(RequireAuth, a.installPups),
+		"POST /config/{PupID}":                rhf(RequireAuth, a.updateConfig),
+		"POST /providers/{PupID}":             rhf(RequireAuth, a.updateProviders),
+		"GET /providers/{PupID}":              rhf(RequireAuth, a.getPupProviders),
+		"POST /hooks/{PupID}":                 rhf(RequireAuth, a.updateHooks),
+		"GET /sources":                        rhf(RequireAuth, a.getSources),
+		"PUT /source":                         rhf(RequireAuth, a.createSource),
+		"GET /sources/store":                  rhf(RequireAuth, a.getStoreList),
+		"DELETE /source/{id}":                 rhf(RequireAuth, a.deleteSource),
+		"GET /log/pup/{PupID}/download":       rhf(RequireAuth, a.downloadPupLog),
+		"GET /log/job/{JobID}/download":       rhf(RequireAuth, a.downloadJobLog),
+		"GET /log/pup/{PupID}/tail":           rhf(RequireAuth, a.getPupLogTail),
+		"GET /log/job/{JobID}/tail":           rhf(RequireAuth, a.getJobLogTail),
+		"/ws/log/pup/{PupID}":                 rhf(RequireAuth, a.getPupLogSocket),
+		"/ws/log/job/{JobID}":                 rhf(RequireAuth, a.getJobLogSocket),
+		"POST /system/welcome-complete":       rhf(RequireAuth, a.setWelcomeComplete),
+		"POST /system/install-pup-collection": rhf(RequireAuth, a.installPupCollection),
+		"GET /missing-deps/{PupID}":           rhf(RequireAuth, a.getMissingDeps),
 
 		// Sidebar preferences
-		"GET /system/sidebar-preferences":              a.getSidebarPreferences,
-		"POST /system/sidebar-preferences/pups/add":    a.addSidebarPup,
-		"POST /system/sidebar-preferences/pups/remove": a.removeSidebarPup,
+		"GET /system/sidebar-preferences":              rhf(RequireAuth, a.getSidebarPreferences),
+		"POST /system/sidebar-preferences/pups/add":    rhf(RequireAuth, a.addSidebarPup),
+		"POST /system/sidebar-preferences/pups/remove": rhf(RequireAuth, a.removeSidebarPup),
 
-		"GET /system/binary-caches":        a.getBinaryCaches,
-		"PUT /system/binary-cache":         a.addBinaryCache,
-		"DELETE /system/binary-cache/{id}": a.removeBinaryCache,
+		"GET /system/binary-caches":        rhf(RequireAuth, a.getBinaryCaches),
+		"PUT /system/binary-cache":         rhf(RequireAuth, a.addBinaryCache),
+		"DELETE /system/binary-cache/{id}": rhf(RequireAuth, a.removeBinaryCache),
 
 		// Pup update routes
-		"GET /pup/updates":                    a.getAllPupUpdates,
-		"GET /pup/{pupId}/updates":            a.getPupUpdates,
-		"POST /pup/{pupId}/check-pup-updates": a.checkPupUpdates,
-		"POST /pup/{pupId}/upgrade":           a.upgradePup,
-		"POST /pup/{pupId}/update":            a.updatePup, // Legacy, redirects to upgrade
-		"POST /pup/{pupId}/rollback":          a.rollbackPup,
-		"GET /pup/{pupId}/previous-version":   a.getPreviousVersion,
-		"GET /pup/skipped-updates":            a.getAllSkippedUpdates,
-		"POST /pup/{pupId}/skip-update":       a.skipPupUpdate,
-		"DELETE /pup/{pupId}/skip-update":     a.clearSkippedUpdate,
+		"GET /pup/updates":                    rhf(RequireAuth, a.getAllPupUpdates),
+		"GET /pup/{pupId}/updates":            rhf(RequireAuth, a.getPupUpdates),
+		"POST /pup/{pupId}/check-pup-updates": rhf(RequireAuth, a.checkPupUpdates),
+		"POST /pup/{pupId}/upgrade":           rhf(RequireAuth, a.upgradePup),
+		"POST /pup/{pupId}/update":            rhf(RequireAuth, a.updatePup), // Legacy, redirects to upgrade
+		"POST /pup/{pupId}/rollback":          rhf(RequireAuth, a.rollbackPup),
+		"GET /pup/{pupId}/previous-version":   rhf(RequireAuth, a.getPreviousVersion),
+		"GET /pup/skipped-updates":            rhf(RequireAuth, a.getAllSkippedUpdates),
+		"POST /pup/{pupId}/skip-update":       rhf(RequireAuth, a.skipPupUpdate),
+		"DELETE /pup/{pupId}/skip-update":     rhf(RequireAuth, a.clearSkippedUpdate),
 
-		"GET /system/updates": a.checkForUpdates,
-		"POST /system/update": a.commenceUpdate,
+		"GET /system/updates": rhf(RequireAuth, a.checkForUpdates),
+		"POST /system/update": rhf(RequireAuth, a.commenceUpdate),
 
-		"GET /system/stats":    a.getSystemStats,
-		"GET /system/services": a.getSystemServices,
+		"GET /system/stats":    rhf(RequireAuth, a.getSystemStats),
+		"GET /system/services": rhf(RequireAuth, a.getSystemServices),
 
 		// Job management routes
-		"GET /jobs":                  a.getJobs,
-		"GET /jobs/active":           a.getActiveJobs,
-		"GET /jobs/recent":           a.getRecentJobs,
-		"GET /jobs/stats":            a.getJobStats,
-		"GET /jobs/{jobID}":          a.getJob,
-		"DELETE /jobs/{jobID}":       a.deleteJob,
-		"POST /jobs/dev/create-orphan-candidate": a.createOrphanCandidateJob,
-		"POST /jobs/clear-completed": a.clearCompletedJobs,
-		"POST /jobs/clear-all":       a.clearAllJobs,
+		"GET /jobs":                              rhf(RequireAuth, a.getJobs),
+		"GET /jobs/active":                       rhf(RequireAuth, a.getActiveJobs),
+		"GET /jobs/recent":                       rhf(RequireAuth, a.getRecentJobs),
+		"GET /jobs/stats":                        rhf(RequireAuth, a.getJobStats),
+		"GET /jobs/{jobID}":                      rhf(RequireAuth, a.getJob),
+		"DELETE /jobs/{jobID}":                   rhf(RequireAuth, a.deleteJob),
+		"POST /jobs/dev/create-orphan-candidate": rhf(RequireAuth, a.createOrphanCandidateJob),
+		"POST /jobs/clear-completed":             rhf(RequireAuth, a.clearCompletedJobs),
+		"POST /jobs/clear-all":                   rhf(RequireAuth, a.clearAllJobs),
 	}
 
 	// We always want to load recovery routes.
@@ -188,9 +210,13 @@ func RESTAPI(
 	}
 
 	for p, h := range routes {
-		a.mux.HandleFunc(p, authReq(dbx, sm, p, h))
+		if h.auth_state != NoAuth {
+			a.mux.HandleFunc(p, authReq(dbx, sm, p, h.auth_state, h.handler))
+		} else {
+			a.mux.HandleFunc(p, h.handler)
+		}
 		if unixMux != nil {
-			unixMux.HandleFunc(p, h) // no auth on unix socket
+			unixMux.HandleFunc(p, h.handler) // no auth on unix socket
 		}
 	}
 
