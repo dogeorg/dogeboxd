@@ -15,6 +15,10 @@ type LifecycleManagerLinux struct {
 	config dogeboxd.ServerConfig
 }
 
+var runRootCommand = func(action string) error {
+	return exec.Command("_dbxroot", action).Run()
+}
+
 func (t LifecycleManagerLinux) Reboot() {
 	if t.config.DevMode {
 		log.Printf("In dev mode: Not rebooting, but killing service to make it obvious.")
@@ -22,8 +26,7 @@ func (t LifecycleManagerLinux) Reboot() {
 		return
 	}
 
-	cmd := exec.Command("sudo", "_dbxroot", "reboot")
-	if err := cmd.Run(); err != nil {
+	if err := runRootCommand("reboot"); err != nil {
 		fmt.Printf("Failed to execute reboot command: %v\n", err)
 	}
 }
@@ -35,8 +38,7 @@ func (t LifecycleManagerLinux) Shutdown() {
 		return
 	}
 
-	cmd := exec.Command("sudo", "_dbxroot", "shutdown")
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Failed to execute reboot command: %v\n", err)
+	if err := runRootCommand("shutdown"); err != nil {
+		fmt.Printf("Failed to execute shutdown command: %v\n", err)
 	}
 }

@@ -15,6 +15,8 @@ import (
 
 var _ dogeboxd.NixManager = &nixManager{}
 
+const managedRebuildMarkerPath = "/run/dogebox/managed-rebuild-in-progress"
+
 type nixManager struct {
 	config dogeboxd.ServerConfig
 	pups   dogeboxd.PupManager
@@ -337,17 +339,35 @@ func (nm nixManager) RebuildBoot(log dogeboxd.SubLogger) error {
 }
 
 func (nm nixManager) Rebuild(log dogeboxd.SubLogger) error {
-	cmdArgs := []string{"_dbxroot", "nix", "rs"}
+	return runManagedRebuild(managedRebuildMarkerPath, func() error {
+		cmdArgs := []string{"_dbxroot", "nix", "rs"}
 
-	cmd := exec.Command("sudo", cmdArgs...)
-	log.LogCmd(cmd)
+		cmd := exec.Command("sudo", cmdArgs...)
+		log.LogCmd(cmd)
 
-	if err := cmd.Run(); err != nil {
-		log.Errf("Error executing nix rebuild: %v\n", err)
-		return err
+		if err := cmd.Run(); err != nil {
+			log.Errf("Error executing nix rebuild: %v\n", err)
+			return err
+		}
+
+		return nil
+	})
+}
+
+func runManagedRebuild(markerPath string, rebuild func() error) (resultErr error) {
+	if err := os.MkdirAll(filepath.Dir(markerPath), 0o700); err != nil {
+		return fmt.Errorf("creating managed rebuild marker directory: %w", err)
 	}
+	if err := os.WriteFile(markerPath, nil, 0o600); err != nil {
+		return fmt.Errorf("creating managed rebuild marker: %w", err)
+	}
+	defer func() {
+		if err := os.Remove(markerPath); err != nil && !os.IsNotExist(err) && resultErr == nil {
+			resultErr = fmt.Errorf("removing managed rebuild marker: %w", err)
+		}
+	}()
 
-	return nil
+	return rebuild()
 }
 
 func (nm nixManager) NewPatch(log dogeboxd.SubLogger) dogeboxd.NixPatch {
