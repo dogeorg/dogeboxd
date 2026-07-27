@@ -3,11 +3,6 @@ default: build
 .PHONY: clean mkbuild build multipassdev dpanel-build dev recovery test dbxdev sync-api
 
 DPANEL_DIR ?= ../dpanel
-# dpanel is built via its Nix package (the same derivation the OS image
-# ships), so npm never runs inside the shared checkout and the host's
-# node_modules (shared between macOS and the Linux VM under OrbStack) is
-# never clobbered with binaries for the wrong platform. The result symlink
-# points into the Nix store, where the package's $out is the dist directory.
 DPANEL_DIST ?= build/dpanel
 
 clean:
@@ -36,20 +31,17 @@ build/_dbxroot: clean mkbuild
 multipassdev:
 	go run ./cmd/dogeboxd -v -addr 0.0.0.0 -pups ~/
 
-# Build dpanel with its own Nix package (the same one the OS image ships),
-# overriding the pinned dogeboxd source with this checkout so the generated
-# protos match the daemon being run. git+file refs build from the working
-# tree's *tracked* files: uncommitted edits are included, but brand-new files
-# must be `git add`ed before they appear in the build.
+# Build dpanel as the OS image does, using this checkout for matching protos.
+# Nix ignores untracked files, so stage new files before building.
 dpanel-build: mkbuild
 	@command -v nix >/dev/null 2>&1 || { \
 		echo "error: nix is required to build dpanel (see $(DPANEL_DIR)/flake.nix)" >&2; \
 		exit 127; \
 	}
-	nix build "git+file://$(realpath $(DPANEL_DIR))" \
+	nix build "git+file://$(abspath $(DPANEL_DIR))" \
 		--override-input dogeboxd-src "git+file://$(CURDIR)" \
 		--no-write-lock-file \
-		-o $(DPANEL_DIST)
+		-o "$(DPANEL_DIST)"
 
 dev: build dpanel-build
 	/run/wrappers/bin/dogeboxd -v --addr 0.0.0.0 --danger-dev \
