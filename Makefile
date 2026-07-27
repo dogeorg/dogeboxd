@@ -31,8 +31,10 @@ build/_dbxroot: clean mkbuild
 multipassdev:
 	go run ./cmd/dogeboxd -v -addr 0.0.0.0 -pups ~/
 
-# Build dpanel as the OS image does, using this checkout for matching protos.
-# Nix ignores untracked files, so stage new files before building.
+# Build dpanel with its Nix package, using this checkout for matching protos.
+# This avoids npm install clobbering shared node_modules with binaries for the
+# wrong platform.
+# Nix ignores untracked files, so stage new files first.
 dpanel-build: mkbuild
 	@command -v nix >/dev/null 2>&1 || { \
 		echo "error: nix is required to build dpanel (see $(DPANEL_DIR)/flake.nix)" >&2; \
