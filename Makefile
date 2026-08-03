@@ -3,7 +3,7 @@ default: build
 .PHONY: clean mkbuild build multipassdev dpanel-build dev recovery test dbxdev sync-api
 
 DPANEL_DIR ?= ../dpanel
-DPANEL_DIST ?= $(DPANEL_DIR)/dist
+DPANEL_DIST ?= build/dpanel
 
 clean:
 	rm -rf ./build
@@ -31,32 +31,19 @@ build/_dbxroot: clean mkbuild
 multipassdev:
 	go run ./cmd/dogeboxd -v -addr 0.0.0.0 -pups ~/
 
-dpanel-build:
-	@set -eu; \
-	ROLLUP_OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
-	ROLLUP_ARCH=$$(uname -m | sed 's/x86_64/x64/' | sed 's/aarch64/arm64/'); \
-	NEED_INSTALL=0; \
-	if [ ! -x "$(DPANEL_DIR)/node_modules/.bin/vite" ]; then \
-		NEED_INSTALL=1; \
-	elif ! ls "$(DPANEL_DIR)/node_modules/@rollup/rollup-$${ROLLUP_OS}-$${ROLLUP_ARCH}"* >/dev/null 2>&1; then \
-		echo "dpanel: node_modules built for wrong platform, reinstalling..."; \
-		NEED_INSTALL=1; \
-	fi; \
-	if command -v npm >/dev/null 2>&1; then \
-		if [ "$$NEED_INSTALL" = "1" ]; then \
-			npm --prefix "$(DPANEL_DIR)" ci; \
-		fi; \
-		npm --prefix "$(DPANEL_DIR)" run build; \
-	elif command -v nix >/dev/null 2>&1; then \
-		DPANEL_DIR="$(DPANEL_DIR)" NEED_INSTALL="$$NEED_INSTALL" nix shell nixpkgs#nodejs_22 --command sh -lc '\
-			cd "$$DPANEL_DIR" && \
-			if [ "$$NEED_INSTALL" = "1" ]; then npm ci; fi && \
-			npm run build \
-		'; \
-	else \
-		echo "error: missing npm (and nix). Install Node/npm or prebuild $(DPANEL_DIST)" >&2; \
+# Build dpanel with its Nix package, using this checkout for matching protos.
+# This avoids npm install clobbering shared node_modules with binaries for the
+# wrong platform.
+# Nix ignores untracked files, so stage new files first.
+dpanel-build: mkbuild
+	@command -v nix >/dev/null 2>&1 || { \
+		echo "error: nix is required to build dpanel (see $(DPANEL_DIR)/flake.nix)" >&2; \
 		exit 127; \
-	fi
+	}
+	nix build "git+file://$(abspath $(DPANEL_DIR))" \
+		--override-input dogeboxd-src "git+file://$(CURDIR)" \
+		--no-write-lock-file \
+		-o "$(DPANEL_DIST)"
 
 dev: build dpanel-build
 	/run/wrappers/bin/dogeboxd -v --addr 0.0.0.0 --danger-dev \
