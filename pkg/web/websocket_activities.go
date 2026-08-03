@@ -9,7 +9,7 @@ import (
 
 // GetJobsHandler creates a WebSocket handler for real-time job updates
 // Sends initial jobs list, then streams job:created, job:updated, job:completed, job:failed events
-func (t api) GetJobsHandler() *websocket.Server {
+func (t api) GetJobsHandler(revoked <-chan struct{}) *websocket.Server {
 	initialPayload := func() any {
 		if _, err := t.dbx.DetectAndMarkOrphanedJobs(); err != nil {
 			fmt.Printf("failed to detect orphaned jobs during bootstrap: %v\n", err)
@@ -32,12 +32,12 @@ func (t api) GetJobsHandler() *websocket.Server {
 		}
 	}
 
-	return t.ws.GetWSHandler(initialPayload)
+	return t.ws.GetWSHandler(initialPayload, revoked)
 }
 
 // GetJobLogHandler creates a WebSocket handler for streaming job logs
 // Uses the same log streaming mechanism as pup logs (ActionLogger)
-func GetJobLogHandler(JobID string, resumeToken *string, dbx dogeboxd.Dogeboxd) (*websocket.Server, error) {
+func GetJobLogHandler(JobID string, resumeToken *string, dbx dogeboxd.Dogeboxd, revoked <-chan struct{}) (*websocket.Server, error) {
 	// Get log channel for this job (same system as pup logs)
 	cancel, logChan, err := dbx.GetJobLogChannel(JobID, resumeToken)
 	if err != nil {
@@ -48,15 +48,19 @@ func GetJobLogHandler(JobID string, resumeToken *string, dbx dogeboxd.Dogeboxd) 
 		Origin: nil,
 	}
 
-	stop := make(chan bool)  // WSCONN stop channel
-	start := make(chan bool) // tell the goroutine pump to start
-	conn := WSCONN{Stop: stop}
+	stop := make(chan struct{})  // WSCONN stop channel
+	start := make(chan struct{}) // tell the goroutine pump to start
+	conn := &WSCONN{Stop: stop}
 
 	h := websocket.Server{
 		Handler: func(ws *websocket.Conn) {
 			conn.WS = ws
-			start <- true
-			<-stop   // hold the connection until stopper closes
+			close(start)
+			select {
+			case <-stop:
+			case <-revoked:
+				conn.Close()
+			}
 			cancel() // tell the log producer to stop
 		},
 		Config: *config,

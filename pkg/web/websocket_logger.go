@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func GetLogHandler(PupID string, resumeToken *string, dbx dogeboxd.Dogeboxd) (*websocket.Server, error) {
+func GetLogHandler(PupID string, resumeToken *string, dbx dogeboxd.Dogeboxd, revoked <-chan struct{}) (*websocket.Server, error) {
 	cancel, logChan, err := dbx.GetLogChannel(PupID, resumeToken)
 	if err != nil {
 		fmt.Println("ERR", err)
@@ -17,15 +17,19 @@ func GetLogHandler(PupID string, resumeToken *string, dbx dogeboxd.Dogeboxd) (*w
 		Origin: nil,
 	}
 
-	stop := make(chan bool)  // WSCONN stop channel
-	start := make(chan bool) // tell the goroutine pump to start
-	conn := WSCONN{Stop: stop}
+	stop := make(chan struct{})  // WSCONN stop channel
+	start := make(chan struct{}) // tell the goroutine pump to start
+	conn := &WSCONN{Stop: stop}
 
 	h := websocket.Server{
 		Handler: func(ws *websocket.Conn) {
 			conn.WS = ws
-			start <- true
-			<-stop   // hold the connection until stopper closes
+			close(start)
+			select {
+			case <-stop:
+			case <-revoked:
+				conn.Close()
+			}
 			cancel() // tell the log producer to stop
 		},
 		Config: *config,

@@ -83,20 +83,24 @@ func (t *WSRelay) addSock(ws *WSCONN) {
 	t.socks = append(t.socks, ws)
 }
 
-func (t WSRelay) GetWSHandler(initialPayloader func() any) *websocket.Server {
+func (t WSRelay) GetWSHandler(initialPayloader func() any, revoked <-chan struct{}) *websocket.Server {
 	config := &websocket.Config{
 		Origin: nil,
 	}
 	h := websocket.Server{
 		Handler: func(ws *websocket.Conn) {
-			stop := make(chan bool)
-			t.newWs <- &WSCONN{ws, stop}
+			conn := &WSCONN{WS: ws, Stop: make(chan struct{})}
+			t.newWs <- conn
 
 			err := websocket.JSON.Send(ws, initialPayloader())
 			if err != nil {
 				fmt.Println("failed to send initial payload", err)
 			}
-			<-stop // hold the connection until stopper closes
+			select {
+			case <-conn.Stop:
+			case <-revoked:
+				conn.Close()
+			}
 		},
 		Config: *config,
 	}

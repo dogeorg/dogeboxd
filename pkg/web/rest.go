@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
 	"log"
 	"net"
@@ -45,23 +44,7 @@ func RESTAPI(
 	dkm dogeboxd.DKMManager,
 	ws WSRelay,
 ) conductor.Service {
-	sessions = []Session{}
-
-	if config.DevMode {
-		log.Println("In development mode: Loading REST API sessions..")
-		file, err := os.Open(fmt.Sprintf("%s/dev-sessions.gob", config.DataDir))
-		if err == nil {
-			decoder := gob.NewDecoder(file)
-			err = decoder.Decode(&sessions)
-			if err != nil {
-				log.Printf("Failed to decode sessions from dev-sessions.gob: %v", err)
-			}
-			file.Close()
-			log.Printf("Loaded %d sessions from dev-sessions.gob", len(sessions))
-		} else {
-			log.Printf("Failed to open dev-sessions.gob: %v", err)
-		}
-	}
+	sessions = newSessionManager(config, dkm)
 
 	a := api{
 		mux:       http.NewServeMux(),
@@ -119,7 +102,7 @@ func RESTAPI(
 		"PUT /system/custom-nix":              rhf(RequireAuth, a.saveCustomNix),
 		"POST /system/custom-nix/validate":    rhf(RequireAuth, a.validateCustomNix),
 		"POST /system/import-blockchain-data": rhf(RequireAuth, a.importBlockchainData),
-		"/ws/state/":                          rhf(NoAuth, a.getUpdateSocket),
+		"/ws/state/":                          rhf(ConfiguredAuth, a.getUpdateSocket),
 		"/ws/jobs":                            rhf(RequireAuth, a.getJobsSocket),
 		"/ws/log/job/{JobID}":                 rhf(RequireAuth, a.getJobLogSocket),
 	}

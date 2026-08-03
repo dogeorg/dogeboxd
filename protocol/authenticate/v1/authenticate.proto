@@ -10,6 +10,7 @@ message AuthenticateRequest {
 
 message AuthenticateResponse {
     string token = 1 [(buf.validate.field).string = {min_len: 1, max_len: 100}];
+    uint32 expires_at_unix_seconds = 2;
 }
 
 service AuthenticateService {

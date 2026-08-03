@@ -67,10 +67,11 @@ func (x *AuthenticateRequest) GetPassword() string {
 }
 
 type AuthenticateResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Token                string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	ExpiresAtUnixSeconds uint32                 `protobuf:"varint,2,opt,name=expires_at_unix_seconds,json=expiresAtUnixSeconds,proto3" json:"expires_at_unix_seconds,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *AuthenticateResponse) Reset() {
@@ -110,15 +111,23 @@ func (x *AuthenticateResponse) GetToken() string {
 	return ""
 }
 
+func (x *AuthenticateResponse) GetExpiresAtUnixSeconds() uint32 {
+	if x != nil {
+		return x.ExpiresAtUnixSeconds
+	}
+	return 0
+}
+
 var File_authenticate_v1_authenticate_proto protoreflect.FileDescriptor
 
 const file_authenticate_v1_authenticate_proto_rawDesc = "" +
 	"\n" +
 	"\"authenticate/v1/authenticate.proto\x12\x0fauthenticate.v1\x1a\x1bbuf/validate/validate.proto\":\n" +
 	"\x13AuthenticateRequest\x12#\n" +
-	"\bpassword\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bpassword\"7\n" +
+	"\bpassword\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bpassword\"n\n" +
 	"\x14AuthenticateResponse\x12\x1f\n" +
-	"\x05token\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\x05token2t\n" +
+	"\x05token\x18\x01 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18dR\x05token\x125\n" +
+	"\x17expires_at_unix_seconds\x18\x02 \x01(\rR\x14expiresAtUnixSeconds2t\n" +
 	"\x13AuthenticateService\x12]\n" +
 	"\fAuthenticate\x12$.authenticate.v1.AuthenticateRequest\x1a%.authenticate.v1.AuthenticateResponse\"\x00B\xd1\x01\n" +
 	"\x13com.authenticate.v1B\x11AuthenticateProtoP\x01ZJgithub.com/Dogebox-WG/dogeboxd/protocol/gen/authenticate/v1;authenticatev1\xa2\x02\x03AXX\xaa\x02\x0fAuthenticate.V1\xca\x02\x0fAuthenticate\\V1\xe2\x02\x1bAuthenticate\\V1\\GPBMetadata\xea\x02\x10Authenticate::V1b\x06proto3"

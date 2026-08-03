@@ -9,8 +9,8 @@ import (
 
 type DKMManager interface {
 	CreateKey(password string) ([]string, error)
-	// Returns "" as a token if the password supplied is invalid.
-	Authenticate(password string) (string, error, error)
+	// AuthenticationToken is empty when the supplied password is invalid.
+	Authenticate(password string) (DKMResponseAuthenticate, error, error)
 	RefreshToken(old string) (string, bool, error)
 	InvalidateToken(token string) (bool, error)
 	MakeDelegate(id string, token string) (DKMResponseMakeDelegate, error)
@@ -89,22 +89,22 @@ func (t dkmManager) CreateKey(password string) ([]string, error) {
 	return result.SeedPhrase, nil
 }
 
-func (t dkmManager) Authenticate(password string) (string, error, error) {
+func (t dkmManager) Authenticate(password string) (DKMResponseAuthenticate, error, error) {
 	var result DKMResponseAuthenticate
 	var errorResponse DKMErrorResponse
 
 	_, err := t.client.R().SetBody(map[string]string{"password": password}).SetResult(&result).SetError(&errorResponse).Post("/login")
 	if err != nil {
 		log.Println("Failed to contact DKM:", err)
-		return "", nil, err
+		return DKMResponseAuthenticate{}, nil, err
 	}
 
 	if errorResponse.Error != "" {
 		log.Printf("Error from DKM: [%s] %s", errorResponse.Error, errorResponse.Reason)
-		return "", errors.New(errorResponse.Reason), nil
+		return DKMResponseAuthenticate{}, errors.New(errorResponse.Reason), nil
 	}
 
-	return result.AuthenticationToken, nil, nil
+	return result, nil, nil
 }
 
 func (t dkmManager) RefreshToken(oldToken string) (string, bool, error) {

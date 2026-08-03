@@ -56,7 +56,7 @@ func (t api) createMasterKey(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	dkmToken, dkmError, err := t.dkm.Authenticate(requestBody.Password)
+	authentication, dkmError, err := t.dkm.Authenticate(requestBody.Password)
 	if err != nil {
 		sendErrorResponse(w, 500, err.Error())
 		return
@@ -67,7 +67,7 @@ func (t api) createMasterKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if dkmToken == "" {
+	if authentication.AuthenticationToken == "" {
 		// We should never get here, seeing as we are using
 		// the same password as we just encrypted our key with..
 		sendErrorResponse(w, 403, "Invalid password")
@@ -75,14 +75,13 @@ func (t api) createMasterKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// We've authed. Save our dkm authentication token to a new session.
-	token, session := newSession()
-	session.DKM_TOKEN = dkmToken
-	storeSession(session, t.config)
+	session := sessions.Create(authentication)
 
 	sendResponse(w, map[string]any{
-		"success":    true,
-		"seedPhrase": seedPhrase,
-		"token":      token,
+		"success":              true,
+		"seedPhrase":           seedPhrase,
+		"token":                session.Token,
+		"expiresAtUnixSeconds": session.Expiration.Unix(),
 	})
 }
 

@@ -2,33 +2,21 @@ package web
 
 import (
 	"context"
-	"encoding/gob"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
-	"time"
 
 	"connectrpc.com/connect"
 	dogeboxd "github.com/Dogebox-WG/dogeboxd/pkg"
 	authenticatev1 "github.com/Dogebox-WG/dogeboxd/protocol/gen/authenticate/v1"
-	"github.com/gorilla/securecookie"
 )
 
-const sessionExpiry = time.Hour
+var sessions *sessionManager
 
-type Session struct {
-	Token      string
-	Expiration time.Time
-	DKM_TOKEN  string
-}
-
-var sessions []Session
+type sessionContextKey struct{}
 
 func getBearerToken(r *http.Request) (bool, string) {
 	authHeader := r.Header.Get("authorization")
@@ -37,9 +25,9 @@ func getBearerToken(r *http.Request) (bool, string) {
 		return false, ""
 	}
 
-	authPart := strings.Split(authHeader, " ")
+	authPart := strings.Fields(authHeader)
 
-	if len(authPart) != 2 {
+	if len(authPart) != 2 || !strings.EqualFold(authPart[0], "Bearer") {
 		return false, ""
 	}
 
@@ -56,84 +44,52 @@ func getQueryToken(r *http.Request) (bool, string) {
 
 func getSession(r *http.Request, tokenExtractor func(r *http.Request) (bool, string)) (Session, bool) {
 	tokenOK, token := tokenExtractor(r)
-	if !tokenOK || token == "" {
+	if !tokenOK || token == "" || sessions == nil {
 		return Session{}, false
 	}
 
-	for i, session := range sessions {
-		if session.Token == token {
-
-			if time.Now().After(session.Expiration) {
-				// Expired.
-				sessions = append(sessions[:i], sessions[i+1:]...)
-				return Session{}, false
-			}
-
-			return session, true
-		}
+	session, ok := sessions.Get(token)
+	if !ok {
+		return Session{}, false
 	}
-
-	return Session{}, false
-}
-
-func storeSession(session Session, config dogeboxd.ServerConfig) {
-	sessions = append(sessions, session)
-
-	if config.DevMode {
-		file, err := os.OpenFile(fmt.Sprintf("%s/dev-sessions.gob", config.DataDir), os.O_RDWR|os.O_CREATE, 0666)
-		if err == nil {
-			encoder := gob.NewEncoder(file)
-			err = encoder.Encode(sessions)
-			if err != nil {
-				log.Printf("Failed to encode sessions to dev-sessions.gob: %v", err)
-			}
-			file.Close()
-		} else {
-			log.Printf("Failed to open dev-sessions.gob: %v, ignoring..", err)
-		}
-	}
-}
-
-func newSession() (string, Session) {
-	tokenBytes := securecookie.GenerateRandomKey(32)
-	tokenHex := make([]byte, hex.EncodedLen(len(tokenBytes)))
-	hex.Encode(tokenHex, tokenBytes)
-	token := string(tokenHex)
-	session := Session{
-		Token:      token,
-		Expiration: time.Now().Add(sessionExpiry),
-	}
-	return token, session
+	return *session, true
 }
 
 func delSession(r *http.Request) error {
 	tokenOK, token := getBearerToken(r)
-	if !tokenOK || token == "" {
+	if !tokenOK || token == "" || sessions == nil {
 		return errors.New("failed to fetch bearer token")
 	}
-
-	for i, session := range sessions {
-		if session.Token == token {
-			sessions = append(sessions[:i], sessions[i+1:]...)
-			return nil
-		}
-	}
-
+	sessions.Revoke(token)
 	return nil
+}
+
+func sessionFromContext(ctx context.Context) (*Session, bool) {
+	session, ok := ctx.Value(sessionContextKey{}).(*Session)
+	return session, ok
 }
 
 func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, auth_state AuthState, next http.HandlerFunc) http.HandlerFunc {
 	tokenExtractor := getBearerToken
+	if strings.HasPrefix(route, "/ws/") {
+		tokenExtractor = getQueryToken
+	}
 
 	sessionHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, ok := getSession(r, tokenExtractor)
+		tokenOK, token := tokenExtractor(r)
+		if !tokenOK || sessions == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		session, ok := sessions.Get(token)
 
 		if !ok {
-			w.WriteHeader(401)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), sessionContextKey{}, session)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 
 	// Helper function to handle system configuration check and authentication
@@ -155,11 +111,6 @@ func authReq(dbx dogeboxd.Dogeboxd, sm dogeboxd.StateManager, route string, auth
 		return http.HandlerFunc(handleConfigCheck)
 	}
 
-	// Handle Websocket request authentication separately.
-	if strings.HasPrefix(route, "/ws/") {
-		tokenExtractor = getQueryToken
-	}
-
 	return sessionHandler
 }
 
@@ -171,49 +122,33 @@ func (s *AuthenticateServer) Authenticate(
 	_ context.Context,
 	req *authenticatev1.AuthenticateRequest,
 ) (*authenticatev1.AuthenticateResponse, error) {
-	dkmToken, dkmError, err := s.a.dkm.Authenticate(req.Password)
+	authentication, dkmError, err := s.a.dkm.Authenticate(req.Password)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if dkmError != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, dkmError)
 	}
-	if dkmToken == "" {
+	if authentication.AuthenticationToken == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("Invalid password"))
 	}
 
-	token, session := newSession()
-	session.DKM_TOKEN = dkmToken
-	storeSession(session, s.a.config)
+	session := sessions.Create(authentication)
 
-	res := &authenticatev1.AuthenticateResponse{Token: token}
+	res := &authenticatev1.AuthenticateResponse{
+		Token:                session.Token,
+		ExpiresAtUnixSeconds: uint32(session.Expiration.Unix()),
+	}
 	return res, nil
 }
 
 func (t api) logout(w http.ResponseWriter, r *http.Request) {
-	session, sessionOK := getSession(r, getBearerToken)
-	if !sessionOK {
-		sendErrorResponse(w, 500, "Failed to fetch session")
+	tokenOK, token := getBearerToken(r)
+	if !tokenOK || sessions == nil {
+		sendErrorResponse(w, http.StatusUnauthorized, "Failed to fetch session")
 		return
 	}
-
-	// Clear our DKM token first. This ensures we can still convey an error
-	// to the user if this fails for whatever reason. UI should tell them to
-	// reboot their box or something to clear all authed sessions.
-	ok, err := t.dkm.InvalidateToken(session.DKM_TOKEN)
-	if err != nil {
-		log.Println("failed to invalidate token with DKM:", err)
-		sendErrorResponse(w, 500, err.Error())
-		return
-	}
-
-	if !ok {
-		log.Println("DKM returned ok=false when invalidating token")
-		sendErrorResponse(w, 500, "Failed to invalidate token")
-		return
-	}
-
-	delSession(r)
+	sessions.Revoke(token)
 
 	sendResponse(w, map[string]any{
 		"success": true,
@@ -272,11 +207,10 @@ func (t api) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Invalidate all existing sessions since they're using the old password
-	for _, session := range sessions {
-		t.dkm.InvalidateToken(session.DKM_TOKEN)
+	// Invalidate all existing sessions since they're using the old password.
+	if sessions != nil {
+		sessions.RevokeAll()
 	}
-	sessions = nil
 
 	sendResponse(w, map[string]any{
 		"success": true,
