@@ -451,6 +451,19 @@ func (t api) setStorageDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Dev mode could be run in an environment without dedicated distk devices.
+	// Clear any existing selection so bootstrap leaves data on the current disk.
+	if t.config.DevMode && requestBody.StorageDevice == "" {
+		dbxState.StorageDevice = ""
+		if err := t.sm.SetDogebox(dbxState); err != nil {
+			sendErrorResponse(w, http.StatusInternalServerError, "Error saving state")
+			return
+		}
+
+		sendResponse(w, map[string]any{"status": "OK"})
+		return
+	}
+
 	disks, err := system.GetSystemDisks()
 	if err != nil {
 		sendErrorResponse(w, http.StatusInternalServerError, "Error getting system disks")
