@@ -115,6 +115,9 @@ func buildRebuildCommand(action string, setRelease string, flakePath string, ver
 			repo = fmt.Sprintf("github:dogebox-wg/%s/%s", pkg, setRelease)
 		}
 		commandArgs = append(commandArgs, "--override-input", pkg, repo)
+		if pkg == "dogeboxd" {
+			commandArgs = append(commandArgs, "--override-input", "dpanel/dogeboxd-src", repo)
+		}
 	}
 
 	return "nixos-rebuild", commandArgs, nil

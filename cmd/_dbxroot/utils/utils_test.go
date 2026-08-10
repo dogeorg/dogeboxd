@@ -85,6 +85,11 @@ func TestGetRebuildCommandUsesVersionOverridesWhenNoFlakeDirIsProvided(t *testin
 
 func TestGetRebuildCommandUsesInstalledSourcesForInitialSetup(t *testing.T) {
 	versionInfo := testVersionInfo()
+	versionInfo.Packages["dogeboxd"] = version.DBXVersionInputTuple{
+		Rev:    "local-dogeboxd-rev",
+		Hash:   "dogeboxd-hash",
+		Source: "/nix/store/local-dogeboxd-source",
+	}
 	versionInfo.Packages["dkm"] = version.DBXVersionInputTuple{
 		Rev:    "local-only-rev",
 		Hash:   "dkm-hash",
@@ -97,8 +102,14 @@ func TestGetRebuildCommandUsesInstalledSourcesForInitialSetup(t *testing.T) {
 	}
 
 	joinedArgs := strings.Join(args, " ")
-	expected := "--override-input dkm path:/nix/store/local-dkm-source?rev=local-only-rev"
-	if !strings.Contains(joinedArgs, expected) {
-		t.Fatalf("expected rebuild args to contain %q, got %q", expected, joinedArgs)
+	expectedOverrides := []string{
+		"--override-input dogeboxd path:/nix/store/local-dogeboxd-source?rev=local-dogeboxd-rev",
+		"--override-input dpanel/dogeboxd-src path:/nix/store/local-dogeboxd-source?rev=local-dogeboxd-rev",
+		"--override-input dkm path:/nix/store/local-dkm-source?rev=local-only-rev",
+	}
+	for _, expected := range expectedOverrides {
+		if !strings.Contains(joinedArgs, expected) {
+			t.Fatalf("expected rebuild args to contain %q, got %q", expected, joinedArgs)
+		}
 	}
 }
