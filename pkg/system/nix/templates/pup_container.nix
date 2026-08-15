@@ -82,6 +82,9 @@ in
       { node = "/dev/teepriv0"; modifier = "rwm"; }
       { node = "char-usb_device"; modifier = "rwm"; }
       { node = "char-hidraw";     modifier = "rwm"; }
+      {{ range .PUP_DEVICES }}
+      { node = "{{.NODE}}"; modifier = "{{.MODIFIER}}"}
+      {{ end }}
     ];
 
     ephemeral = true;

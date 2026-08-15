@@ -106,6 +106,10 @@ func (nm nixManager) WritePupFile(
 			PORT   int
 			PUBLIC bool
 		}{},
+		PUP_DEVICES: []struct {
+			NODE     string
+			MODIFIER string
+		}{},
 		STORAGE_PATH: filepath.Join(nm.config.DataDir, "pups/storage", state.ID),
 		PUP_PATH:     sourceDirectory,
 		NIX_FILE:     nixFile,
@@ -131,6 +135,16 @@ func (nm nixManager) WritePupFile(
 		if ex.ListenOnHost || ex.WebUI {
 			rebuildFW = true
 		}
+	}
+
+	for _, dev := range state.Manifest.Container.Devices {
+		values.PUP_DEVICES = append(values.PUP_DEVICES, struct {
+			NODE     string
+			MODIFIER string
+		}{
+			NODE:     dev.Node,
+			MODIFIER: dev.Modifier,
+		})
 	}
 
 	// If we have any public host ports, we need to

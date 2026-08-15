@@ -284,6 +284,10 @@ type NixPupContainerTemplateValues struct {
 		PORT   int
 		PUBLIC bool
 	}
+	PUP_DEVICES []struct {
+		NODE     string
+		MODIFIER string
+	}
 	STORAGE_PATH string
 	PUP_PATH     string
 	NIX_FILE     string

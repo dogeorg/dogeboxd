@@ -169,6 +169,7 @@ type PupManifestContainer struct {
 	// as an artifact here with the correct execution configuration.
 	Services []PupManifestService      `json:"services"`
 	Exposes  []PupManifestExposeConfig `json:"exposes"`
+	Devices  []PupManifestDeviceConfig `json:"devices"`
 	// This pup requires internet access to function.
 	RequiresInternet bool `json:"requiresInternet"`
 }
@@ -208,6 +209,12 @@ type PupManifestExposeConfig struct {
 	Interfaces   []string `json:"interfaces"`   // Designates that certain interfaces can be accessed on this port
 	ListenOnHost bool     `json:"listenOnHost"` // If true, the port will be accessible on the host network, otherwise it will listen on a private internal network interface.
 	WebUI        bool     `json:"webUI"`        // If true, will be proxied from an available port to the dPanel user
+}
+
+/* Allow the user to specify devices available inside the container */
+type PupManifestDeviceConfig struct {
+	Node     string `json:"node"`     // Device Node name. E.g. `/dev/ttyS6`
+	Modifier string `json:"modifier"` // Device Access Modifiers. String consisting of a combination of `r`, `w`, and `m`
 }
 
 type PupManifestInterface struct {
