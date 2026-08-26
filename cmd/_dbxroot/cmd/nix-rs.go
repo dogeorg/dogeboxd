@@ -11,6 +11,7 @@ import (
 
 var nixRSSetRelease string
 var nixRSFlakeDir string
+var nixRSGitHubToken string
 var nixRSSystemdRun bool
 var nixRSSystemdUnit string
 var nixRSCleanupFlakeDir bool
@@ -73,7 +74,7 @@ var rsCmd = &cobra.Command{
 			return
 		}
 
-		if err := utils.RunNixOSRebuild("switch", nixRSSetRelease, nixRSFlakeDir); err != nil {
+		if err := utils.RunNixOSRebuild("switch", nixRSSetRelease, nixRSFlakeDir, nixRSGitHubToken); err != nil {
 			fmt.Fprintf(os.Stderr, "Error executing nixos-rebuild switch: %v\n", err)
 			os.Exit(1)
 		}
@@ -99,5 +100,6 @@ func init() {
 	rsCmd.Flags().BoolVar(&nixRSSystemdRun, "systemd-run", false, "run rebuild inside a transient systemd unit")
 	rsCmd.Flags().StringVar(&nixRSSystemdUnit, "systemd-unit", "", "transient systemd unit name")
 	rsCmd.Flags().BoolVar(&nixRSCleanupFlakeDir, "cleanup-flake-dir", false, "remove the flake directory after a successful rebuild")
+	rsCmd.Flags().StringVar(&nixRSGitHubToken, "github-token", "", "GitHub token (use for more API request allocation)")
 	nixCmd.AddCommand(rsCmd)
 }

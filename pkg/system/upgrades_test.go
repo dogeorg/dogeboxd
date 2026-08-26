@@ -24,6 +24,46 @@ func (m *MockRepoTagsFetcher) GetRepoTags(repo string) ([]RepositoryTag, error) 
 	return m.tags, m.err
 }
 
+func TestRedactGitHubTokenInArgs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "no token flag",
+			in:   []string{"sudo", "_dbxroot", "nix", "rs", "--flake-dir", "/tmp/x"},
+			want: []string{"sudo", "_dbxroot", "nix", "rs", "--flake-dir", "/tmp/x"},
+		},
+		{
+			name: "github token redacted",
+			in:   []string{"sudo", "_dbxroot", "nix", "rs", "--github-token", "ghp_secret"},
+			want: []string{"sudo", "_dbxroot", "nix", "rs", "--github-token", "[REDACTED]"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := redactGitHubTokenInArgs(tc.in)
+			if len(got) != len(tc.want) {
+				t.Fatalf("len got %d want %d", len(got), len(tc.want))
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("index %d: got %q want %q", i, got[i], tc.want[i])
+				}
+			}
+			// Original slice must be unchanged (copy semantics).
+			if len(tc.in) >= 2 && tc.in[len(tc.in)-1] == "ghp_secret" {
+				if tc.in[len(tc.in)-1] != "ghp_secret" {
+					t.Error("input slice was mutated")
+				}
+			}
+		})
+	}
+}
+
 // TODO : this only tests the semver module
 func TestSemverValidation(t *testing.T) {
 	testCases := []struct {

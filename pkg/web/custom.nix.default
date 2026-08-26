@@ -4,7 +4,12 @@
   # Custom NixOS Configuration
   # Add your custom NixOS modules and configuration here.
   # This file is included in the system configuration when it exists.
-  
+
+  # Specifying a GitHub Personal Access Token.  May be needed if there
+  # are a lot of GitHub API requests from your network.
+  #
+  # systemd.services.dogeboxd.environment.GITHUB_TOKEN = "MY_PAT_HERE";
+
   # Example: Enable Tailscale VPN
   # 1. Uncomment the lines below
   # 2. Replace tskey-auth-XXXXX-XXXXXXXXXXXXXXXXX with your auth key from:
